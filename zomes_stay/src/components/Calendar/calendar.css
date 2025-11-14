@@ -1,0 +1,27 @@
+.custom-calendar {
+  width: 100%;
+  border: none;
+}
+
+.custom-calendar .react-datepicker__month-container {
+  float: left;
+  width: 50%;
+}
+
+.custom-calendar .react-datepicker__day {
+  width: 2.5rem;
+  line-height: 2.5rem;
+  margin: 0.2rem;
+}
+
+.custom-calendar .react-datepicker__day--in-range {
+  background-color: #e8f4fd;
+}
+
+.custom-calendar .react-datepicker__day--in-selecting-range {
+  background-color: #e8f4fd;
+}
+
+.custom-calendar .react-datepicker__day--selected {
+  background-color: #1890ff;
+}

@@ -1,0 +1,77 @@
+
+
+[
+    {
+      "id": 1,
+      "name": "Paddy field facing balcony",
+      "image": "https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&w=800&q=80",
+      "features": [
+        "Balcony with paddy field view",
+        "King size bed",
+        "Air conditioning",
+        "Free Wi-Fi, TV, Mini fridge"
+      ],
+      "mealPlans": [
+        {
+          "key": "ep",
+          "label": "EP – European Plan",
+          "desc": "European Plan",
+          "includes": []
+        },
+        {
+          "key": "ap",
+          "label": "AP – American Plan",
+          "desc": "American Plan",
+          "includes": ["Free Breakfast", "Lunch", "Dinner"]
+        },
+        {
+          "key": "map",
+          "label": "MAP – Modified American Plan",
+          "desc": "Modified American Plan",
+          "includes": ["Free Breakfast", "Lunch or Dinner"]
+        }
+      ],
+      "pricing": {
+        "currentPrice": 8000,
+        "originalPrice": 10832,
+        "taxes": 1937
+      }
+    },
+    {
+      "id": 2,
+      "name": "Garden View Suite",
+      "image": "https://images.unsplash.com/photo-1505691723518-36a5ac3be353?auto=format&fit=crop&w=800&q=80",
+      "features": [
+        "Private garden access",
+        "Queen size bed",
+        "Jacuzzi bath",
+        "Smart TV & Mini bar"
+      ],
+      "mealPlans": [
+        {
+          "key": "ep",
+          "label": "EP – European Plan",
+          "desc": "European Plan",
+          "includes": []
+        },
+        {
+          "key": "cp",
+          "label": "CP – Continental Plan",
+          "desc": "Continental Plan",
+          "includes": ["Free Breakfast"]
+        },
+        {
+          "key": "map",
+          "label": "MAP – Modified American Plan",
+          "desc": "Modified American Plan",
+          "includes": ["Free Breakfast", "Lunch or Dinner"]
+        }
+      ],
+      "pricing": {
+        "currentPrice": 9500,
+        "originalPrice": 12000,
+        "taxes": 2200
+      }
+    }
+  ]
+  

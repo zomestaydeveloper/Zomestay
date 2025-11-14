@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+/* DatePicker Customization */
+.react-datepicker-wrapper {
+  width: 100%;
+}
+
+.react-datepicker__month-container {
+  float: left;
+  min-width: 280px;
+}
+
+.react-datepicker__month {
+  margin: 0.4rem;
+}
+
+.react-datepicker__day {
+  width: 2rem;
+  line-height: 2rem;
+  margin: 0.2rem;
+}
+
+.react-datepicker__day--in-range {
+  background-color: #004AAD !important;
+  color: white !important;
+}
+
+.react-datepicker__day--in-selecting-range {
+  background-color: rgba(0, 74, 173, 0.5) !important;
+}
+
+.react-datepicker__day--selected {
+  background-color: #004AAD !important;
+}
+
+/* Position the calendar dropdown properly */
+.react-datepicker-popper {
+  z-index: 100;
+}
+
+/* Show two months side by side */
+.react-datepicker__month-container + .react-datepicker__month-container {
+  margin-left: 20px;
+}
+
+/* hide horizontal scrollbar on mobile */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
