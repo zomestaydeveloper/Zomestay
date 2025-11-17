@@ -239,6 +239,17 @@ const DefaultHeader = () => {
                 Profile
               </button>
             )}
+              {isAgentLoggedIn && (
+              <button 
+                onClick={() => {
+                  navigate('/agent/dashboard');
+                  setMenuOpen(false);
+                }}
+                className="w-full border border-gray-300 text-gray-700 text-sm h-12 rounded-lg hover:bg-gray-50 transition-colors font-semibold flex items-center justify-center"
+              >
+                Profile
+              </button>
+            )}
           </div>
           
           {/* Bottom Section - Logout and Contact Info */}

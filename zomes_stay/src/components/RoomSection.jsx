@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Plus, Minus, Users, BedDouble, Check } from "lucide-react";
+import { Plus, Minus, Users, BedDouble, Check, ChevronDown, ChevronUp } from "lucide-react";
 import { bookingDataService } from "../services";
 import paymentService from "../services/paymentService";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -55,7 +55,7 @@ const RoomSection = ({ propertyId, range, party }) => {
   const [error, setError] = useState("");
   const [bookings, setBookings] = useState({});
 
- // console.log(bookings);
+  console.log(bookings);
   const [showCalc, setShowCalc] = useState({});
   const [requestedGuests, setRequestedGuests] = useState(0);
   const [requestedRooms, setRequestedRooms] = useState(0);
@@ -65,6 +65,9 @@ const RoomSection = ({ propertyId, range, party }) => {
   
   // Track which room type cards are selected by user
   const [selectedCards, setSelectedCards] = useState(new Set());
+  
+  // Track which room types are expanded (accordion state)
+  const [expandedRooms, setExpandedRooms] = useState(new Set());
   
   // Modal state for notifications
   const [modal, setModal] = useState({
@@ -212,6 +215,12 @@ const RoomSection = ({ propertyId, range, party }) => {
         // If already selected, deselect it (set rooms to 0)
         newSelected.delete(roomTypeId);
         updateBooking(roomTypeId, { rooms: 0, guests: 0, children: 0, extraGuests: [] });
+        // Collapse accordion when deselected
+        setExpandedRooms(prev => {
+          const newExpanded = new Set(prev);
+          newExpanded.delete(roomTypeId);
+          return newExpanded;
+        });
       } else {
         // If not selected, select it (set to minimum values)
         newSelected.add(roomTypeId);
@@ -222,8 +231,24 @@ const RoomSection = ({ propertyId, range, party }) => {
           children: 0, 
           extraGuests: [] 
         });
+        // Auto-expand accordion when selected
+        setExpandedRooms(prev => new Set(prev).add(roomTypeId));
       }
       return newSelected;
+    });
+  };
+
+  // Toggle accordion expansion
+  const toggleRoomExpansion = (roomTypeId, e) => {
+    e?.stopPropagation(); // Prevent card selection when clicking expand button
+    setExpandedRooms(prev => {
+      const newExpanded = new Set(prev);
+      if (newExpanded.has(roomTypeId)) {
+        newExpanded.delete(roomTypeId);
+      } else {
+        newExpanded.add(roomTypeId);
+      }
+      return newExpanded;
     });
   };
 
@@ -337,6 +362,65 @@ const RoomSection = ({ propertyId, range, party }) => {
     return calculatePriceDetails(room, booking).totalPrice;
   };
 
+  // Calculate tax based on room rate per room
+  // Tax rule: If room rate <= 7500, tax is 5%, if > 7500, tax is 18%
+  const calculateTaxForRoom = (roomBaseRate) => {
+    if (!roomBaseRate || roomBaseRate <= 0) return 0;
+    
+    const taxPercentage = roomBaseRate <= 7500 ? 5 : 18;
+    return (roomBaseRate * taxPercentage) / 100;
+  };
+
+  // Calculate tax for a room type based on per-room base rate and number of rooms
+  // This calculates tax for each room separately and sums them
+  const calculateTaxForRoomType = (room, booking) => {
+    if (!booking.rooms || booking.rooms <= 0) return { taxAmount: 0, taxDetails: [] };
+    
+    // Get the base rate per room per date (double occupancy price)
+    const firstDateData = room.ratePlanDates?.[0];
+    const planData = firstDateData?.[booking.mealPlan];
+    if (!planData || !planData.doubleOccupancyPrice) return { taxAmount: 0, taxDetails: [] };
+    
+    const roomBaseRate = planData.doubleOccupancyPrice;
+    const taxPerRoom = calculateTaxForRoom(roomBaseRate);
+    
+    // Calculate tax for all dates
+    let totalTax = 0;
+    const taxDetails = [];
+    
+    room.ratePlanDates.forEach(dateData => {
+      const datePlanData = dateData[booking.mealPlan];
+      if (!datePlanData) return;
+      
+      const dateRoomBaseRate = datePlanData.doubleOccupancyPrice || roomBaseRate;
+      const dateTaxPerRoom = calculateTaxForRoom(dateRoomBaseRate);
+      const dateTaxTotal = dateTaxPerRoom * booking.rooms;
+      totalTax += dateTaxTotal;
+      
+      taxDetails.push({
+        date: dateData.date,
+        roomBaseRate: dateRoomBaseRate,
+        taxPercentage: dateRoomBaseRate <= 7500 ? 5 : 18,
+        taxPerRoom: dateTaxPerRoom,
+        numberOfRooms: booking.rooms,
+        taxAmount: dateTaxTotal
+      });
+    });
+    
+    return { taxAmount: totalTax, taxDetails };
+  };
+
+  // Calculate price with tax included
+  const calculatePriceWithTax = (room, booking) => {
+    const basePrice = calculatePrice(room, booking);
+    const { taxAmount } = calculateTaxForRoomType(room, booking);
+    return {
+      basePrice,
+      taxAmount,
+      totalPrice: basePrice + taxAmount
+    };
+  };
+
   const handleGuestChange = (room, currentBooking, delta) => {
     const newGuests = Math.max(room.minOccupancy, currentBooking.guests + delta);
     const maxPossibleGuests = currentBooking.rooms * room.maxOccupancy;
@@ -403,31 +487,59 @@ const RoomSection = ({ propertyId, range, party }) => {
     setPaymentLoading(true);
     
     try {
-      // Calculate total price only for selected cards
-      const totalPrice = Array.from(selectedCards).reduce((total, roomTypeId) => {
+      // Calculate total price with tax for selected cards
+      const calculatedTotals = Array.from(selectedCards).reduce((acc, roomTypeId) => {
         const room = availableRoomTypes.find(r => r.roomTypeId === roomTypeId);
         const booking = bookings[roomTypeId];
         if (room && booking) {
-          return total + calculatePrice(room, booking);
+          const basePrice = calculatePrice(room, booking);
+          const { taxAmount } = calculateTaxForRoomType(room, booking);
+          return {
+            baseTotal: acc.baseTotal + basePrice,
+            taxTotal: acc.taxTotal + taxAmount,
+            total: acc.total + basePrice + taxAmount
+          };
         }
-        return total;
-      }, 0);
+        return acc;
+      }, { baseTotal: 0, taxTotal: 0, total: 0 });
+
+      // Apply agent discount if applicable (only to base price, not tax)
+      let finalSubtotal = calculatedTotals.baseTotal;
+      if (agentRates) {
+        if (agentRates.type === 'percentage') {
+          finalSubtotal = calculatedTotals.baseTotal * (1 - agentRates.discount / 100);
+        } else {
+          finalSubtotal = Math.max(0, calculatedTotals.baseTotal - agentRates.discount);
+        }
+      }
+      
+      const totalPrice = finalSubtotal + calculatedTotals.taxTotal;
+      
       if (totalPrice <= 0) {
         showModal('warning', 'Limit Exceeded','Please select at least one room to proceed with payment.');
         setPaymentLoading(false);
         return;
       }
 
-      // Calculate totals from bookings dynamically
-      const totalGuests = Object.values(bookings).reduce((sum, booking) => sum + (booking.guests || 0), 0);
-      const totalChildren = Object.values(bookings).reduce((sum, booking) => sum + (booking.children || 0), 0);
-      const totalRooms = Object.values(bookings).reduce((sum, booking) => sum + (booking.rooms || 0), 0);
+      // Calculate totals from selected bookings only
+      const selectedBookings = Array.from(selectedCards)
+        .map(roomTypeId => bookings[roomTypeId])
+        .filter(booking => booking && booking.rooms > 0);
+      
+      const totalGuests = selectedBookings.reduce((sum, booking) => sum + (booking.guests || 0), 0);
+      const totalChildren = selectedBookings.reduce((sum, booking) => sum + (booking.children || 0), 0);
+      const totalRooms = selectedBookings.reduce((sum, booking) => sum + (booking.rooms || 0), 0);
        
-      // Prepare room selections for the order
-      const roomSelections = Object.keys(bookings).map(roomTypeId => {
-        const room = availableRoomTypes.find(r => r.roomTypeId === roomTypeId);
-        const booking = bookings[roomTypeId];
-        if (room && booking) {
+      // Prepare room selections for the order - Only include selected room types with rooms > 0
+      const roomSelections = Array.from(selectedCards)
+        .filter(roomTypeId => {
+          const booking = bookings[roomTypeId];
+          return booking && booking.rooms > 0;
+        })
+        .map(roomTypeId => {
+          const room = availableRoomTypes.find(r => r.roomTypeId === roomTypeId);
+          const booking = bookings[roomTypeId];
+          if (room && booking) {
           // Get actual room IDs from availableRoomsForEntireStay
           const selectedRoomIds = room.availableRoomsForEntireStay
             .slice(0, booking.rooms) // Take only the number of rooms needed
@@ -458,6 +570,9 @@ const RoomSection = ({ propertyId, range, party }) => {
 
           console.log("datesToBlock", datesToBlock);
 
+          const roomBasePrice = calculatePrice(room, booking);
+          const { taxAmount: roomTax } = calculateTaxForRoomType(room, booking);
+          
           return {
             roomTypeId: room.roomTypeId,
             roomTypeName: room.roomTypeName,
@@ -467,7 +582,9 @@ const RoomSection = ({ propertyId, range, party }) => {
             children: booking.children,
             mealPlan: booking.mealPlan,
             mealPlanId: mealPlanId, // Actual meal plan ID
-            price: calculatePrice(room, booking),
+            price: roomBasePrice,
+            tax: roomTax,
+            totalPrice: roomBasePrice + roomTax,
             // ✅ NEW: Add dates for blocking
             checkIn: checkInStr, // YYYY-MM-DD format
             checkOut: checkOutStr, // YYYY-MM-DD format
@@ -521,11 +638,16 @@ const RoomSection = ({ propertyId, range, party }) => {
           description: 'Hotel Booking Payment',
           handler: async function (response) {
             try {
-              // Prepare room selections for booking creation
-                const roomSelections = Object.keys(bookings).map(roomTypeId => {
-                const room = availableRoomTypes.find(r => r.roomTypeId === roomTypeId);
-                const booking = bookings[roomTypeId];
-                if (room && booking) {
+              // Prepare room selections for booking creation - Only include selected room types with rooms > 0
+              const roomSelections = Array.from(selectedCards)
+                .filter(roomTypeId => {
+                  const booking = bookings[roomTypeId];
+                  return booking && booking.rooms > 0;
+                })
+                .map(roomTypeId => {
+                  const room = availableRoomTypes.find(r => r.roomTypeId === roomTypeId);
+                  const booking = bookings[roomTypeId];
+                  if (room && booking) {
                   // Get actual room IDs from availableRoomsForEntireStay
                   const selectedRoomIds = room.availableRoomsForEntireStay
                     .slice(0, booking.rooms) // Take only the number of rooms needed
@@ -533,6 +655,9 @@ const RoomSection = ({ propertyId, range, party }) => {
                   
                   // Get meal plan ID from ratePlanDates
                   const mealPlanId = room.ratePlanDates?.[0]?.[booking.mealPlan]?.mealPlanId || booking.mealPlan;
+                  
+                  const roomBasePrice = calculatePrice(room, booking);
+                  const { taxAmount: roomTax } = calculateTaxForRoomType(room, booking);
                   
                   return {
                     roomTypeId: room.roomTypeId,
@@ -543,7 +668,9 @@ const RoomSection = ({ propertyId, range, party }) => {
                     children: booking.children,
                     mealPlan: booking.mealPlan,
                     mealPlanId: mealPlanId, // Actual meal plan ID
-                    price: calculatePrice(room, booking)
+                    price: roomBasePrice,
+                    tax: roomTax,
+                    totalPrice: roomBasePrice + roomTax
                   };
                 }
                 return null;
@@ -792,7 +919,7 @@ const RoomSection = ({ propertyId, range, party }) => {
 
   const nights = range ? Math.ceil((range.end - range.start) / (1000 * 60 * 60 * 24)) : 0;
 
-  // Calculate original total price
+  // Calculate original total price (base price without tax) for selected rooms
   const originalTotalPrice = Array.from(selectedCards).reduce((sum, roomId) => {
     const room = availableRoomTypes.find(r => r.roomTypeId === roomId);
     const booking = bookings[roomId];
@@ -802,7 +929,18 @@ const RoomSection = ({ propertyId, range, party }) => {
     return sum;
   }, 0);
 
-  // Calculate discounted price if agent has discount
+  // Calculate total tax for all selected rooms (per room basis)
+  const totalTaxAmount = Array.from(selectedCards).reduce((sum, roomId) => {
+    const room = availableRoomTypes.find(r => r.roomTypeId === roomId);
+    const booking = bookings[roomId];
+    if (room && booking) {
+      const { taxAmount } = calculateTaxForRoomType(room, booking);
+      return sum + taxAmount;
+    }
+    return sum;
+  }, 0);
+
+  // Calculate discounted price if agent has discount (discount applies to base price only, not tax)
   const calculateDiscountedPrice = (originalPrice, agentRates) => {
     if (!agentRates || !originalPrice) return null;
     
@@ -816,10 +954,13 @@ const RoomSection = ({ propertyId, range, party }) => {
   };
 
   const discountedPrice = calculateDiscountedPrice(originalTotalPrice, agentRates);
-  const totalPrice = discountedPrice !== null ? discountedPrice : originalTotalPrice;
+  const subtotal = discountedPrice !== null ? discountedPrice : originalTotalPrice;
+  
+  // Final total = subtotal (after discount) + tax
+  const totalPrice = subtotal + totalTaxAmount;
 
   return (
-    <section className="p-4 md:p-6 bg-white rounded-lg shadow-sm border">
+    <section className="p-4 md:p-6 bg-white rounded-lg shadow-sm border border-gray-200">
       <style jsx>{`
         .scrollbar-hide {
           -ms-overflow-style: none;
@@ -838,49 +979,90 @@ const RoomSection = ({ propertyId, range, party }) => {
                       </div>
 
       {/* Desktop Table View */}
-      <div className="bg-white rounded-2xl shadow-xl border overflow-hidden">
-        <div className="divide-y">
+      <div className="bg-white rounded-2xl shadow-xl border-none overflow-hidden">
+        <div className="space-y-3 md:space-y-4">
           {availableRoomTypes.map((room) => {
             const booking = getBooking(room.roomTypeId);
             const commonPlans = getCommonMealPlans(room.ratePlanDates);
-            const { details, totalPrice } = calculatePriceDetails(room, booking);
+            const { details, totalPrice: roomBasePrice } = calculatePriceDetails(room, booking);
+            const { taxAmount: roomTax, taxDetails: roomTaxDetails } = calculateTaxForRoomType(room, booking);
+            const roomTotalPrice = roomBasePrice + roomTax;
             const baseCapacity = room.occupancy * booking.rooms;
             const hasExtraBeds = booking.guests > baseCapacity;
             const isSelected = selectedCards.has(room.roomTypeId);
+            const isExpanded = expandedRooms.has(room.roomTypeId);
 
             return (
-              <div key={room.roomTypeId} className="p-4 md:p-5">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="flex items-start gap-3">
-                    <BedDouble className="text-indigo-600" size={20} />
-                    <div>
-                      <h3 className="text-base md:text-lg font-semibold text-gray-800">{room.roomTypeName}</h3>
-                      <div className="mt-1 text-xs text-gray-500 flex flex-wrap gap-2">
-                        <span>Max {room.maxOccupancy} guests</span>
-                        <span>{room.availableRooms} rooms available</span>
+              <div key={room.roomTypeId} className={`border border-gray-200  rounded-xl overflow-hidden transition-all ${isSelected ? 'border-indigo-500 shadow-md' : 'shadow-sm'}`}>
+                {/* Accordion Header - Clickable */}
+                <div className="p-4 md:p-5 ">
+                  <div className="flex items-start justify-between gap-3  ">
+                    <div className="flex-1 flex items-start gap-3">
+                      <BedDouble className="text-indigo-600 flex-shrink-0 mt-0.5" size={20} />
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-base md:text-lg font-semibold text-gray-800 mb-1">{room.roomTypeName}</h3>
+                        <div className="flex items-center gap-3 text-xs text-gray-500 mb-2">
+                          <span>Max {room.maxOccupancy} guests</span>
+                          <span>•</span>
+                          <span>{room.availableRooms} rooms available</span>
+                        </div>
+                        {/* Quick price preview when selected but collapsed */}
+                        {isSelected && !isExpanded && booking.rooms > 0 && (
+                          <div className="mt-2 flex items-center gap-2">
+                            <span className="text-sm font-semibold text-indigo-600">
+                              ₹{roomTotalPrice.toLocaleString('en-IN')}
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              (Base: ₹{roomBasePrice.toLocaleString('en-IN')} + Tax: ₹{roomTax.toLocaleString('en-IN')})
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
-                  </div>
 
-                  <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
-                    <span
-                      className={`flex h-5 w-5 items-center justify-center rounded-sm border ${
-                        isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-gray-300 text-transparent'
-                      }`}
-                    >
-                      <Check size={14} />
-                    </span>
-                    <span className={isSelected ? 'text-gray-800 font-medium' : 'text-gray-500'}>Include</span>
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => toggleCardSelection(room.roomTypeId)}
-                      className="hidden"
-                    />
-                  </label>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {/* Selection Toggle */}
+                      <label 
+                        className="flex items-center gap-2 text-sm cursor-pointer select-none"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <span
+                          className={`flex h-5 w-5 items-center justify-center rounded-sm border transition-all ${
+                            isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-gray-300 text-transparent'
+                          }`}
+                        >
+                          <Check size={14} />
+                        </span>
+                        <span className={`hidden md:inline ${isSelected ? 'text-gray-800 font-medium' : 'text-gray-500'}`}>Include</span>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleCardSelection(room.roomTypeId)}
+                          className="hidden"
+                        />
+                      </label>
+
+                      {/* Expand/Collapse Button */}
+                      {isSelected && (
+                        <button
+                          onClick={(e) => toggleRoomExpansion(room.roomTypeId, e)}
+                          className="p-2 rounded-lg hover:bg-gray-100 transition-colors flex-shrink-0"
+                          aria-label={isExpanded ? 'Collapse' : 'Expand'}
+                        >
+                          {isExpanded ? (
+                            <ChevronUp size={20} className="text-gray-600" />
+                          ) : (
+                            <ChevronDown size={20} className="text-gray-600" />
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
-                  <div className={`mt-4 space-y-4 ${!isSelected ? 'opacity-60 pointer-events-none' : ''}`}>
+                {/* Accordion Content - Expandable */}
+                {isSelected && isExpanded && (
+                  <div className="px-4 md:px-5 pb-4 md:pb-5 border-t border-gray-200 pt-4 space-y-4 animate-in slide-in-from-top-2">
                     <div>
                       <h4 className="text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide">Meal plan</h4>
                       <div className="space-y-2">
@@ -1018,7 +1200,14 @@ const RoomSection = ({ propertyId, range, party }) => {
                   <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 pt-3">
                     <div>
                       <p className="text-[11px] text-gray-500">Estimated total for this room type</p>
-                      <p className="text-lg font-semibold text-indigo-600">₹{totalPrice.toLocaleString()}</p>
+                      <div className="flex items-baseline gap-2">
+                        <p className="text-lg font-semibold text-indigo-600">₹{roomTotalPrice.toLocaleString('en-IN')}</p>
+                        {roomTax > 0 && (
+                          <p className="text-xs text-gray-500">
+                            (Base: ₹{roomBasePrice.toLocaleString('en-IN')} + Tax: ₹{roomTax.toLocaleString('en-IN')})
+                          </p>
+                        )}
+                      </div>
                     </div>
                     <button
                       onClick={() => toggleCalculation(room.roomTypeId)}
@@ -1030,25 +1219,48 @@ const RoomSection = ({ propertyId, range, party }) => {
 
                   {showCalc[room.roomTypeId] && (
                     <div className="bg-blue-50 border border-indigo-100 rounded-lg p-3 space-y-2">
-                      {details.map((detail, dateIdx) => (
-                        <div key={dateIdx} className="border-b border-indigo-100 pb-2 last:border-0 last:pb-0">
-                          <div className="text-xs font-semibold text-indigo-700">
-                            {detail.date} • {detail.mealPlan}
+                      {details.map((detail, dateIdx) => {
+                        const taxDetail = roomTaxDetails.find(t => t.date === detail.date);
+                        return (
+                          <div key={dateIdx} className="border-b border-indigo-100 pb-2 last:border-0 last:pb-0">
+                            <div className="text-xs font-semibold text-indigo-700">
+                              {detail.date} • {detail.mealPlan}
+                            </div>
+                            <div className="mt-1 text-[11px] text-gray-600 space-y-1">
+                              <div>Configuration: {booking.guests} guests / {booking.rooms} room(s) ≈ {detail.guestsPerRoom} per room</div>
+                              {detail.breakdown.map((line, i) => (
+                                <div key={i}>• {line}</div>
+                              ))}
+                              {taxDetail && (
+                                <>
+                                  <div className="mt-1 pt-1 border-t border-indigo-200">
+                                    <div className="font-semibold text-indigo-700">Tax Calculation:</div>
+                                    <div>• Room rate: ₹{taxDetail.roomBaseRate.toLocaleString('en-IN')} per room</div>
+                                    <div>• Tax rate: {taxDetail.taxPercentage}% (₹{taxDetail.taxPerRoom.toLocaleString('en-IN')} per room)</div>
+                                    <div>• Number of rooms: {taxDetail.numberOfRooms}</div>
+                                    <div>• Tax for this date: ₹{taxDetail.taxAmount.toLocaleString('en-IN')}</div>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                            <div className="mt-1 flex items-center justify-between">
+                              <div>
+                                <div className="text-[11px] text-gray-500">Base: ₹{detail.dateTotal.toLocaleString('en-IN')}</div>
+                                {taxDetail && (
+                                  <div className="text-[11px] text-gray-500">Tax: ₹{taxDetail.taxAmount.toLocaleString('en-IN')}</div>
+                                )}
+                              </div>
+                              <div className="text-sm font-semibold text-gray-800">
+                                Total: ₹{((detail.dateTotal || 0) + (taxDetail?.taxAmount || 0)).toLocaleString('en-IN')}
+                              </div>
+                            </div>
                           </div>
-                          <div className="mt-1 text-[11px] text-gray-600 space-y-1">
-                            <div>Configuration: {booking.guests} guests / {booking.rooms} room(s) ≈ {detail.guestsPerRoom} per room</div>
-                            {detail.breakdown.map((line, i) => (
-                              <div key={i}>• {line}</div>
-                            ))}
-                          </div>
-                          <div className="mt-1 text-sm font-semibold text-gray-800">
-                            Total: ₹{detail.dateTotal.toLocaleString()}
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
-                </div>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -1058,21 +1270,43 @@ const RoomSection = ({ propertyId, range, party }) => {
       {/* Grand Total Summary - Show when there are bookings or when default values are set */}
       {(Object.keys(bookings).length > 0 || totalPrice > 0) && (
         <div className="mt-6 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-2xl shadow-xl p-5">
-          <div className="flex justify-between items-start gap-3">
-            <div>
-              <h2 className="text-lg font-semibold">Grand Total</h2>
-              <p className="text-xs text-indigo-100">Including all selected room types</p>
-              {agentRates && (
-                <p className="text-xs text-indigo-200 mt-1">
-                  Agent discount: {agentRates.type === 'percentage' ? `${agentRates.discount}%` : `₹${agentRates.discount}`}
-                </p>
-              )}
+          <div className="space-y-3">
+            <div className="flex justify-between items-start gap-3">
+              <div>
+                <h2 className="text-lg font-semibold">Grand Total</h2>
+                <p className="text-xs text-indigo-100">Including all selected room types</p>
+                {agentRates && (
+                  <p className="text-xs text-indigo-200 mt-1">
+                    Agent discount: {agentRates.type === 'percentage' ? `${agentRates.discount}%` : `₹${agentRates.discount}`}
+                  </p>
+                )}
+              </div>
+              <div className="text-right">
+                {agentRates && originalTotalPrice !== subtotal && (
+                  <div className="text-xs text-indigo-200 line-through">₹{originalTotalPrice.toLocaleString('en-IN')}</div>
+                )}
+                <div className="text-2xl font-bold">₹{Math.round(totalPrice).toLocaleString('en-IN')}</div>
+              </div>
             </div>
-            <div className="text-right">
-              {agentRates && originalTotalPrice !== totalPrice && (
-                <div className="text-xs text-indigo-200 line-through">₹{originalTotalPrice.toLocaleString()}</div>
+            
+            {/* Price Breakdown */}
+            <div className="border-t border-indigo-400/30 pt-3 space-y-1">
+              <div className="flex justify-between text-xs text-indigo-100">
+                <span>Subtotal (Base price)</span>
+                <span>₹{subtotal.toLocaleString('en-IN')}</span>
+              </div>
+              {totalTaxAmount > 0 && (
+                <div className="flex justify-between text-xs text-indigo-100">
+                  <span>Tax (calculated per room)</span>
+                  <span>₹{totalTaxAmount.toLocaleString('en-IN')}</span>
+                </div>
               )}
-              <div className="text-2xl font-bold">₹{Math.round(totalPrice).toLocaleString()}</div>
+              {agentRates && originalTotalPrice !== subtotal && (
+                <div className="flex justify-between text-xs text-indigo-200">
+                  <span>Discount</span>
+                  <span>-₹{(originalTotalPrice - subtotal).toLocaleString('en-IN')}</span>
+                </div>
+              )}
             </div>
           </div>
           <button

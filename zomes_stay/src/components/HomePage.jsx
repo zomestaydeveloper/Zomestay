@@ -9,7 +9,7 @@ import { useSearch } from "../context/SearchContext";
 import banner from "../assets/banners/0935992b55432aba0a8696c56c5b0c3f00d9b8b5.png"
 import img1 from "../assets/banners/1b6d1e7b93df1bfb92eedff58a32d2e265408692.png";
 import img2 from "../assets/banners/685ec65edc35a4ee02667ecfe724f915d09f9fdd.png";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Filter, ArrowUpDown, X } from "lucide-react";
 
 // City Button Component with icon fallback
 const CityButton = ({ city, isSelected, onClick }) => {
@@ -156,6 +156,9 @@ const HomePage = () => {
   const [hasPrev, setHasPrev] = useState(false);
   const [total, setTotal] = useState(0);
   const itemsPerPage = 12; // Number of properties per page
+  
+  // Mobile filter modal state
+  const [showMobileFilter, setShowMobileFilter] = useState(false);
   
   // Use search params from context (set by Header search) if available
   const activeSearchParams = contextSearchParams || null;
@@ -390,97 +393,304 @@ const HomePage = () => {
   };
 
   return (
-    <div className="w-full flex flex-col justify-center items-center overflow-hidden">
-      {/* Header Section */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 w-full px-4 md:px-16 py-8">
-        {/* Locations Section */}
-        <div className="flex flex-col items-start gap-2 w-full pt-16 md:w-auto">
-          
-          
-          {/* Scrollable Location List */}
-          <div className="flex overflow-x-auto gap-4 pb-2 w-full md:w-auto">
-            {/* "All" Button */}
+    <div className="w-full flex flex-col justify-center items-center overflow-hidden mt-6">
+      {/* Filter Section - Web View (Desktop/Tablet) */}
+      <div className="w-full pt-16 md:pt-20 pb-4 px-4 md:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
+          {/* Mobile View - Filter & Sort Icons (Right Side) */}
+          <div className="md:hidden flex items-center justify-end gap-2.5 pb-4 px-4">
             <button
-              onClick={() => handleCityClick("all")}
-              className={`flex items-center gap-2 px-4 py-2 rounded-2xl hover:bg-blue-50 hover:border-blue-300 transition-colors whitespace-nowrap shadow-sm border ${
-                selectedCity === null
-                  ? "bg-blue-50 border-blue-500 text-blue-700"
-                  : "bg-white border-gray-200 text-gray-700"
-              }`}
+              onClick={() => setShowMobileFilter(true)}
+              className="relative flex items-center gap-1.5 px-3.5 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 active:bg-gray-100 transition-colors shadow-sm"
             >
-              <span className="text-sm font-medium">All</span>
+              <Filter size={18} className="text-gray-600" />
+              <span className="text-sm font-medium">Filter</span>
+              {(selectedCity || selectedPropertyType) && (
+                <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-600 rounded-full border-2 border-white"></span>
+              )}
             </button>
-
-            {/* Dynamic City Buttons */}
-            {citiesLoading ? (
-              <div className="text-sm text-gray-500">Loading cities...</div>
-            ) : (
-              uniqueCities.map((city, index) => {
-                // Compare selectedCity with city.name (not city.key) since we're sending city.name to backend
-                const isSelected = selectedCity && selectedCity.toLowerCase().trim() === city.name.toLowerCase().trim();
-                return (
-                  <CityButton
-                    key={index}
-                    city={city}
-                    isSelected={isSelected}
-                    onClick={() => handleCityClick(city.name)}
-                  />
-                );
-              })
-            )}
+            <button
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 active:bg-gray-100 transition-colors shadow-sm"
+            >
+              <ArrowUpDown size={18} className="text-gray-600" />
+              <span className="text-sm font-medium">Sort</span>
+            </button>
           </div>
-          
-         
-        </div>
 
-        {/* Property Types Section */}
-        <div className="flex flex-col items-start gap-2 w-full md:w-auto">
-         
-          
-          {/* Scrollable Property Type List */}
-          <div className="flex overflow-x-auto gap-4 pb-2 w-full md:w-auto">
-            {/* "All" Button */}
-            <button
-              onClick={() => handlePropertyTypeClick(null)}
-              className={`px-4 py-2 rounded-2xl transition-colors whitespace-nowrap shadow-sm border ${
-                selectedPropertyType === null
-                  ? "bg-green-50 border-green-500 text-green-700"
-                  : "bg-white border-gray-200 hover:bg-green-50 hover:border-green-300 text-gray-700"
-              }`}
-            >
-              <span className="text-sm font-medium">All</span>
-            </button>
+          {/* Desktop/Tablet View - Two Halves Side by Side */}
+          <div className="hidden md:flex gap-6">
+            {/* Locations - First Half (50%) */}
+            <div className="w-1/2">
+              <label className="block text-xs font-medium text-gray-700 mb-2 uppercase tracking-wide">
+                Location
+              </label>
+              <div className="flex overflow-x-auto gap-2 pb-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                <button
+                  onClick={() => handleCityClick("all")}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+                    selectedCity === null
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  All
+                </button>
 
-            {/* Dynamic Property Type Buttons */}
-            {propertyTypesLoading ? (
-              <div className="text-sm text-gray-500">Loading types...</div>
-            ) : (
-              propertyTypes.map((type) => {
-                const isSelected = selectedPropertyType === type.id;
-                return (
-                  <PropertyTypeButton
-                    key={type.id}
-                    type={type}
-                    isSelected={isSelected}
-                    onClick={() => handlePropertyTypeClick(type.id)}
-                  />
-                );
-              })
-            )}
+                {citiesLoading ? (
+                  <div className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-500">
+                    <div className="w-3 h-3 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin"></div>
+                    <span>Loading...</span>
+                  </div>
+                ) : (
+                  uniqueCities.map((city, index) => {
+                    const isSelected = selectedCity && selectedCity.toLowerCase().trim() === city.name.toLowerCase().trim();
+                    return (
+                      <button
+                        key={index}
+                        onClick={() => handleCityClick(city.name)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+                          isSelected
+                            ? "bg-blue-600 text-white"
+                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        }`}
+                      >
+                        {city.icon && (
+                          <img
+                            src={city.icon}
+                            alt={city.name}
+                            className="w-3.5 h-3.5 object-contain"
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                            }}
+                          />
+                        )}
+                        {!city.icon && <span className="text-xs">📍</span>}
+                        <span>{city.name}</span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* Property Types - Second Half (50%) */}
+            <div className="w-1/2">
+              <label className="block text-xs font-medium text-gray-700 mb-2 uppercase tracking-wide">
+                Property Type
+              </label>
+              <div className="flex overflow-x-auto gap-2 pb-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                <button
+                  onClick={() => handlePropertyTypeClick(null)}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+                    selectedPropertyType === null
+                      ? "bg-emerald-600 text-white"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  All
+                </button>
+
+                {propertyTypesLoading ? (
+                  <div className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-500">
+                    <div className="w-3 h-3 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin"></div>
+                    <span>Loading...</span>
+                  </div>
+                ) : (
+                  propertyTypes.map((type) => {
+                    const isSelected = selectedPropertyType === type.id;
+                    return (
+                      <button
+                        key={type.id}
+                        onClick={() => handlePropertyTypeClick(type.id)}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+                          isSelected
+                            ? "bg-emerald-600 text-white"
+                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        }`}
+                      >
+                        {type.name}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Results Count */}
+      {/* Mobile Filter Modal */}
+      {showMobileFilter && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowMobileFilter(false)}
+          />
+          
+          {/* Filter Drawer */}
+          <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl max-h-[85vh] overflow-y-auto">
+            {/* Header */}
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-4 flex items-center justify-between z-10">
+              <h3 className="text-lg font-semibold text-gray-900">Filters</h3>
+              <button
+                onClick={() => setShowMobileFilter(false)}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X size={20} className="text-gray-600" />
+              </button>
+            </div>
+
+            {/* Filter Content */}
+            <div className="p-4 space-y-6">
+              {/* Locations Section */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-3">
+                  Location
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => {
+                      handleCityClick("all");
+                      setShowMobileFilter(false);
+                    }}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      selectedCity === null
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    All
+                  </button>
+
+                  {citiesLoading ? (
+                    <div className="flex items-center gap-2 px-4 py-2 text-sm text-gray-500">
+                      <div className="w-3 h-3 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin"></div>
+                      <span>Loading...</span>
+                    </div>
+                  ) : (
+                    uniqueCities.map((city, index) => {
+                      const isSelected = selectedCity && selectedCity.toLowerCase().trim() === city.name.toLowerCase().trim();
+                      return (
+                        <button
+                          key={index}
+                          onClick={() => {
+                            handleCityClick(city.name);
+                            setShowMobileFilter(false);
+                          }}
+                          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                            isSelected
+                              ? "bg-blue-600 text-white"
+                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                          }`}
+                        >
+                          {city.icon && (
+                            <img
+                              src={city.icon}
+                              alt={city.name}
+                              className="w-4 h-4 object-contain"
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                              }}
+                            />
+                          )}
+                          {!city.icon && <span className="text-xs">📍</span>}
+                          <span>{city.name}</span>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* Property Types Section */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-3">
+                  Property Type
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => {
+                      handlePropertyTypeClick(null);
+                      setShowMobileFilter(false);
+                    }}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      selectedPropertyType === null
+                        ? "bg-emerald-600 text-white"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    All
+                  </button>
+
+                  {propertyTypesLoading ? (
+                    <div className="flex items-center gap-2 px-4 py-2 text-sm text-gray-500">
+                      <div className="w-3 h-3 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin"></div>
+                      <span>Loading...</span>
+                    </div>
+                  ) : (
+                    propertyTypes.map((type) => {
+                      const isSelected = selectedPropertyType === type.id;
+                      return (
+                        <button
+                          key={type.id}
+                          onClick={() => {
+                            handlePropertyTypeClick(type.id);
+                            setShowMobileFilter(false);
+                          }}
+                          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                            isSelected
+                              ? "bg-emerald-600 text-white"
+                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                          }`}
+                        >
+                          {type.name}
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="sticky bottom-0 bg-white border-t border-gray-200 px-4 py-4 flex gap-3">
+              <button
+                onClick={() => {
+                  setSelectedCity(null);
+                  setSelectedPropertyType(null);
+                  setShowMobileFilter(false);
+                }}
+                className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+              >
+                Clear All
+              </button>
+              <button
+                onClick={() => setShowMobileFilter(false)}
+                className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+              >
+                Apply
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Simple Results Count */}
       {!loading && (
-        <div className="w-full px-4 md:px-16 mb-4">
-          <p className="text-sm text-gray-600">
-            {total > 0 ? (
-              <>Showing {properties.length} of {total} properties</>
-            ) : (
-              <>No properties found</>
-            )}
-          </p>
+        <div className="w-full px-4 md:px-6 lg:px-8 mb-4">
+          <div className="max-w-7xl mx-auto">
+            <p className="text-sm text-gray-600">
+              {total > 0 ? (
+                <>
+                  Showing <span className="font-semibold">{properties.length}</span> of{' '}
+                  <span className="font-semibold">{total}</span> properties
+                </>
+              ) : (
+                <span>No properties found</span>
+              )}
+            </p>
+          </div>
         </div>
       )}
 

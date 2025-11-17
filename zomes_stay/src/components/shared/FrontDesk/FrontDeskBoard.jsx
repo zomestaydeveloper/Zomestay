@@ -1162,8 +1162,9 @@ const FrontDeskBoard = ({ mode = "admin", propertyId, propertyName: propertyName
 
     const basePerNightTotal = basePerRoomPerNight * roomsSelected;
     const totalPerNight = basePerNightTotal + extrasPerNight;
-    const total = totalPerNight * nights;
-
+    const totalBasePrice = totalPerNight * nights;
+    
+    // Build extra breakdown array first (before using it)
     const extraBreakdown = [];
     if (extrasAdults > 0) {
       extraBreakdown.push({
@@ -1186,11 +1187,22 @@ const FrontDeskBoard = ({ mode = "admin", propertyId, propertyName: propertyName
         perNight: extraInfantRate,
       });
     }
-
-    const perRoomBreakdown = Array.from({ length: roomsSelected }, (_, index) => {
+    
+    // Calculate tax per room (5% for <= 7500, 18% for > 7500)
+    const calculateTaxForRoom = (roomBasePrice) => {
+      return roomBasePrice <= 7500 ? roomBasePrice * 0.05 : roomBasePrice * 0.18;
+    };
+    
+    // Calculate tax for each room and sum them
+    let totalTax = 0;
+    const perRoomBreakdownWithTax = Array.from({ length: roomsSelected }, (_, index) => {
       const isFirstRoom = index === 0;
       const perNight =
         basePerRoomPerNight + (isFirstRoom ? extrasPerNight : 0);
+      const roomBasePrice = perNight * nights;
+      const roomTax = calculateTaxForRoom(roomBasePrice);
+      totalTax += roomTax;
+      
       return {
         roomIndex: index + 1,
         baseGuests: occupancy,
@@ -1198,13 +1210,17 @@ const FrontDeskBoard = ({ mode = "admin", propertyId, propertyName: propertyName
         basePerNight: basePerRoomPerNight,
         extras: isFirstRoom ? extraBreakdown : [],
         perNight,
-        total: perNight * nights,
+        total: roomBasePrice,
+        tax: roomTax,
+        totalWithTax: roomBasePrice + roomTax,
       };
     });
+    
+    const total = totalBasePrice + totalTax;
 
     return {
       total,
-      perRoomBreakdown,
+      perRoomBreakdown: perRoomBreakdownWithTax,
       nights,
       extras: {
         adults: extrasAdults,
@@ -1214,6 +1230,8 @@ const FrontDeskBoard = ({ mode = "admin", propertyId, propertyName: propertyName
       basePerNightTotal,
       extrasPerNight,
       totalPerNight,
+      totalBasePrice,
+      totalTax,
     };
   }, [bookingContext, bookingDraft]);
 
@@ -2474,6 +2492,18 @@ const FrontDeskBoard = ({ mode = "admin", propertyId, propertyName: propertyName
                   <span>Total for {pricingSummary.nights} night(s)</span>
                   <span>₹{pricingSummary.total.toLocaleString("en-IN")}</span>
                 </div>
+                {pricingSummary.totalBasePrice && (
+                  <div className="flex items-center justify-between border-t border-emerald-200 pt-2">
+                    <span>Base Price:</span>
+                    <span>₹{pricingSummary.totalBasePrice.toLocaleString("en-IN")}</span>
+                  </div>
+                )}
+                {pricingSummary.totalTax && (
+                  <div className="flex items-center justify-between">
+                    <span>Tax ({pricingSummary.totalBasePrice && pricingSummary.totalBasePrice <= 7500 ? '5%' : '18%'}):</span>
+                    <span>₹{pricingSummary.totalTax.toLocaleString("en-IN")}</span>
+                  </div>
+                )}
                 {pricingSummary.perRoomBreakdown.map((roomBreakdown) => (
                   <div
                     key={`room-breakdown-${roomBreakdown.roomIndex}`}
@@ -2481,7 +2511,13 @@ const FrontDeskBoard = ({ mode = "admin", propertyId, propertyName: propertyName
                   >
                     <div className="font-semibold">
                       Room {roomBreakdown.roomIndex}: ₹
-                      {roomBreakdown.total.toLocaleString("en-IN")}
+                      {roomBreakdown.totalWithTax?.toLocaleString("en-IN") || roomBreakdown.total.toLocaleString("en-IN")}
+                    </div>
+                    <div>
+                      Base: ₹{roomBreakdown.total.toLocaleString("en-IN")}
+                      {roomBreakdown.tax && (
+                        <> • Tax ({roomBreakdown.total <= 7500 ? '5%' : '18%'}): ₹{roomBreakdown.tax.toLocaleString("en-IN")}</>
+                      )}
                     </div>
                     <div>
                       Base guests per room: {roomBreakdown.baseGuests ?? roomBreakdown.baseCount} • Base per night: ₹
@@ -2574,11 +2610,29 @@ const FrontDeskBoard = ({ mode = "admin", propertyId, propertyName: propertyName
                       Payment link created
                     </div>
                     {Number.isFinite(paymentLinkResult?.amount) && (
-                      <div>
-                        Amount:{" "}
-                        <span className="font-semibold">
-                          ₹{(paymentLinkResult.amount / 100).toLocaleString("en-IN")}
-                        </span>
+                      <div className="space-y-1 border-t border-blue-200 pt-2">
+                        {paymentLinkResult?.taxBreakdown && (
+                          <>
+                            <div className="flex items-center justify-between">
+                              <span>Base Price:</span>
+                              <span className="font-semibold">
+                                ₹{((paymentLinkResult.taxBreakdown.totalBasePrice || 0) / 100).toLocaleString("en-IN")}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span>Tax:</span>
+                              <span className="font-semibold">
+                                ₹{((paymentLinkResult.taxBreakdown.totalTax || 0) / 100).toLocaleString("en-IN")}
+                              </span>
+                            </div>
+                          </>
+                        )}
+                        <div className="flex items-center justify-between border-t border-blue-200 pt-1 font-semibold">
+                          <span>Total Amount:</span>
+                          <span>
+                            ₹{(paymentLinkResult.amount / 100).toLocaleString("en-IN")}
+                          </span>
+                        </div>
                       </div>
                     )}
                     {paymentLinkUrl && (

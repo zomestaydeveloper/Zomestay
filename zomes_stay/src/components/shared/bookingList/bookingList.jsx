@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { bookingService } from "../../../services/property/admin";
+import { X, Eye } from "lucide-react";
 
 const PAGE_LIMIT = 20;
 
@@ -73,6 +74,8 @@ export default function BookingList({
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
   const [pagination, setPagination] = useState(INITIAL_PAGINATION);
   const [cancellingId, setCancellingId] = useState(null);
+  const [selectedBooking, setSelectedBooking] = useState(null);
+  const [showRoomDetailsModal, setShowRoomDetailsModal] = useState(false);
 
   const normalizedRole = useMemo(() => normalizeRole(role), [role]);
   const requiresEntityId = ROLE_REQUIRING_ID.has(normalizedRole);
@@ -240,9 +243,9 @@ export default function BookingList({
   const totals = useMemo(() => {
     const summary = {
       total: pagination.total ?? bookings.length,
-      confirmed: bookings.filter((b) => b.status === "confirmed").length,
-      pending: bookings.filter((b) => b.status === "pending").length,
-      cancelled: bookings.filter((b) => b.status === "cancelled").length,
+      confirmed: bookings.filter((b) => b.status?.toLowerCase() === "confirmed").length,
+      pending: bookings.filter((b) => b.status?.toLowerCase() === "pending").length,
+      cancelled: bookings.filter((b) => b.status?.toLowerCase() === "cancelled").length,
     };
     return summary;
   }, [bookings, pagination.total]);
@@ -263,6 +266,16 @@ export default function BookingList({
   const getStatusClass = (statusValue) => {
     if (!statusValue) return "text-gray-600 bg-gray-50";
     return statusColor[statusValue.toLowerCase()] || "text-gray-600 bg-gray-50";
+  };
+
+  const handleViewRoomDetails = (booking) => {
+    setSelectedBooking(booking);
+    setShowRoomDetailsModal(true);
+  };
+
+  const closeRoomDetailsModal = () => {
+    setShowRoomDetailsModal(false);
+    setSelectedBooking(null);
   };
 
   return (
@@ -343,7 +356,7 @@ export default function BookingList({
                   Property
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200">
-                  Room Type
+                  Room Details
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200">
                   Check-In
@@ -379,30 +392,46 @@ export default function BookingList({
                   <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
                     {booking.bookingNumber || booking.id}
                   </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
+                  <td className="px-4 py-3 text-sm text-gray-700">
                     <div className="flex flex-col">
-                      <span className="font-medium">{booking.guestName || "—"}</span>
+                      <span className="font-medium">{booking?.guest?.name || "—"}</span>
                       <span className="text-xs text-gray-500">
-                        {booking.guestEmail || "—"}
+                        {booking?.guest?.email || "—"}
                       </span>
+                      {booking?.guest?.phone && (
+                        <span className="text-xs text-gray-500">
+                          {booking.guest.phone}
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-700">
                     <div
                       className="max-w-[220px] truncate"
-                      title={booking?.property?.title}
+                      title={booking?.property?.name}
                     >
-                      {booking?.property?.title || "—"}
+                      {booking?.property?.name || "—"}
                     </div>
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-700">
-                    {booking?.propertyRoomType?.roomType?.name || "—"}
+                    {booking?.roomSelections && booking.roomSelections.length > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => handleViewRoomDetails(booking)}
+                        className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-md transition-colors"
+                      >
+                        <Eye className="h-4 w-4" />
+                        <span>{booking.roomSelections.length} Room Type{booking.roomSelections.length !== 1 ? 's' : ''}</span>
+                      </button>
+                    ) : (
+                      <span>—</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
-                    {formatDate(booking.startDate)}
+                    {formatDate(booking.checkIn)}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
-                    {formatDate(booking.endDate)}
+                    {formatDate(booking.checkOut)}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
                     {booking.nights ?? "—"}
@@ -495,6 +524,101 @@ export default function BookingList({
             >
               Next
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Room Details Modal */}
+      {showRoomDetailsModal && selectedBooking && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 bg-opacity-50 overflow-y-auto">
+          <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto my-auto">
+            {/* Modal Header */}
+            <div className="sticky top-0 bg-white border-b border-gray-200 p-4 sm:p-6 flex items-center justify-between z-10">
+              <div>
+                <h3 className="text-lg sm:text-xl font-semibold text-gray-900">
+                  Room Details
+                </h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  Booking: {selectedBooking.bookingNumber}
+                </p>
+              </div>
+              <button
+                onClick={closeRoomDetailsModal}
+                className="text-gray-400 hover:text-gray-600 p-1 transition-colors"
+                aria-label="Close modal"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-4 sm:p-6">
+              {selectedBooking.roomSelections && selectedBooking.roomSelections.length > 0 ? (
+                <div className="space-y-4">
+                  {selectedBooking.roomSelections.map((selection, idx) => (
+                    <div
+                      key={idx}
+                      className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors"
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <h4 className="text-base font-semibold text-gray-900">
+                            {selection.roomType || "Room Type"}
+                          </h4>
+                          <p className="text-sm text-gray-500 mt-1">
+                            {selection.guests} guest{selection.guests !== 1 ? 's' : ''}
+                            {selection.children > 0 && `, ${selection.children} child${selection.children !== 1 ? 'ren' : ''}`}
+                          </p>
+                        </div>
+                        {selection.mealPlan && (
+                          <div className="text-right">
+                            <span className="inline-block px-3 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
+                              {selection.mealPlan.name}
+                            </span>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {selection.mealPlan.kind}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
+                      {selection.rooms && selection.rooms.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                          <p className="text-sm font-medium text-gray-700 mb-2">
+                            Rooms ({selection.rooms.length}):
+                          </p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {selection.rooms.map((roomName, roomIdx) => (
+                              <div
+                                key={roomIdx}
+                                className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-md"
+                              >
+                                <div className="h-2 w-2 bg-blue-500 rounded-full"></div>
+                                <span className="text-sm text-gray-700">{roomName}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  No room details available
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="sticky bottom-0 bg-white border-t border-gray-200 p-4 sm:p-6 flex justify-end">
+              <button
+                onClick={closeRoomDetailsModal}
+                className="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

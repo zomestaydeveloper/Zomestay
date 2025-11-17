@@ -5,7 +5,7 @@ import ReservationBookingWidget from "../components/ReservationWidget";
 import RoomSection from "../components/RoomSection";
 import { PageLoader, WidgetLoader } from "../components/Loader";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
-import { Star, ChevronLeft, ChevronRight } from "lucide-react";
+import { Star, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { useParams, useLocation } from "react-router-dom";
 import { propertyDetailsService, mediaService } from "../services";
 import {
@@ -732,36 +732,45 @@ const DetailsPage = () => {
     return processedData;
   }, [propertyDetails, requiredRooms]);
 
-  // Amenities and safety (static placeholders)
-  const amenities = [
-    { title: "Free Wi-Fi", icon: <Wifi /> },
-    { title: "Swimming Pool", icon: <Waves /> },
-    { title: "Air Conditioning", icon: <Snowflake /> },
-    { title: "Restaurant", icon: <Utensils /> },
-    { title: "Gym / Fitness Center", icon: <Dumbbell /> },
-    { title: "Parking Facility", icon: <Car /> },
-    { title: "Television", icon: <Tv /> },
-    { title: "Coffee Maker", icon: <Coffee /> },
-    { title: "Hot Shower", icon: <ShowerHead /> },
-    { title: "Ceiling Fan", icon: <Fan /> },
-    { title: "King Bed", icon: <BedDouble /> },
-    { title: "Room Key Access", icon: <Key /> },
-  ];
+  // Helper function to create icon component from URL
+  const createIconFromUrl = (iconUrl) => {
+    if (!iconUrl) return null;
+    const iconSrc = mediaService.getMedia(iconUrl);
+    return (
+      <img
+        src={iconSrc}
+        alt=""
+        className="object-contain"
+        onError={(e) => {
+          e.target.style.display = 'none';
+        }}
+      />
+    );
+  };
 
-  const safetyAndHygiene = [
-    { title: "Sanitized Rooms", icon: <SprayCan /> },
-    { title: "Temperature Checks", icon: <Thermometer /> },
-    { title: "Emergency Exit", icon: <AlertTriangle /> },
-    { title: "First Aid Kit", icon: <HandPlatter /> },
-    { title: "Hand Sanitizers", icon: <Hand /> },
-    { title: "24/7 Security", icon: <Shield /> },
-    { title: "Fire Extinguishers", icon: <FireExtinguisher /> },
-    { title: "CCTV Surveillance", icon: <Camera /> },
-    { title: "Trained Staff", icon: <Users /> },
-    { title: "Disinfection Protocol", icon: <Droplets /> },
-    { title: "Safety Inspected", icon: <ShieldCheck /> },
-    { title: "Smoke Detector", icon: <Eye /> },
-  ];
+  // Dynamic amenities from API response
+  const amenities = useMemo(() => {
+    if (!propertyDetails?.amenities) return [];
+    return propertyDetails.amenities
+      .filter((amenity) => amenity.isActive) // Only show active amenities
+      .map((amenity) => ({
+        title: amenity.name || "Amenity",
+        icon: createIconFromUrl(amenity.icon),
+      }))
+      .filter((item) => item.icon !== null); // Filter out items without icons
+  }, [propertyDetails?.amenities]);
+
+  // Dynamic safety and hygiene from API response (using safeties field)
+  const safetyAndHygiene = useMemo(() => {
+    if (!propertyDetails?.safeties) return [];
+    return propertyDetails.safeties
+      .filter((safety) => safety.isActive) // Only show active safety features
+      .map((safety) => ({
+        title: safety.name || "Safety Feature",
+        icon: createIconFromUrl(safety.icon),
+      }))
+      .filter((item) => item.icon !== null); // Filter out items without icons
+  }, [propertyDetails?.safeties]);
 
   // Location display (handle nested address object and fallbacks)
   const locationDisplay = useMemo(() => {
@@ -878,6 +887,26 @@ const DetailsPage = () => {
     };
   }, []);
 
+  // Keyboard navigation for photo gallery modal
+  useEffect(() => {
+    if (!modal) return;
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setModal(false);
+      } else if (e.key === 'ArrowLeft' && media.length > 1) {
+        goPrev();
+      } else if (e.key === 'ArrowRight' && media.length > 1) {
+        goNext();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [modal, media.length, goPrev, goNext]);
+
   // Loading state skeleton
   if (loading) {
     return <PageLoader text="Loading property details..." />;
@@ -993,13 +1022,14 @@ const DetailsPage = () => {
               {mobileImageIndex + 1} / {media.length}
             </div>
 
-            {/* View all photos button */}
+            {/* View all photos button - Camera icon */}
             {media.length > 1 && (
               <button
                 onClick={() => setModal(true)}
-                className="absolute bottom-3 right-3 bg-white text-gray-800 px-3 py-1 rounded-full text-sm font-medium hover:bg-gray-100 transition-colors"
+                className="absolute bottom-3 right-3 bg-white/90 backdrop-blur-sm text-gray-800 p-2.5 rounded-full shadow-lg hover:bg-white transition-all hover:scale-105"
+                aria-label="View all photos"
               >
-                View all photos
+                <Camera size={20} />
               </button>
             )}
 
@@ -1171,41 +1201,124 @@ const DetailsPage = () => {
         </div>
       </div>
 
-      {/* Photo Gallery Modal */}
+      {/* Photo Gallery Modal - Standard Design */}
       {modal && (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={() => setModal(false)}>
-          <div className="relative bg-white rounded-xl w-full max-w-5xl h-[95vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
-            <button className="absolute right-3 top-3 rounded-md bg-black/80 text-white px-3 py-1 text-sm z-10" onClick={() => setModal(false)}>
-              Close
+        <div 
+          className="fixed inset-0 z-50 bg-black/95 backdrop-blur-sm flex items-center justify-center"
+          onClick={() => setModal(false)}
+        >
+          <div 
+            className="relative w-full h-full flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close Button */}
+            <button 
+              className="absolute top-4 right-4 z-50 bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white rounded-full p-2 transition-all hover:scale-110"
+              onClick={() => setModal(false)}
+              aria-label="Close gallery"
+            >
+              <X size={24} />
             </button>
 
-            <div className="flex flex-row items-center justify-between gap-1 p-2">
-              <button className="rounded-full bg-gray-200 hover:bg-gray-300 text-gray-800 p-2" onClick={goPrev} aria-label="Previous image">
-                ◀
-              </button>
-
-              <div className="flex items-center justify-center flex-1">
-                <TransformWrapper>
-                  <TransformComponent>
-                    {media[currentIndex] ? (
-                      <img
-                        src={mediaService.getMedia(media[currentIndex])}
-                        alt={`Gallery ${currentIndex + 1}`}
-                        className="object-cover w-full h-[500px] rounded-lg"
-                      />
-                    ) : (
-                      <div className="w-full h-[500px] rounded-lg bg-gray-100 flex items-center justify-center text-gray-500">
-                        No image
-                      </div>
-                    )}
-                  </TransformComponent>
-                </TransformWrapper>
-              </div>
-
-              <button className="rounded-full bg-gray-200 hover:bg-gray-300 text-gray-800 p-2" onClick={goNext} aria-label="Next image">
-                ▶
-              </button>
+            {/* Image Counter */}
+            <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50 bg-black/50 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm font-medium">
+              {currentIndex + 1} / {media.length}
             </div>
+
+            {/* Main Image Container */}
+            <div className="flex-1 flex items-center justify-center p-4 md:p-8">
+              <div className="relative w-full h-full max-w-7xl mx-auto flex items-center justify-center">
+                {/* Previous Button */}
+                {media.length > 1 && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      goPrev();
+                    }}
+                    className="absolute left-2 md:left-4 z-40 bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white rounded-full p-3 md:p-4 transition-all hover:scale-110"
+                    aria-label="Previous image"
+                  >
+                    <ChevronLeft size={28} />
+                  </button>
+                )}
+
+                {/* Image with Zoom */}
+                <div className="w-full h-full flex items-center justify-center">
+                  <TransformWrapper
+                    initialScale={1}
+                    minScale={0.5}
+                    maxScale={3}
+                    wheel={{ step: 0.1 }}
+                    doubleClick={{ disabled: false, step: 0.5 }}
+                  >
+                    <TransformComponent>
+                      {media[currentIndex] ? (
+                        <img
+                          src={mediaService.getMedia(media[currentIndex])}
+                          alt={`Gallery ${currentIndex + 1}`}
+                          className="max-w-full max-h-[85vh] object-contain rounded-lg"
+                        />
+                      ) : (
+                        <div className="w-full h-[500px] rounded-lg bg-gray-800 flex items-center justify-center text-gray-400">
+                          No image
+                        </div>
+                      )}
+                    </TransformComponent>
+                  </TransformWrapper>
+                </div>
+
+                {/* Next Button */}
+                {media.length > 1 && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      goNext();
+                    }}
+                    className="absolute right-2 md:right-4 z-40 bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white rounded-full p-3 md:p-4 transition-all hover:scale-110"
+                    aria-label="Next image"
+                  >
+                    <ChevronRight size={28} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Thumbnail Strip */}
+            {media.length > 1 && (
+              <div className="bg-black/50 backdrop-blur-sm border-t border-white/10 p-4">
+                <style>{`
+                  .scrollbar-hide {
+                    -ms-overflow-style: none;
+                    scrollbar-width: none;
+                  }
+                  .scrollbar-hide::-webkit-scrollbar {
+                    display: none;
+                  }
+                `}</style>
+                <div className="flex gap-2 overflow-x-auto max-w-7xl mx-auto scrollbar-hide">
+                  {media.map((img, index) => (
+                    <button
+                      key={index}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCurrentIndex(index);
+                      }}
+                      className={`flex-shrink-0 w-20 h-20 md:w-24 md:h-24 rounded-lg overflow-hidden border-2 transition-all ${
+                        index === currentIndex
+                          ? "border-white scale-110"
+                          : "border-white/30 hover:border-white/60 opacity-70 hover:opacity-100"
+                      }`}
+                    >
+                      <img
+                        src={mediaService.getMedia(img)}
+                        alt={`Thumbnail ${index + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

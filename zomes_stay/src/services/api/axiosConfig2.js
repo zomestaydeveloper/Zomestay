@@ -110,6 +110,7 @@ const getTokenFromContext = () => {
     
     // Step 2: If role detected, get token for that role
     if (role) {
+      console.log('role', role);
       const token = getTokenForRole(role);
       if (token) {
         return token; // ✅ Found token for detected role

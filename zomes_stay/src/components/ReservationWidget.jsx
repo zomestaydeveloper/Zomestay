@@ -289,22 +289,6 @@ function CalendarPopup({ calendarData = {}, unavailableDates = [], range, setRan
           <div className={`flex ${isMobile ? 'flex-col' : 'flex-row'} gap-8`}>
             {visibleMonths}
           </div>
-
-          {/* Selected dates display */}
-          {(range.start || range.end) && (
-            <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-sm text-gray-600">Check-in: </span>
-                  <span className="font-semibold">{range.start ? formatDate(range.start) : "Select"}</span>
-                </div>
-                <div>
-                  <span className="text-sm text-gray-600">Check-out: </span>
-                  <span className="font-semibold">{range.end ? formatDate(range.end) : "Select"}</span>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>
@@ -325,7 +309,7 @@ export default function ReservationBookingWidget({
   const range = controlledRange ?? internalRange;
   const updateRange = (next) => (onRangeChange ? onRangeChange(next) : setInternalRange(next));
 
-  const [guests, setGuests] = useState({ adults: 0, children: 0 });
+  const [guests, setGuests] = useState({ adults: 1, children: 0 });
   const [rooms, setRooms] = useState(1);
   const [showCalendar, setShowCalendar] = useState(false);
   const [showGuestDropdown, setShowGuestDropdown] = useState(false);
@@ -574,7 +558,7 @@ export default function ReservationBookingWidget({
 
         
 
-          {/* Book Now button */}
+          {/* Apply button */}
           <button
             disabled={!range.start || !range.end}
             onClick={() => {
@@ -590,7 +574,7 @@ export default function ReservationBookingWidget({
             }}
             className="w-full bg-[#003580] hover:bg-[#00224d] disabled:bg-gray-300 text-white py-3 rounded-lg font-semibold text-base transition-colors disabled:cursor-not-allowed"
           >
-            Apply Now
+            Apply
           </button>
 
 

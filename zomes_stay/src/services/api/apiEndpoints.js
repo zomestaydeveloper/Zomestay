@@ -30,6 +30,7 @@ export const TRAVEL_AGENT_AUTH = {
   REFRESH: '/api/travel-agent/refresh',
   PROFILE: '/api/travel-agent/profile',
   UPDATE_PROFILE: '/api/travel-agent/profile/update',
+  CHANGE_PASSWORD: '/api/travel-agent/password/change',
 }
 
 

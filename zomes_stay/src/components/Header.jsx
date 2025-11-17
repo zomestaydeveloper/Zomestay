@@ -487,7 +487,7 @@ const Header = () => {
           </div>
 
           {/* Mobile Search */}
-          <div className="flex sm:hidden bg-white w-full max-w-xs mx-auto p-2 rounded-full shadow-md">
+          <div className="flex sm:hidden bg-white w-full border border-gray-200 max-w-xs p-1 rounded-xl shadow-md ">
             <button
               onClick={() => setShowMobileSearch(true)}
               className="flex-1 px-4 py-2 rounded-full border-none focus:outline-none text-gray-500 text-base bg-transparent text-left flex items-center justify-between"
@@ -567,6 +567,17 @@ const Header = () => {
               <button 
                 onClick={() => {
                   navigate('/app/user_profile');
+                  setMenuOpen(false);
+                }}
+                className="w-full border border-gray-300 text-gray-700 text-sm h-12 rounded-lg hover:bg-gray-50 transition-colors font-semibold flex items-center justify-center"
+              >
+                Profile
+              </button>
+            )}
+            {isAgentLoggedIn && (
+              <button 
+                onClick={() => {
+                  navigate('/agent/dashboard');
                   setMenuOpen(false);
                 }}
                 className="w-full border border-gray-300 text-gray-700 text-sm h-12 rounded-lg hover:bg-gray-50 transition-colors font-semibold flex items-center justify-center"
