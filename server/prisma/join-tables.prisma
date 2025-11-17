@@ -1,0 +1,79 @@
+model PropertyAmenity {
+  id         String   @id @default(uuid()) @db.Char(36)
+  propertyId String   @db.Char(36)
+  amenityId  String   @db.Char(36)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  isDeleted  Boolean  @default(false)
+
+  property Property @relation(fields: [propertyId], references: [id])
+  amenity  Amenity  @relation(fields: [amenityId], references: [id])
+
+  @@unique([propertyId, amenityId, isDeleted])
+  @@index([amenityId])
+  @@index([isDeleted])
+}
+
+model PropertyFacility {
+  id         String   @id @default(uuid()) @db.Char(36)
+  propertyId String   @db.Char(36)
+  facilityId String   @db.Char(36)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  isDeleted  Boolean  @default(false)
+
+  property Property @relation(fields: [propertyId], references: [id])
+  facility Facility @relation(fields: [facilityId], references: [id])
+
+  @@unique([propertyId, facilityId, isDeleted])
+  @@index([facilityId])
+  @@index([isDeleted])
+}
+
+model PropertySafety {
+  id         String   @id @default(uuid()) @db.Char(36)
+  propertyId String   @db.Char(36)
+  safetyId   String   @db.Char(36)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  isDeleted  Boolean  @default(false)
+
+  property Property      @relation(fields: [propertyId], references: [id])
+  safety   SafetyHygiene @relation(fields: [safetyId], references: [id])
+
+  @@unique([propertyId, safetyId, isDeleted])
+  @@index([safetyId])
+  @@index([isDeleted])
+}
+
+model RoomTypeAmenity {
+  id         String   @id @default(uuid()) @db.Char(36)
+  roomTypeId String   @db.Char(36)
+  amenityId  String   @db.Char(36)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  isDeleted  Boolean  @default(false)
+
+  roomType RoomType @relation(fields: [roomTypeId], references: [id])
+  amenity  Amenity  @relation(fields: [amenityId], references: [id])
+
+  @@unique([roomTypeId, amenityId, isDeleted])
+  @@index([amenityId])
+  @@index([isDeleted])
+}
+
+model RoomAmenity {
+  id        String   @id @default(uuid()) @db.Char(36)
+  roomId    String   @db.Char(36)
+  amenityId String   @db.Char(36)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  isDeleted Boolean  @default(false)
+
+  room    Room    @relation(fields: [roomId], references: [id])
+  amenity Amenity @relation(fields: [amenityId], references: [id])
+
+  @@unique([roomId, amenityId, isDeleted])
+  @@index([amenityId])
+  @@index([isDeleted])
+}

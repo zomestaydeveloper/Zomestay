@@ -1,0 +1,38 @@
+model Booking {
+  id                 String  @id @default(uuid()) @db.Char(36)
+  userId             String  @db.Char(36)
+  propertyId         String  @db.Char(36)
+  propertyRoomTypeId String  @db.Char(36)
+  roomId             String  @db.Char(36)
+  mealPlanId         String? @db.Char(36)
+
+  startDate    DateTime
+  endDate      DateTime
+  subtotal     Decimal       @db.Decimal(10, 2)
+  taxes        Decimal       @db.Decimal(10, 2)
+  discount     Decimal       @db.Decimal(10, 2)
+  total        Decimal       @db.Decimal(10, 2)
+  status       BookingStatus @default(pending)
+  rateSnapshot Json?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  isDeleted    Boolean       @default(false)
+
+  promoId String?    @db.Char(36)
+  promo   Promotion? @relation(fields: [promoId], references: [id])
+
+  user             User             @relation(fields: [userId], references: [id])
+  property         Property         @relation(fields: [propertyId], references: [id])
+  propertyRoomType PropertyRoomType @relation(fields: [propertyRoomTypeId], references: [id])
+  room             Room             @relation(fields: [roomId], references: [id])
+  mealPlan         MealPlan?        @relation(fields: [mealPlanId], references: [id])
+
+  payments Payment[]
+
+  @@index([userId])
+  @@index([propertyId])
+  @@index([propertyRoomTypeId])
+  @@index([roomId])
+  @@index([mealPlanId])
+  @@index([isDeleted])
+}

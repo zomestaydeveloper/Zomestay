@@ -1,0 +1,64 @@
+model PropertyType {
+  id        String   @id @default(uuid()) @db.Char(36)
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  isDeleted Boolean  @default(false)
+
+  properties Property[]
+
+  @@unique([name, isDeleted])
+  @@index([isDeleted])
+}
+
+model Property {
+  id               String         @id @default(uuid()) @db.Char(36)
+  title            String         @unique
+  description      String?
+  rulesAndPolicies String?
+  status           PropertyStatus @default(active)
+  location         Json?
+  avgRating        Decimal?       @db.Decimal(3, 2)
+  reviewCount      Int            @default(0)
+  coverImage       String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  isDeleted        Boolean        @default(false)
+
+  ownerHostId String @db.Char(36)
+  ownerHost   Host   @relation(fields: [ownerHostId], references: [id])
+
+  propertyTypeId String?       @db.Char(36)
+  propertyType   PropertyType? @relation(fields: [propertyTypeId], references: [id])
+
+  media         PropertyMedia[]
+  roomTypes     PropertyRoomType[]
+  bookings      Booking[]
+  payments      Payment[]
+  reviews       Review[]
+  promotions    Promotion[]
+  wishlistItems WishlistItem[]
+  amenities     PropertyAmenity[]
+  facilities    PropertyFacility[]
+  safeties      PropertySafety[]
+
+  @@index([ownerHostId])
+  @@index([propertyTypeId])
+  @@index([isDeleted])
+}
+
+model PropertyMedia {
+  id         String   @id @default(uuid()) @db.Char(36)
+  url        String
+  type       String
+  isFeatured Boolean  @default(false)
+  order      Int      @default(0)
+  propertyId String   @db.Char(36)
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  isDeleted  Boolean  @default(false)
+
+  @@index([propertyId])
+  @@index([isDeleted])
+}

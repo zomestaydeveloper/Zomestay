@@ -1,0 +1,46 @@
+model Review {
+  id          String   @id @default(uuid()) @db.Char(36)
+  userId      String   @db.Char(36)
+  propertyId  String   @db.Char(36)
+  description String?
+  rating      Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  isDeleted   Boolean  @default(false)
+
+  user     User     @relation(fields: [userId], references: [id])
+  property Property @relation(fields: [propertyId], references: [id])
+
+  @@unique([userId, propertyId, isDeleted])
+  @@index([propertyId])
+  @@index([isDeleted])
+}
+
+model Wishlist {
+  id        String   @id @default(uuid()) @db.Char(36)
+  userId    String   @unique @db.Char(36)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  isDeleted Boolean  @default(false)
+
+  user  User           @relation(fields: [userId], references: [id])
+  items WishlistItem[]
+
+  @@index([isDeleted])
+}
+
+model WishlistItem {
+  id         String   @id @default(uuid()) @db.Char(36)
+  wishlistId String   @db.Char(36)
+  propertyId String   @db.Char(36)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  isDeleted  Boolean  @default(false)
+
+  wishlist Wishlist @relation(fields: [wishlistId], references: [id])
+  property Property @relation(fields: [propertyId], references: [id])
+
+  @@unique([wishlistId, propertyId, isDeleted])
+  @@index([propertyId])
+  @@index([isDeleted])
+}

@@ -1,0 +1,149 @@
+// Production-ready booking and payment schema
+
+model Order {
+  id                String   @id @default(cuid())
+  razorpayOrderId   String   @unique
+  amount            Int      // Amount in paise
+  currency          String   @default("INR")
+  status            OrderStatus @default(PENDING)
+  receipt           String?
+  
+  // Booking details
+  propertyId        String
+  checkIn           DateTime
+  checkOut          DateTime
+  guests            Int
+  children          Int      @default(0)
+  rooms             Int
+  
+  // User details
+  guestName         String?
+  guestEmail        String?
+  guestPhone        String?
+  
+  // Payment details
+  razorpayPaymentId String?
+  razorpaySignature String?
+  paymentMethod     String?
+  
+  // Timestamps
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  expiresAt         DateTime // Order expiry time
+  
+  // Relations
+  property          Property @relation(fields: [propertyId], references: [id])
+  booking           Booking?
+  
+  @@map("orders")
+}
+
+model Booking {
+  id                String   @id @default(cuid())
+  bookingNumber     String   @unique @default(cuid()) // Human-readable booking number
+  
+  // Order reference
+  orderId           String   @unique
+  order             Order    @relation(fields: [orderId], references: [id])
+  
+  // Property details
+  propertyId        String
+  property          Property @relation(fields: [propertyId], references: [id])
+  
+  // Guest details
+  guestName         String
+  guestEmail        String
+  guestPhone        String
+  guestAddress      String?
+  
+  // Booking details
+  checkIn           DateTime
+  checkOut          DateTime
+  nights            Int
+  guests            Int
+  children          Int      @default(0)
+  rooms             Int
+  
+  // Room details (JSON to store room selections)
+  roomSelections    Json     // Array of { roomTypeId, roomTypeName, rooms, guests, children, mealPlan, price }
+  
+  // Pricing
+  totalAmount       Int      // Total amount in paise
+  baseAmount        Int      // Base room amount
+  extraBedAmount    Int      @default(0) // Extra bed charges
+  taxes             Int      @default(0) // Tax amount
+  discount          Int      @default(0) // Discount amount
+  
+  // Status
+  status            BookingStatus @default(CONFIRMED)
+  
+  // Special requests
+  specialRequests   String?
+  
+  // Timestamps
+  createdAt         DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  payments         Payment[]
+  
+  @@map("bookings")
+}
+
+model Payment {
+  id                String   @id @default(cuid())
+  bookingId         String
+  booking            Booking @relation(fields: [bookingId], references: [id])
+  
+  // Razorpay details
+  razorpayPaymentId String   @unique
+  razorpayOrderId   String
+  razorpaySignature  String
+  
+  // Payment details
+  amount            Int      // Amount in paise
+  currency          String   @default("INR")
+  status            PaymentStatus @default(SUCCESS)
+  paymentMethod     String   @default("razorpay")
+  
+  // Timestamps
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@map("payments")
+}
+
+// Enums
+enum OrderStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  EXPIRED
+  CANCELLED
+}
+
+enum BookingStatus {
+  CONFIRMED
+  CHECKED_IN
+  CHECKED_OUT
+  CANCELLED
+  NO_SHOW
+}
+
+enum PaymentStatus {
+  SUCCESS
+  FAILED
+  REFUNDED
+  PARTIAL_REFUND
+}
+
+// Add to existing Property model
+model Property {
+  // ... existing fields ...
+  
+  // Relations
+  orders            Order[]
+  bookings          Booking[]
+  
+  // ... rest of existing fields ...
+}

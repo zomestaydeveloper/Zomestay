@@ -1,0 +1,1217 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+/**
+ * ===================== Enums =====================
+ */
+
+enum UserStatus {
+  active
+  blocked
+}
+
+enum TravelAgentStatus {
+  pending
+  approved
+  rejected
+  suspended
+}
+
+enum PropertyStatus {
+  active
+  blocked
+}
+
+enum RoomTypeStatus {
+  active
+  inactive
+}
+
+enum RoomStatus {
+  active
+  maintenance
+  inactive
+}
+
+enum BookingStatus {
+  pending
+  confirmed
+  cancelled
+  completed
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUND_INITIATED
+  REFUND_COMPLETED
+  REFUND_FAILED
+  REFUND_NOT_APPLICABLE
+}
+
+enum PromotionStatus {
+  active
+  inactive
+}
+
+enum PromotionType {
+  percent
+  flat
+}
+
+enum MealPlanKind {
+  EP
+  CP
+  MAP
+  AP
+  custom
+}
+
+enum RoomAvailabilityStatus {
+  available
+  booked
+  maintenance
+  blocked
+  out_of_service
+}
+
+enum OrderCreatorType {
+  admin
+  host
+  agent
+  user
+}
+
+enum SpecialRateKind {
+  offer
+  peak
+  custom
+}
+
+enum PricingMode {
+  flat
+  percent
+}
+
+enum AmenityCategory {
+  KITCHEN
+  BATHROOM
+  ENTERTAINMENT
+  COMFORT
+  SAFETY
+  OUTDOOR
+  LAUNDRY
+  TECHNOLOGY
+  OTHER
+}
+
+enum FacilityCategory {
+  RECREATION
+  BUSINESS
+  WELLNESS
+  TRANSPORT
+  DINING
+  SHOPPING
+  SERVICES
+  ACCESSIBILITY
+  OTHER
+}
+
+enum BedType {
+  SINGLE
+  DOUBLE
+  QUEEN
+  KING
+  TWIN
+  FULL
+  SOFA_BED
+  BUNK_BED
+  MURPHY_BED
+  WATER_BED
+  AIR_BED
+  CUSTOM
+}
+
+enum SafetyCategory {
+  FIRE_SAFETY
+  SECURITY
+  HEALTH_HYGIENE
+  EMERGENCY
+  CHILD_SAFETY
+  ACCESSIBILITY
+  OTHER
+}
+
+/**
+ * ===================== People =====================
+ */
+
+model Admin {
+  id            String    @id @default(uuid()) @db.Char(36)
+  email         String    @unique
+  firstName     String
+  lastName      String
+  password      String
+  status        String    @default("ACTIVE")
+  phone         String?
+  profileImage  String?
+  emailVerified DateTime?
+  phoneVerified DateTime?
+  dob           DateTime?
+  gender        String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  isDeleted     Boolean   @default(false)
+
+  // Relations
+  approvedAgents TravelAgent[]
+
+  @@index([isDeleted])
+}
+
+model Host {
+  id           String   @id @default(uuid()) @db.Char(36)
+  email        String   @unique
+  password     String
+  firstName    String?
+  lastName     String?
+  phone        String?
+  profileImage String?
+  isVerified   Boolean  @default(false)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  isDeleted    Boolean  @default(false)
+
+  properties   Property[]
+  specialRates SpecialRate[]
+
+  @@index([isDeleted])
+}
+
+model User {
+  id            String     @id @default(uuid()) @db.Char(36)
+  status        UserStatus @default(active)
+  email         String     @unique
+  phone         String?    @unique
+  username      String?    @unique
+  password      String
+  firstname     String?
+  lastname      String?
+  profileImage  String?
+  emailVerified Boolean    @default(false)
+  phoneVerified Boolean    @default(false)
+  dob           DateTime?
+  gender        String?
+  city          String?
+  state         String?
+  country       String?
+  zipcode       String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  isDeleted     Boolean    @default(false)
+
+  bookings Booking[]
+  payments Payment[]
+  reviews  Review[]
+  wishlist Wishlist?
+
+  @@index([isDeleted])
+}
+
+model TravelAgent {
+  id              String            @id @default(uuid()) @db.Char(36)
+  status          TravelAgentStatus @default(pending)
+  email           String            @unique
+  phone           String?           @unique
+  password        String
+  firstName       String?
+  lastName        String?
+  agencyName      String?
+  licenseNumber   String?
+  iataCertificate String? // File path for IATA certificate
+  officeAddress   String? // Office address from the form
+  profileImage    String?
+  emailVerified   Boolean           @default(false)
+  phoneVerified   Boolean           @default(false)
+  dob             DateTime?
+  gender          String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  isDeleted       Boolean           @default(false)
+
+  // Approval workflow
+  approvedById     String?   @db.Char(36)
+  approvedBy       Admin?    @relation(fields: [approvedById], references: [id])
+  approvalDate     DateTime?
+  rejectionReason  String?
+  suspensionReason String?
+  totalBookings    Int       @default(0)
+
+  // Relations
+  propertyDiscounts TravelAgentPropertyDiscount[]
+  payments          Payment[]
+  bookings          Booking[] // Bookings created by this travel agent
+
+  @@index([isDeleted])
+  @@index([status])
+  @@index([approvedById])
+}
+
+/**
+ * ===================== Vocabularies =====================
+ */
+
+model Amenity {
+  id        String          @id @default(uuid()) @db.Char(36)
+  name      String          @db.VarChar(100)
+  icon      String?         @db.Text
+  category  AmenityCategory @default(OTHER)
+  isActive  Boolean         @default(true)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  isDeleted Boolean         @default(false)
+
+  propertyLinks PropertyAmenity[]
+  roomTypeLinks RoomTypeAmenity[]
+  propertyRoomTypeLinks PropertyRoomTypeAmenity[]
+
+  @@unique([name, isDeleted])
+  @@index([isDeleted])
+  @@index([category, isActive])
+}
+
+model Facility {
+  id        String           @id @default(uuid()) @db.Char(36)
+  name      String           @db.VarChar(100)
+  icon      String?          @db.Text
+  category  FacilityCategory @default(OTHER)
+  isActive  Boolean          @default(true)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  isDeleted Boolean          @default(false)
+
+  propertyLinks PropertyFacility[]
+
+  @@unique([name, isDeleted])
+  @@index([isDeleted])
+  @@index([category, isActive])
+}
+
+model SafetyHygiene {
+  id        String         @id @default(uuid()) @db.Char(36)
+  name      String         @db.VarChar(100)
+  icon      String?        @db.Text
+  category  SafetyCategory @default(OTHER)
+  isActive  Boolean        @default(true)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  isDeleted Boolean        @default(false)
+
+  propertyLinks PropertySafety[]
+
+  @@unique([name, isDeleted])
+  @@index([isDeleted])
+  @@index([category, isActive])
+}
+
+model PropertyType {
+  id        String   @id @default(uuid()) @db.Char(36)
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  isDeleted Boolean  @default(false)
+
+  properties Property[]
+
+  @@unique([name, isDeleted])
+  @@index([isDeleted])
+}
+
+/**
+ * ===================== Properties =====================
+ */
+
+model Property {
+  id               String         @id @default(uuid()) @db.Char(36)
+  title            String
+  description      String?        @db.Text
+  rulesAndPolicies String?        @db.Text
+  status           PropertyStatus @default(active)
+  location         Json?
+  avgRating        Decimal?       @db.Decimal(3, 2)
+  reviewCount      Int            @default(0)
+  coverImage       String?
+  checkInTime      String         @default("14:00") // Default check-in time: 2 PM
+  checkOutTime     String         @default("11:00") // Default check-out time: 11 AM
+  cancellationPolicyId String?       @db.Char(36)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  isDeleted        Boolean        @default(false)
+
+  ownerHostId String @db.Char(36)
+  ownerHost   Host   @relation(fields: [ownerHostId], references: [id])
+
+  propertyTypeId String?       @db.Char(36)
+  propertyType   PropertyType? @relation(fields: [propertyTypeId], references: [id])
+  cancellationPolicy CancellationPolicy? @relation(fields: [cancellationPolicyId], references: [id])
+
+  media                  PropertyMedia[]
+  roomTypes              PropertyRoomType[]
+  bookings               Booking[]
+  payments               Payment[]
+  reviews                Review[]
+  promotions             Promotion[]
+  callbackRequests       CallbackRequest[]
+  wishlistItems          WishlistItem[]
+  amenities              PropertyAmenity[]
+  facilities             PropertyFacility[]
+  safeties               PropertySafety[]
+  specialRates           SpecialRate[]
+  MealPlan               MealPlan[]
+  SpecialRateApplication SpecialRateApplication[]
+  roomTypeMealPlans      PropertyRoomTypeMealPlan[]
+  ratePlans              RatePlan[]
+  ratePlanDates          RatePlanDate[]
+  orders                 Order[]
+  agentDiscounts         TravelAgentPropertyDiscount[]
+
+  @@unique([title, isDeleted])
+  @@unique([ownerHostId, isDeleted])
+  @@index([ownerHostId])
+  @@index([propertyTypeId])
+  @@index([cancellationPolicyId])
+  @@index([isDeleted])
+}
+
+model CancellationPolicy {
+  id          String                     @id @default(uuid()) @db.Char(36)
+  name        String
+  description String?                    @db.Text
+  createdAt   DateTime                   @default(now())
+  updatedAt   DateTime                   @updatedAt
+  isDeleted   Boolean                    @default(false)
+
+  rules      CancellationPolicyRule[]
+  properties Property[]
+  bookings   Booking[]
+
+  @@index([isDeleted])
+}
+
+model CancellationPolicyRule {
+  id                    String              @id @default(uuid()) @db.Char(36)
+  cancellationPolicyId  String              @db.Char(36)
+  daysBefore            Int
+  refundPercentage      Int
+  sortOrder             Int                 @default(0)
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  cancellationPolicy CancellationPolicy @relation(fields: [cancellationPolicyId], references: [id], onDelete: Cascade)
+
+  @@index([cancellationPolicyId])
+  @@index([daysBefore])
+}
+
+model PropertyMedia {
+  id         String   @id @default(uuid()) @db.Char(36)
+  url        String
+  type       String
+  isFeatured Boolean  @default(false)
+  order      Int      @default(0)
+  propertyId String   @db.Char(36)
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  isDeleted  Boolean  @default(false)
+
+  @@index([propertyId])
+  @@index([isDeleted])
+}
+
+model RoomType {
+  id        String         @id @default(uuid()) @db.Char(36)
+  name      String
+  status    RoomTypeStatus @default(active)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  isDeleted Boolean        @default(false)
+
+  propertyLinks PropertyRoomType[]
+  amenities     RoomTypeAmenity[]
+
+  @@unique([name, isDeleted])
+  @@index([isDeleted])
+}
+
+model PropertyRoomType {
+  id               String   @id @default(uuid()) @db.Char(36)
+  propertyId       String   @db.Char(36)
+  roomTypeId       String   @db.Char(36)
+  Occupancy        Int      @default(2)
+  extraBedCapacity Int      @default(0)
+  minOccupancy     Int      @default(1)
+  maxOccupancy     Int
+  numberOfBeds     Int      @default(1)
+  bedType          BedType  @default(DOUBLE)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  isDeleted        Boolean  @default(false)
+  isActive         Boolean  @default(true)
+
+  property               Property                   @relation(fields: [propertyId], references: [id])
+  roomType               RoomType                   @relation(fields: [roomTypeId], references: [id])
+  mealPlanLinks          PropertyRoomTypeMealPlan[]
+  rooms                  Room[]
+  bookings               Booking[]
+  bookingRoomSelections  BookingRoomSelection[]
+  specialRateLinks       SpecialRateRoomType[]
+  SpecialRateApplication SpecialRateApplication[]
+  media                  PropertyRoomTypeMedia[]
+  amenities              PropertyRoomTypeAmenity[]
+
+  @@unique([propertyId, roomTypeId, isDeleted])
+  @@index([propertyId])
+  @@index([roomTypeId])
+  @@index([isDeleted])
+}
+
+model PropertyRoomTypeMedia {
+  id                 String   @id @default(uuid()) @db.Char(36)
+  propertyRoomTypeId String   @db.Char(36)
+  url                String
+  type               String // 'image' or 'video'
+  isFeatured         Boolean  @default(false)
+  order              Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  isDeleted          Boolean  @default(false)
+
+  propertyRoomType PropertyRoomType @relation(fields: [propertyRoomTypeId], references: [id], onDelete: Cascade)
+
+  @@index([propertyRoomTypeId])
+  @@index([isDeleted])
+  @@index([order])
+}
+
+model Room {
+  id                 String     @id @default(uuid()) @db.Char(36)
+  propertyRoomTypeId String     @db.Char(36)
+  name               String
+  code               String?
+  spaceSqft          Int?
+  images             Json?
+  status             RoomStatus @default(active)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  isDeleted          Boolean    @default(false)
+
+  propertyRoomType PropertyRoomType @relation(fields: [propertyRoomTypeId], references: [id])
+
+  availability Availability[]
+  bookings     Booking[]
+
+  @@index([propertyRoomTypeId])
+  @@index([isDeleted])
+}
+
+model Availability {
+  id        String                 @id @default(uuid()) @db.Char(36)
+  roomId    String                 @db.Char(36)
+  date      DateTime               @db.Date
+  status    RoomAvailabilityStatus @default(booked) // Only create when unavailable
+  minNights Int?
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
+  isDeleted Boolean                @default(false)
+
+  reason    String?
+  blockedBy String?
+  holdExpiresAt DateTime?
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, date, isDeleted])
+  @@index([roomId, date, isDeleted])
+  @@index([date])
+  @@index([status])
+  @@index([isDeleted])
+}
+
+/**
+ * ===================== Bookings =====================
+ */
+
+model Booking {
+  id                 String  @id @default(uuid()) @db.Char(36)
+  bookingNumber      String  @unique // Human-readable booking number (BK20251028001)
+  userId             String? @db.Char(36) // Optional for guest bookings (registered users)
+  agentId            String? @db.Char(36) // Optional for agent bookings (travel agents)
+  propertyId         String  @db.Char(36)
+  propertyRoomTypeId String  @db.Char(36)
+  roomId             String  @db.Char(36)
+  mealPlanId         String? @db.Char(36)
+  cancellationPolicyId String? @db.Char(36)
+
+  // Guest Information
+  guestName     String // Primary guest name
+  guestEmail    String // Primary guest email
+  guestPhone    String // Primary guest phone
+  guestAddress  String? // Guest address
+  guestIdProof  String? // ID proof document
+  guestIdNumber String? // ID proof number
+
+  // Booking Dates
+  startDate    DateTime @db.Date
+  endDate      DateTime @db.Date
+  nights       Int // Number of nights
+  checkInTime  String? // Check-in time preference
+  checkOutTime String? // Check-out time preference
+
+  // Guest Count
+  adults      Int // Number of adults
+  children    Int @default(0) // Number of children
+  infants     Int @default(0) // Number of infants
+  totalGuests Int // Total guests (adults + children + infants)
+
+  // Room Information
+  rooms          Int // Number of rooms
+  bookingRoomSelections BookingRoomSelection[] // Relational room selections (production standard)
+
+  // Pricing
+  totalAmount Decimal @db.Decimal(10, 2) // Total amount paid
+
+  // Payment Information
+  paymentStatus         PaymentStatus @default(PENDING)
+  paymentMethod         String?       // Payment method used
+  paymentReference      String?       // Payment reference number
+  refundStatusUpdatedAt DateTime?     // Last time refund-related status changed
+
+  // Refund Information
+  refundedAmount        Decimal? @db.Decimal(10, 2) // Actual refund amount processed
+  refundEligibleAmount  Decimal? @db.Decimal(10, 2) // Calculated eligible refund amount (for reference)
+  refundPercentage      Int?     // Refund percentage applied
+  refundProcessedAt     DateTime? // When refund was actually processed
+
+  // Booking Status
+  status             BookingStatus @default(pending)
+  confirmationDate   DateTime? // When booking was confirmed
+  cancellationDate   DateTime? // When booking was cancelled
+  cancellationReason String? // Reason for cancellation
+
+  // Special Requests
+  specialRequests     String? // Special requests from guest
+  dietaryRequirements String? // Dietary requirements
+  accessibilityNeeds  String? // Accessibility needs
+
+  // Host Information
+  hostNotes     String? // Internal notes for host
+  hostConfirmed Boolean @default(false) // Host confirmation
+
+  // Creator Information (for frontdesk bookings)
+  createdByType OrderCreatorType? // Who created this booking: 'admin', 'host', 'agent', 'user', or null (frontdesk)
+  createdById   String? @db.Char(36) // ID of admin/host who created this booking (for frontdesk bookings)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  isDeleted Boolean  @default(false)
+
+  // Rate Snapshot (for historical pricing)
+  rateSnapshot Json? // Snapshot of rates at time of booking
+  cancellationPolicySnapshot Json?
+
+  // Relations
+  promoId String?    @db.Char(36)
+  promo   Promotion? @relation(fields: [promoId], references: [id])
+
+  orderId String? @unique @db.Char(36) // One booking per order (one-to-one)
+  order   Order?  @relation(fields: [orderId], references: [id])
+
+  user             User?            @relation(fields: [userId], references: [id])
+  agent            TravelAgent?     @relation(fields: [agentId], references: [id])
+  property         Property         @relation(fields: [propertyId], references: [id])
+  propertyRoomType PropertyRoomType @relation(fields: [propertyRoomTypeId], references: [id])
+  room             Room             @relation(fields: [roomId], references: [id])
+  mealPlan         MealPlan?        @relation(fields: [mealPlanId], references: [id])
+  cancellationPolicy CancellationPolicy? @relation(fields: [cancellationPolicyId], references: [id])
+
+  payments Payment[]
+
+  @@index([userId])
+  @@index([agentId])
+  @@index([propertyId])
+  @@index([propertyRoomTypeId])
+  @@index([roomId])
+  @@index([mealPlanId])
+  @@index([orderId])
+  @@index([bookingNumber])
+  @@index([status])
+  @@index([startDate])
+  @@index([endDate])
+  @@index([isDeleted])
+  @@index([cancellationPolicyId])
+  @@index([createdByType])
+  @@index([createdById])
+}
+
+/**
+ * ===================== Meal Plans =====================
+ */
+
+model MealPlan {
+  id          String       @id @default(uuid()) @db.Char(36)
+  propertyId  String       @db.Char(36)
+  code        String
+  name        String
+  kind        MealPlanKind
+  description String?      @db.Text
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  isDeleted   Boolean      @default(false)
+
+  bookings      Booking[]
+  bookingRoomSelections BookingRoomSelection[]
+  property      Property                   @relation(fields: [propertyId], references: [id])
+  roomTypeLinks PropertyRoomTypeMealPlan[]
+
+  @@unique([propertyId, code])
+  @@index([propertyId])
+  @@index([isDeleted])
+}
+
+model RatePlan {
+  id          String   @id @default(uuid()) @db.Char(36)
+  propertyId  String   @db.Char(36)
+  name        String   @db.VarChar(100)
+  color       String   @db.VarChar(7)
+  description String?  @db.Text
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  isDeleted   Boolean  @default(false)
+
+  property                Property                   @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  roomTypeMealPlanPricing PropertyRoomTypeMealPlan[]
+  ratePlanDates           RatePlanDate[]
+
+  @@unique([propertyId, name, isDeleted])
+  @@unique([propertyId, color, isDeleted])
+  @@index([propertyId])
+  @@index([isDeleted])
+}
+
+model RatePlanDate {
+  id         String   @id @default(uuid()) @db.Char(36)
+  propertyId String   @db.Char(36)
+  ratePlanId String   @db.Char(36)
+  date       DateTime @db.Date
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  isDeleted  Boolean  @default(false)
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  ratePlan RatePlan @relation(fields: [ratePlanId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, date, isDeleted])
+  @@index([propertyId])
+  @@index([ratePlanId])
+  @@index([date])
+  @@index([isDeleted])
+}
+
+model PropertyRoomTypeMealPlan {
+  id                   String   @id @default(uuid()) @db.Char(36)
+  propertyId           String   @db.Char(36)
+  ratePlanId           String   @db.Char(36)
+  propertyRoomTypeId   String   @db.Char(36)
+  mealPlanId           String   @db.Char(36)
+  doubleOccupancyPrice Decimal  @db.Decimal(10, 2)
+  singleOccupancyPrice Decimal  @db.Decimal(10, 2)
+  groupOccupancyPrice  Decimal  @db.Decimal(10, 2)
+  extraBedPriceAdult   Decimal  @db.Decimal(10, 2)
+  extraBedPriceChild   Decimal  @db.Decimal(10, 2)
+  extraBedPriceInfant  Decimal  @default(0) @db.Decimal(10, 2)
+  isActive             Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  isDeleted            Boolean  @default(false)
+
+  property         Property         @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  ratePlan         RatePlan         @relation(fields: [ratePlanId], references: [id], onDelete: Cascade)
+  propertyRoomType PropertyRoomType @relation(fields: [propertyRoomTypeId], references: [id], onDelete: Cascade)
+  mealPlan         MealPlan         @relation(fields: [mealPlanId], references: [id], onDelete: Cascade)
+
+  @@unique([ratePlanId, propertyRoomTypeId, mealPlanId])
+  @@index([propertyId])
+  @@index([ratePlanId])
+  @@index([propertyRoomTypeId])
+  @@index([mealPlanId])
+  @@index([isDeleted])
+}
+
+/**
+ * ===================== Orders =====================
+ */
+
+model Order {
+  id              String  @id @default(uuid()) @db.Char(36)
+  razorpayOrderId String  @unique
+  amount          Int // Amount in paise
+  currency        String  @default("INR")
+  status          String  @default("PENDING") // PENDING, SUCCESS, FAILED, EXPIRED, CANCELLED
+  receipt         String?
+
+  // Booking details
+  propertyId String   @db.Char(36)
+  checkIn    DateTime @db.Date
+  checkOut   DateTime @db.Date
+  guests     Int
+  children   Int      @default(0)
+  rooms      Int
+
+  // User details
+  guestId    String? @db.Char(36) // User or Agent ID
+  guestName  String?
+  guestEmail String?
+  guestPhone String?
+  createdByType OrderCreatorType?
+  createdById   String? @db.Char(36)
+
+  // Payment details
+  razorpayPaymentId String?
+  razorpaySignature String?
+  paymentMethod     String?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  expiresAt DateTime // Order expiry time (30 minutes from creation)
+  isDeleted Boolean  @default(false)
+
+  // Relations
+  property Property @relation(fields: [propertyId], references: [id])
+  booking  Booking? // One order = One booking (one-to-one)
+  roomSelections OrderRoomSelection[]
+
+  @@index([propertyId])
+  @@index([status])
+  @@index([expiresAt])
+  @@index([isDeleted])
+}
+
+model OrderRoomSelection {
+  id              String   @id @default(uuid()) @db.Char(36)
+  orderId         String   @db.Char(36)
+  
+  // Room Type Information
+  roomTypeId      String   @db.Char(36)
+  roomTypeName    String   // Snapshot at order time
+  roomIds         Json     // Array of room IDs selected (as JSON array)
+  
+  // Booking Configuration
+  rooms           Int      // Number of rooms
+  guests          Int      // Adults
+  children        Int      @default(0)
+  mealPlanId      String?  @db.Char(36) // Selected meal plan ID
+  
+  // Pricing Snapshot (at time of order) - stored in paise
+  price           Int      // Base price in paise
+  tax             Int      // Tax amount in paise
+  totalPrice      Int      // Total (price + tax) in paise
+  
+  // Dates
+  checkIn         DateTime @db.Date
+  checkOut        DateTime @db.Date
+  datesToBlock    Json     // Array of date strings (YYYY-MM-DD)
+  
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  
+  @@index([orderId])
+  @@index([roomTypeId])
+  @@index([mealPlanId])
+  @@map("order_room_selections")
+}
+
+model BookingRoomSelection {
+  id              String   @id @default(uuid()) @db.Char(36)
+  bookingId       String   @db.Char(36)
+  
+  // Room Type Information
+  roomTypeId      String   @db.Char(36)
+  roomTypeName    String   // Snapshot at booking time
+  roomIds         Json     // Array of room IDs reserved (as JSON array)
+  
+  // Booking Configuration
+  rooms           Int      // Number of rooms
+  guests          Int      // Adults
+  children        Int      @default(0)
+  mealPlanId      String?  @db.Char(36) // Selected meal plan ID for this room type
+  
+  // Pricing Snapshot (at time of booking) - stored in rupees
+  basePrice       Decimal  @db.Decimal(10, 2) // Base price in rupees
+  tax             Decimal  @db.Decimal(10, 2) // Tax amount in rupees
+  totalPrice      Decimal  @db.Decimal(10, 2) // Total (base + tax) in rupees
+  
+  // Dates
+  checkIn         DateTime @db.Date
+  checkOut        DateTime @db.Date
+  datesReserved   Json     // Array of date strings (YYYY-MM-DD)
+  
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  booking         Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  roomType        PropertyRoomType @relation(fields: [roomTypeId], references: [id])
+  mealPlan        MealPlan? @relation(fields: [mealPlanId], references: [id])
+  
+  @@index([bookingId])
+  @@index([roomTypeId])
+  @@index([mealPlanId])
+  @@map("booking_room_selections")
+}
+
+/**
+ * ===================== Payments, Reviews, Wishlist, Promotions =====================
+ */
+
+model Payment {
+  id            String       @id @default(uuid()) @db.Char(36)
+  transactionID String       @unique
+  customerId    String?      @db.Char(36) // Optional: for registered users
+  agentId       String?      @db.Char(36) // Optional: for travel agent bookings
+  propertyId    String       @db.Char(36)
+  amount        Decimal      @db.Decimal(10, 2)
+  paymentMethod String
+  status        PaymentStatus @default(PENDING)
+  date          DateTime     @default(now())
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  isDeleted     Boolean      @default(false)
+
+  // Guest information (for frontdesk/walk-in payments without registered user/agent)
+  guestName  String?
+  guestEmail String?
+  guestPhone String?
+
+  bookingId String?  @db.Char(36)
+  booking   Booking? @relation(fields: [bookingId], references: [id])
+
+  customer User?         @relation(fields: [customerId], references: [id]) // Optional: null for guest/agent payments
+  agent    TravelAgent?  @relation(fields: [agentId], references: [id]) // Optional: null for guest/user payments
+  property Property      @relation(fields: [propertyId], references: [id])
+
+  @@index([customerId])
+  @@index([agentId])
+  @@index([propertyId])
+  @@index([bookingId])
+  @@index([status])
+  @@index([isDeleted])
+}
+
+model Review {
+  id          String   @id @default(uuid()) @db.Char(36)
+  userId      String   @db.Char(36)
+  propertyId  String   @db.Char(36)
+  description String?  @db.Text
+  rating      Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  isDeleted   Boolean  @default(false)
+
+  user     User     @relation(fields: [userId], references: [id])
+  property Property @relation(fields: [propertyId], references: [id])
+
+  @@unique([userId, propertyId, isDeleted])
+  @@index([propertyId])
+  @@index([isDeleted])
+}
+
+model Wishlist {
+  id        String   @id @default(uuid()) @db.Char(36)
+  userId    String   @unique @db.Char(36)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  isDeleted Boolean  @default(false)
+
+  user  User           @relation(fields: [userId], references: [id])
+  items WishlistItem[]
+
+  @@index([isDeleted])
+}
+
+model WishlistItem {
+  id         String   @id @default(uuid()) @db.Char(36)
+  wishlistId String   @db.Char(36)
+  propertyId String   @db.Char(36)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  isDeleted  Boolean  @default(false)
+
+  wishlist Wishlist @relation(fields: [wishlistId], references: [id])
+  property Property @relation(fields: [propertyId], references: [id])
+
+  @@unique([wishlistId, propertyId, isDeleted])
+  @@index([propertyId])
+  @@index([isDeleted])
+}
+
+model Promotion {
+  id         String          @id @default(uuid()) @db.Char(36)
+  propertyId String          @db.Char(36)
+  discount   Decimal         @db.Decimal(10, 2)
+  validFrom  DateTime        @db.Date
+  validTo    DateTime        @db.Date
+  status     PromotionStatus @default(active)
+  type       PromotionType
+  code       String          @unique
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  isDeleted  Boolean         @default(false)
+
+  property Property  @relation(fields: [propertyId], references: [id])
+  bookings Booking[]
+
+  @@index([propertyId])
+  @@index([isDeleted])
+}
+
+/**
+ * ===================== Join Tables =====================
+ */
+
+model PropertyAmenity {
+  id         String   @id @default(uuid()) @db.Char(36)
+  propertyId String   @db.Char(36)
+  amenityId  String   @db.Char(36)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  isDeleted  Boolean  @default(false)
+
+  property Property @relation(fields: [propertyId], references: [id])
+  amenity  Amenity  @relation(fields: [amenityId], references: [id])
+
+  @@unique([propertyId, amenityId, isDeleted])
+  @@index([amenityId])
+  @@index([isDeleted])
+}
+
+model PropertyFacility {
+  id         String   @id @default(uuid()) @db.Char(36)
+  propertyId String   @db.Char(36)
+  facilityId String   @db.Char(36)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  isDeleted  Boolean  @default(false)
+
+  property Property @relation(fields: [propertyId], references: [id])
+  facility Facility @relation(fields: [facilityId], references: [id])
+
+  @@unique([propertyId, facilityId, isDeleted])
+  @@index([facilityId])
+  @@index([isDeleted])
+}
+
+model PropertySafety {
+  id         String   @id @default(uuid()) @db.Char(36)
+  propertyId String   @db.Char(36)
+  safetyId   String   @db.Char(36)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  isDeleted  Boolean  @default(false)
+
+  property Property      @relation(fields: [propertyId], references: [id])
+  safety   SafetyHygiene @relation(fields: [safetyId], references: [id])
+
+  @@unique([propertyId, safetyId, isDeleted])
+  @@index([safetyId])
+  @@index([isDeleted])
+}
+
+model PropertyRoomTypeAmenity {
+  id                 String   @id @default(uuid()) @db.Char(36)
+  propertyRoomTypeId String   @db.Char(36)
+  amenityId          String   @db.Char(36)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  isDeleted          Boolean  @default(false)
+
+  propertyRoomType PropertyRoomType @relation(fields: [propertyRoomTypeId], references: [id], onDelete: Cascade)
+  amenity          Amenity          @relation(fields: [amenityId], references: [id])
+
+  @@unique([propertyRoomTypeId, amenityId, isDeleted])
+  @@index([amenityId])
+  @@index([isDeleted])
+}
+
+model RoomTypeAmenity {
+  id         String   @id @default(uuid()) @db.Char(36)
+  roomTypeId String   @db.Char(36)
+  amenityId  String   @db.Char(36)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  isDeleted  Boolean  @default(false)
+
+  roomType RoomType @relation(fields: [roomTypeId], references: [id])
+  amenity  Amenity  @relation(fields: [amenityId], references: [id])
+
+  @@unique([roomTypeId, amenityId, isDeleted])
+  @@index([amenityId])
+  @@index([isDeleted])
+}
+
+/**
+ * ===================== Special Rates (Your Pricing System) =====================
+ */
+
+model SpecialRate {
+  id          String          @id @default(uuid()) @db.Char(36)
+  kind        SpecialRateKind @default(custom)
+  name        String          @db.VarChar(100)
+  propertyId  String          @db.Char(36)
+  pricingMode PricingMode?
+  color       String
+  flatPrice   Decimal?        @db.Decimal(10, 2)
+  percentAdj  Decimal?        @db.Decimal(5, 2)
+  isActive    Boolean         @default(true)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  isDeleted   Boolean         @default(false)
+
+  property               Property                 @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  roomTypeLinks          SpecialRateRoomType[]
+  Host                   Host?                    @relation(fields: [hostId], references: [id])
+  hostId                 String?                  @db.Char(36)
+  SpecialRateApplication SpecialRateApplication[]
+
+  @@unique([propertyId, name, isDeleted], name: "special_rate_unique")
+  @@index([propertyId, isActive])
+  @@index([isDeleted])
+  @@map("special_rates")
+}
+
+model SpecialRateRoomType {
+  id                 String      @id @default(uuid()) @db.Char(36)
+  specialRateId      String      @db.Char(36)
+  propertyRoomTypeId String      @db.Char(36)
+  pricingMode        PricingMode
+  flatPrice          Decimal?    @db.Decimal(10, 2)
+  percentAdj         Decimal?    @db.Decimal(5, 2)
+  isActive           Boolean     @default(true)
+
+  specialRate      SpecialRate      @relation(fields: [specialRateId], references: [id], onDelete: Cascade)
+  propertyRoomType PropertyRoomType @relation(fields: [propertyRoomTypeId], references: [id], onDelete: Cascade)
+
+  @@unique([specialRateId, propertyRoomTypeId])
+  @@index([specialRateId])
+  @@index([propertyRoomTypeId])
+}
+
+model SpecialRateApplication {
+  id                 String   @id @default(uuid()) @db.Char(36)
+  specialRateId      String   @db.Char(36)
+  propertyId         String   @db.Char(36)
+  propertyRoomTypeId String?  @db.Char(36)
+  dateFrom           DateTime @db.Date
+  dateTo             DateTime @db.Date
+  isActive           Boolean  @default(true)
+  createdBy          String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  specialRate      SpecialRate       @relation(fields: [specialRateId], references: [id], onDelete: Cascade)
+  property         Property          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  propertyRoomType PropertyRoomType? @relation(fields: [propertyRoomTypeId], references: [id], onDelete: Cascade)
+
+  @@unique([specialRateId, propertyId, propertyRoomTypeId, dateFrom, dateTo], name: "unique_app_scope_window")
+  @@index([propertyId, dateFrom, dateTo, isActive], name: "idx_app_property_date_active")
+  @@index([propertyRoomTypeId, dateFrom, dateTo, isActive], name: "idx_app_roomtype_date_active")
+  @@index([specialRateId], name: "idx_app_rate")
+}
+
+/**
+ * ===================== Travel Agent Property Discounts =====================
+ */
+
+model TravelAgentPropertyDiscount {
+  id            String   @id @default(uuid()) @db.Char(36)
+  agentId       String   @db.Char(36)
+  propertyId    String   @db.Char(36)
+  discountType  String // 'percentage' or 'flat'
+  discountValue Decimal  @db.Decimal(10, 2) // 15.00 for 15% or 500.00 for ₹500
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  isDeleted     Boolean  @default(false)
+
+  // Relations
+  agent    TravelAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  property Property    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, propertyId, isDeleted])
+  @@index([agentId])
+  @@index([propertyId])
+  @@index([isDeleted])
+}
+
+/**
+ * ===================== Site Configuration =====================
+ */
+
+model SiteConfig {
+  id            String   @id @default(uuid()) @db.Char(36)
+  logo          String?  @db.Text // Logo URL (can be from CDN or server)
+  phoneNumber   String?  @db.VarChar(20) // Contact phone number
+  bannerImages  Json?    // Array of banner image URLs
+  heroTitle     String?  @db.VarChar(200) // Hero section title
+  heroSubtitle  String?  @db.VarChar(500) // Hero section subtitle
+  siteName      String?  @db.VarChar(100) // Site name
+  supportEmail  String?  @db.VarChar(255) // Support email
+  supportPhone  String?  @db.VarChar(20) // Support phone
+  address       String?  @db.Text // Site address
+  socialMedia   Json?    // Social media links (JSON object)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  isDeleted     Boolean  @default(false)
+
+  @@index([isDeleted])
+}
+
+/**
+ * ===================== Callback Requests =====================
+ */
+
+model CallbackRequest {
+  id          String   @id @default(uuid()) @db.Char(36)
+  name        String   @db.VarChar(255)
+  email       String   @db.VarChar(255)
+  phone       String   @db.VarChar(20)
+  notes       String?  @db.Text
+  propertyId  String?  @db.Char(36)
+  property    Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  status      String   @default("pending") // pending, contacted, completed, cancelled
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  isDeleted   Boolean  @default(false)
+
+  @@index([propertyId])
+  @@index([status])
+  @@index([isDeleted])
+  @@index([createdAt])
+}

@@ -1,0 +1,60 @@
+model MealPlan {
+  id          String       @id @default(uuid()) @db.Char(36)
+  code        String       @unique
+  name        String
+  kind        MealPlanKind
+  description String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  isDeleted   Boolean      @default(false)
+
+  propertyRoomTypeLinks PropertyRoomTypeMealPlan[]
+  rates                 RateCalendar[]
+  bookings              Booking[]
+
+  @@index([isDeleted])
+}
+
+model PropertyRoomTypeMealPlan {
+  id                 String   @id @default(uuid()) @db.Char(36)
+  propertyRoomTypeId String   @db.Char(36)
+  mealPlanId         String   @db.Char(36)
+  basePrice          Decimal  @db.Decimal(10, 2)
+  extraAdult         Decimal? @db.Decimal(10, 2)
+  extraChild         Decimal? @db.Decimal(10, 2)
+  isDefault          Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  isDeleted          Boolean  @default(false)
+
+  propertyRoomType PropertyRoomType @relation(fields: [propertyRoomTypeId], references: [id])
+  mealPlan         MealPlan         @relation(fields: [mealPlanId], references: [id])
+
+  @@unique([propertyRoomTypeId, mealPlanId, isDeleted])
+  @@index([propertyRoomTypeId])
+  @@index([mealPlanId])
+  @@index([isDeleted])
+}
+
+model RateCalendar {
+  id                 String   @id @default(uuid()) @db.Char(36)
+  propertyRoomTypeId String   @db.Char(36)
+  mealPlanId         String   @db.Char(36)
+  date               DateTime
+  price              Decimal? @db.Decimal(10, 2)
+  isOpen             Boolean  @default(true)
+  allotment          Int?
+  minNights          Int?
+  cta                Boolean?
+  ctd                Boolean?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  isDeleted          Boolean  @default(false)
+
+  propertyRoomType PropertyRoomType @relation(fields: [propertyRoomTypeId], references: [id])
+  mealPlan         MealPlan         @relation(fields: [mealPlanId], references: [id])
+
+  @@unique([propertyRoomTypeId, mealPlanId, date, isDeleted])
+  @@index([propertyRoomTypeId, mealPlanId, date])
+  @@index([isDeleted])
+}

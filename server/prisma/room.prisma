@@ -1,0 +1,78 @@
+model RoomType {
+  id        String         @id @default(uuid()) @db.Char(36)
+  name      String
+  status    RoomTypeStatus @default(active)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  isDeleted Boolean        @default(false)
+
+  propertyLinks PropertyRoomType[]
+  amenities     RoomTypeAmenity[]
+
+  @@unique([name, isDeleted])
+  @@index([isDeleted])
+}
+
+model PropertyRoomType {
+  id         String   @id @default(uuid()) @db.Char(36)
+  propertyId String   @db.Char(36)
+  roomTypeId String   @db.Char(36)
+  basePrice  Decimal  @db.Decimal(10, 2)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  isDeleted  Boolean  @default(false)
+
+  property Property @relation(fields: [propertyId], references: [id])
+  roomType RoomType @relation(fields: [roomTypeId], references: [id])
+
+  rooms     Room[]
+  mealPlans PropertyRoomTypeMealPlan[]
+  rates     RateCalendar[]
+  bookings  Booking[]
+
+  @@unique([propertyId, roomTypeId, isDeleted])
+  @@index([propertyId])
+  @@index([roomTypeId])
+  @@index([isDeleted])
+}
+
+model Room {
+  id                 String     @id @default(uuid()) @db.Char(36)
+  propertyRoomTypeId String     @db.Char(36)
+  name               String
+  code               String?
+  spaceSqft          Int?
+  maxOccupancy       Int
+  images             Json?
+  status             RoomStatus @default(active)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  isDeleted          Boolean    @default(false)
+
+  propertyRoomType PropertyRoomType @relation(fields: [propertyRoomTypeId], references: [id])
+
+  availability Availability[]
+  bookings     Booking[]
+  amenities    RoomAmenity[]
+
+  @@index([propertyRoomTypeId])
+  @@index([isDeleted])
+}
+
+model Availability {
+  id          String   @id @default(uuid()) @db.Char(36)
+  roomId      String   @db.Char(36)
+  date        DateTime
+  isAvailable Boolean  @default(true)
+  price       Decimal? @db.Decimal(10, 2)
+  minNights   Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  isDeleted   Boolean  @default(false)
+
+  room Room @relation(fields: [roomId], references: [id])
+
+  @@unique([roomId, date, isDeleted])
+  @@index([roomId])
+  @@index([isDeleted])
+}

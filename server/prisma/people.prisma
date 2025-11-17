@@ -1,0 +1,64 @@
+model Admin {
+  id            String   @id @default(uuid()) @db.Char(36)
+  email         String   @unique
+  firstName     String
+  lastName      String
+  password      String
+  status        String   @default("ACTIVE")
+  phone         String?
+  profileImage  String?
+  emailVerified DateTime?
+  phoneVerified DateTime?
+  dob           DateTime?
+  gender        String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  isDeleted     Boolean  @default(false)
+
+  @@index([isDeleted])
+}
+
+model Host {
+  id           String   @id @default(uuid()) @db.Char(36)
+  email        String   @unique
+  password     String
+  firstName    String?
+  lastName     String?
+  phone        String?
+  profileImage String?
+  isVerified   Boolean  @default(false)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  isDeleted    Boolean  @default(false)
+
+  properties Property[]
+
+  @@index([isDeleted])
+}
+
+model User {
+  id            String     @id @default(uuid()) @db.Char(36)
+  status        UserStatus @default(active)
+  email         String     @unique
+  phone         String?    @unique
+  username      String?    @unique
+  password      String
+  firstname     String?
+  lastname      String?
+  profileImage  String?
+  emailVerified Boolean    @default(false)
+  phoneVerified Boolean    @default(false)
+  dob           DateTime?
+  gender        String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  isDeleted     Boolean    @default(false)
+
+  bookings Booking[]
+  payments Payment[]
+  reviews  Review[]
+  wishlist Wishlist?
+
+  @@index([isDeleted])
+}
