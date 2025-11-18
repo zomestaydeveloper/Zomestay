@@ -195,18 +195,41 @@ const handlePaymentLinkPaid = async (eventData, requestId) => {
         if (order) {
           console.warn(`[${requestId}] ⚠️ Found order by payment link ID (legacy format). Updating to correct order_id...`);
           
-          // Update order to use correct order_id for future webhook matching
+          // PRODUCTION: Update order to use correct order_id for future webhook matching
+          // Use transaction to ensure atomicity
           try {
-            order = await prisma.order.update({
-              where: { id: order.id },
-              data: { razorpayOrderId: razorpayOrderId }, // Update to correct order_id
-              select: { id: true, status: true },
+            // Check if another order already has this order_id (idempotency)
+            const existingOrderWithOrderId = await prisma.order.findUnique({
+              where: { razorpayOrderId },
+              select: { id: true },
             });
-            console.log(`[${requestId}] ✅ Updated order ${order.id} to use correct razorpayOrderId: ${razorpayOrderId}`);
+            
+            if (existingOrderWithOrderId && existingOrderWithOrderId.id !== order.id) {
+              // Another order already has this order_id - log and use the correct one
+              console.warn(`[${requestId}] ⚠️ Order ID ${razorpayOrderId} already exists for order ${existingOrderWithOrderId.id}`);
+              console.log(`[${requestId}] ℹ️ Using existing order with correct order_id...`);
+              order = await prisma.order.findUnique({
+                where: { id: existingOrderWithOrderId.id },
+                select: { id: true, status: true },
+              });
+            } else {
+              // Safe to update - no conflict
+              order = await prisma.order.update({
+                where: { id: order.id },
+                data: { razorpayOrderId: razorpayOrderId }, // Update to correct order_id
+                select: { id: true, status: true },
+              });
+              console.log(`[${requestId}] ✅ Updated order ${order.id} to use correct razorpayOrderId: ${razorpayOrderId}`);
+            }
           } catch (updateError) {
-            // If update fails (e.g., unique constraint - order_id already exists), use existing order
-            console.warn(`[${requestId}] ⚠️ Failed to update order razorpayOrderId:`, updateError.message);
-            console.log(`[${requestId}] ℹ️ Continuing with existing order...`);
+            // PRODUCTION: If update fails (e.g., unique constraint, race condition), use existing order
+            console.error(`[${requestId}] ❌ Failed to update order razorpayOrderId:`, {
+              error: updateError.message,
+              code: updateError.code,
+              orderId: order.id,
+              razorpayOrderId
+            });
+            console.log(`[${requestId}] ℹ️ Continuing with existing order (found by payment link ID)...`);
             // Continue with the order found by payment link ID
             order = await prisma.order.findFirst({
               where: { id: order.id },

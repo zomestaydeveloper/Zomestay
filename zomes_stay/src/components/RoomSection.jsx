@@ -504,6 +504,7 @@ const RoomSection = ({ propertyId, range, party }) => {
       }, { baseTotal: 0, taxTotal: 0, total: 0 });
 
       // Apply agent discount if applicable (only to base price, not tax)
+      // PRODUCTION: Calculate discounted total base price for proportion calculation
       let finalSubtotal = calculatedTotals.baseTotal;
       if (agentRates) {
         if (agentRates.type === 'percentage') {
@@ -514,6 +515,9 @@ const RoomSection = ({ propertyId, range, party }) => {
       }
       
       const totalPrice = finalSubtotal + calculatedTotals.taxTotal;
+      
+      // PRODUCTION: Store discounted base total for proportional discount distribution
+      const discountedBaseTotal = finalSubtotal;
       
       if (totalPrice <= 0) {
         showModal('warning', 'Limit Exceeded','Please select at least one room to proceed with payment.');
@@ -531,6 +535,7 @@ const RoomSection = ({ propertyId, range, party }) => {
       const totalRooms = selectedBookings.reduce((sum, booking) => sum + (booking.rooms || 0), 0);
        
       // Prepare room selections for the order - Only include selected room types with rooms > 0
+      // PRODUCTION: Apply agent discount to each room selection proportionally to match the discounted amount
       const roomSelections = Array.from(selectedCards)
         .filter(roomTypeId => {
           const booking = bookings[roomTypeId];
@@ -570,8 +575,26 @@ const RoomSection = ({ propertyId, range, party }) => {
 
           console.log("datesToBlock", datesToBlock);
 
-          const roomBasePrice = calculatePrice(room, booking);
+          // Calculate base price and tax (non-discounted)
+          let roomBasePrice = calculatePrice(room, booking);
           const { taxAmount: roomTax } = calculateTaxForRoomType(room, booking);
+          
+          // PRODUCTION: Apply agent discount to base price (not tax) if agent has discount
+          // This ensures roomSelections[] prices match the discounted amount sent to backend
+          if (agentRates && calculatedTotals.baseTotal > 0) {
+            if (agentRates.type === 'percentage') {
+              // Percentage discount: apply same percentage to this room's base price
+              roomBasePrice = roomBasePrice * (1 - agentRates.discount / 100);
+            } else {
+              // Flat discount: distribute proportionally based on room's contribution to total
+              // This ensures sum of discounted room prices equals discountedBaseTotal exactly
+              const roomProportion = roomBasePrice / calculatedTotals.baseTotal;
+              roomBasePrice = discountedBaseTotal * roomProportion;
+            }
+            
+            // Ensure price doesn't go negative
+            roomBasePrice = Math.max(0, roomBasePrice);
+          }
           
           return {
             roomTypeId: room.roomTypeId,
@@ -582,9 +605,9 @@ const RoomSection = ({ propertyId, range, party }) => {
             children: booking.children,
             mealPlan: booking.mealPlan,
             mealPlanId: mealPlanId, // Actual meal plan ID
-            price: roomBasePrice,
-            tax: roomTax,
-            totalPrice: roomBasePrice + roomTax,
+            price: roomBasePrice, // Discounted base price (if agent)
+            tax: roomTax, // Tax remains the same (calculated on original base)
+            totalPrice: roomBasePrice + roomTax, // Total with discount applied
             // ✅ NEW: Add dates for blocking
             checkIn: checkInStr, // YYYY-MM-DD format
             checkOut: checkOutStr, // YYYY-MM-DD format
