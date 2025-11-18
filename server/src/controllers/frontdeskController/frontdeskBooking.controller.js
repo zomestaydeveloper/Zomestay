@@ -176,7 +176,6 @@ const FrontDeskBookingController = {
           ? prisma.booking.findMany({
               where: {
                 propertyId,
-                propertyRoomTypeId,
                 isDeleted: false,
                 status: { in: ['pending', 'confirmed'] },
                 startDate: { lt: parsedTo },
@@ -526,7 +525,6 @@ const FrontDeskBookingController = {
         const overlappingBookings = await tx.booking.findMany({
           where: {
             propertyId,
-            propertyRoomTypeId,
             isDeleted: false,
             status: { in: ['pending', 'confirmed'] },
             startDate: { lt: parsedTo },
