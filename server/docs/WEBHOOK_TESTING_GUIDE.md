@@ -25,7 +25,9 @@ Should return:
 
 ---
 
-## 🧪 Method 1: Test Locally with ngrok (Recommended)
+## 🧪 Method 1: Test Locally with ngrok (Recommended for Testing Without SSL)
+
+**Important**: Razorpay requires HTTPS, not HTTP. If you don't have SSL set up yet, use ngrok to get HTTPS instantly (free).
 
 ### Install ngrok
 ```bash
