@@ -512,7 +512,7 @@ const createPaymentLink = async (req, res) => {
                 rooms: uniqueRoomIds.length,
                 guests: Math.max(0, adults),
                 children: Math.max(0, children),
-                mealPlanId: mealPlanId && isValidUuid(mealPlanId) ? mealPlanId : null,
+                mealPlanId: mealPlanId ,
                 price: priceInPaise,
                 tax: taxInPaise,
                 totalPrice: totalPriceInPaise,
