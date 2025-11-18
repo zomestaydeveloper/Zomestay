@@ -1107,8 +1107,137 @@ const verifyPayment = async (req, res) => {
   }
 };
 
+/**
+ * Get booking status by Razorpay order ID
+ * Used by frontend to poll booking status after payment
+ * 
+ * PRODUCTION READY:
+ * - Structured logging with request IDs
+ * - Error handling
+ * - Returns booking if exists, order status if pending
+ * 
+ * @param {object} req - Express request object
+ * @param {object} res - Express response object
+ */
+const getBookingByOrderId = async (req, res) => {
+  const requestId = `BOOKING-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  
+  try {
+    const { razorpayOrderId } = req.params;
+    
+    if (!razorpayOrderId || typeof razorpayOrderId !== 'string' || razorpayOrderId.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'Razorpay order ID is required',
+        requestId
+      });
+    }
+
+    console.log(`[${requestId}] Fetching booking by order ID`, { razorpayOrderId });
+
+    // Find order by razorpayOrderId
+    const order = await prisma.order.findUnique({
+      where: { razorpayOrderId },
+      include: {
+        booking: {
+          include: {
+            bookingRoomSelections: {
+              select: {
+                id: true,
+                roomTypeId: true,
+                roomTypeName: true,
+                rooms: true,
+                guests: true,
+                children: true,
+                mealPlanId: true,
+                checkIn: true,
+                checkOut: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!order) {
+      console.warn(`[${requestId}] Order not found`, { razorpayOrderId });
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found',
+        requestId
+      });
+    }
+
+    // If booking exists, return it
+    if (order.booking) {
+      console.log(`[${requestId}] Booking found`, {
+        orderId: order.id,
+        bookingId: order.booking.id,
+        bookingNumber: order.booking.bookingNumber,
+        status: order.booking.status,
+      });
+      
+      return res.json({
+        success: true,
+        data: {
+          orderId: order.id,
+          razorpayOrderId: order.razorpayOrderId,
+          orderStatus: order.status,
+          booking: {
+            id: order.booking.id,
+            bookingNumber: order.booking.bookingNumber,
+            status: order.booking.status,
+            propertyId: order.booking.propertyId,
+            checkIn: order.booking.startDate,
+            checkOut: order.booking.endDate,
+            guests: order.booking.adults,
+            children: order.booking.children,
+            rooms: order.booking.rooms,
+            totalAmount: order.booking.totalAmount,
+            roomSelections: order.booking.bookingRoomSelections,
+          },
+        },
+        requestId
+      });
+    }
+
+    // If no booking, return order status (pending)
+    console.log(`[${requestId}] Booking not yet created - order is ${order.status}`, {
+      orderId: order.id,
+      orderStatus: order.status,
+    });
+    
+    return res.json({
+      success: true,
+      data: {
+        orderId: order.id,
+        razorpayOrderId: order.razorpayOrderId,
+        orderStatus: order.status,
+        booking: null, // Booking not created yet
+        message: order.status === 'PENDING' 
+          ? 'Payment is being processed. Please wait...' 
+          : `Order status: ${order.status}`,
+      },
+      requestId
+    });
+  } catch (error) {
+    console.error(`[${requestId}] Error fetching booking by order ID`, {
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+    });
+    
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to fetch booking status',
+      error: process.env.NODE_ENV === 'production' ? 'Internal server error' : error.message,
+      requestId
+    });
+  }
+};
+
 module.exports = {
   createOrder,
-  verifyPayment
+  verifyPayment,
+  getBookingByOrderId
 };
 

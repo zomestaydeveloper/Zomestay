@@ -923,7 +923,10 @@ const FrontDeskBoard = ({ mode = "admin", propertyId, propertyName: propertyName
 
     let isMounted = true;
     const loadSnapshot = async () => {
-      setLoading(true);
+      // Don't show loading spinner on auto-refresh (only on manual refresh)
+      if (refreshCounter === 0) {
+        setLoading(true);
+      }
       setError(null);
 
       const from = formatQueryDate(weekStart);
@@ -951,7 +954,7 @@ const FrontDeskBoard = ({ mode = "admin", propertyId, propertyName: propertyName
         setError(fetchError);
         setSnapshot(null);
       } finally {
-        if (isMounted) {
+        if (isMounted && refreshCounter === 0) {
           setLoading(false);
         }
       }
@@ -959,8 +962,17 @@ const FrontDeskBoard = ({ mode = "admin", propertyId, propertyName: propertyName
 
     loadSnapshot();
 
+    // PRODUCTION: Auto-refresh dashboard every 30 seconds to show new bookings
+    // This ensures admin/host sees bookings created via payment links automatically
+    const autoRefreshInterval = setInterval(() => {
+      if (isMounted && propertyId) {
+        setRefreshCounter((prev) => prev + 1);
+      }
+    }, 30000); // 30 seconds
+
     return () => {
       isMounted = false;
+      clearInterval(autoRefreshInterval);
     };
   }, [propertyId, weekStart, refreshCounter]);
 

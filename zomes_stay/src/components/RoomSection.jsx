@@ -638,83 +638,104 @@ const RoomSection = ({ propertyId, range, party }) => {
           description: 'Hotel Booking Payment',
           handler: async function (response) {
             try {
-              // Prepare room selections for booking creation - Only include selected room types with rooms > 0
-              const roomSelections = Array.from(selectedCards)
-                .filter(roomTypeId => {
-                  const booking = bookings[roomTypeId];
-                  return booking && booking.rooms > 0;
-                })
-                .map(roomTypeId => {
-                  const room = availableRoomTypes.find(r => r.roomTypeId === roomTypeId);
-                  const booking = bookings[roomTypeId];
-                  if (room && booking) {
-                  // Get actual room IDs from availableRoomsForEntireStay
-                  const selectedRoomIds = room.availableRoomsForEntireStay
-                    .slice(0, booking.rooms) // Take only the number of rooms needed
-                    .map(room => room.id);
-                  
-                  // Get meal plan ID from ratePlanDates
-                  const mealPlanId = room.ratePlanDates?.[0]?.[booking.mealPlan]?.mealPlanId || booking.mealPlan;
-                  
-                  const roomBasePrice = calculatePrice(room, booking);
-                  const { taxAmount: roomTax } = calculateTaxForRoomType(room, booking);
-                  
-                  return {
-                    roomTypeId: room.roomTypeId,
-                    roomTypeName: room.roomTypeName,
-                    roomIds: selectedRoomIds, // Array of actual room IDs
-                    rooms: booking.rooms,
-                    guests: booking.guests,
-                    children: booking.children,
-                    mealPlan: booking.mealPlan,
-                    mealPlanId: mealPlanId, // Actual meal plan ID
-                    price: roomBasePrice,
-                    tax: roomTax,
-                    totalPrice: roomBasePrice + roomTax
-                  };
-                }
-                return null;
-              }).filter(Boolean);
-
-             // console.log("roomSelections", roomSelections);
-
-              // Verify payment on backend
-              const verificationResponse = await paymentService.verifyPayment({
-                razorpay_payment_id: response.razorpay_payment_id,
+              // PRODUCTION: Payment success - now poll booking status via webhook
+              // Webhook will process payment automatically, we just need to wait for booking
+              
+              console.log('Payment successful, waiting for webhook to process booking...', {
                 razorpay_order_id: response.razorpay_order_id,
-                razorpay_signature: response.razorpay_signature,
-                roomSelections: roomSelections
+                razorpay_payment_id: response.razorpay_payment_id,
               });
 
-              if (verificationResponse.success) {
-                // Payment successful - redirect to success page
+              // Show processing message
+              showModal('info', 'Processing Payment', 'Payment received! We are processing your booking. Please wait...');
+
+              // Poll booking status until booking is confirmed or timeout
+              // PRODUCTION: Poll every 2 seconds for up to 60 seconds (30 attempts)
+              const pollingResult = await paymentService.pollBookingStatus(
+                response.razorpay_order_id,
+                30, // maxAttempts: 30 attempts
+                2000 // intervalMs: 2 seconds = 60 seconds total
+              );
+
+              if (pollingResult.success && pollingResult.data?.booking) {
+                // Booking confirmed - redirect to success page
+                console.log('Booking confirmed via webhook', {
+                  bookingId: pollingResult.data.booking.id,
+                  bookingNumber: pollingResult.data.booking.bookingNumber,
+                  attempts: pollingResult.attempts,
+                });
+
                 navigate('/app/booking-success', {
                   state: {
                     paymentId: response.razorpay_payment_id,
                     orderId: response.razorpay_order_id,
+                    bookingId: pollingResult.data.booking.id,
+                    bookingNumber: pollingResult.data.booking.bookingNumber,
                     propertyId,
                     bookingDetails: bookings,
                     totalPrice
                   }
                 });
-        } else {
-                throw new Error('Payment verification failed');
+              } else {
+                // Booking not confirmed yet or order failed
+                const errorMessage = pollingResult.error || 'Booking is taking longer than expected. Please check your bookings or contact support.';
+                
+                console.error('Booking not confirmed', {
+                  orderId: response.razorpay_order_id,
+                  error: pollingResult.error,
+                  attempts: pollingResult.attempts,
+                  orderStatus: pollingResult.data?.orderStatus,
+                });
+
+                // Check if order failed/expired/cancelled
+                if (pollingResult.data?.orderStatus && 
+                    ['FAILED', 'EXPIRED', 'CANCELLED'].includes(pollingResult.data.orderStatus)) {
+                  navigate('/app/booking-failure', {
+                    state: {
+                      message: `Order ${pollingResult.data.orderStatus.toLowerCase()}`,
+                      error: errorMessage,
+                      propertyId,
+                      orderId: response.razorpay_order_id,
+                    }
+                  });
+                } else {
+                  // Still pending - show message and redirect to home with message
+                  // PRODUCTION: Booking is being processed by webhook, user will be notified
+                  showModal('info', 'Payment Received', 'Your payment has been received. Your booking is being processed. We will notify you once confirmed. You can check your bookings for updates.');
+                  
+                  // Redirect to home after a short delay
+                  setTimeout(() => {
+                    navigate('/app/home', {
+                      state: {
+                        message: 'Payment received. Booking is being processed.',
+                        orderId: response.razorpay_order_id,
+                      }
+                    });
+                  }, 2000);
+                }
               }
             } catch (error) {
-              console.error('Payment verification error:', error);
+              console.error('Payment processing error:', error);
+              
+              // Show error message
+              showModal('error', 'Payment Processing Error', 'An error occurred while processing your booking. Please contact support if the payment was deducted.');
+              
               navigate('/app/booking-failure', {
                 state: {
-                  message: 'Payment verification failed',
-                  error: error.message,
-                  propertyId
+                  message: 'Payment processing error',
+                  error: error.message || 'An unexpected error occurred',
+                  propertyId,
+                  orderId: response?.razorpay_order_id,
                 }
               });
+            } finally {
+              setPaymentLoading(false);
             }
           },
           prefill: {
-            name: 'Guest Name',
-            email: 'guest@example.com',
-            contact: '9999999999'
+            name: guestInfo?.name || 'Guest Name',
+            email: guestInfo?.email || 'guest@example.com',
+            contact: guestInfo?.phone || '9999999999'
           },
           notes: {
             address: 'Zomes Stay Booking'

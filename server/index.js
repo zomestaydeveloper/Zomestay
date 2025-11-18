@@ -55,7 +55,7 @@ const AgentPropertyDiscountRoute = require('./src/routes/agentRoutes/agentProper
 const CancellationPolicyRoute = require('./src/routes/adminRoutes/cancellationPolicy.routes');
 const BookingCancellationRoute = require('./src/routes/bookin_cancellationRoute/bookingCancellation.routes');
 const AllBookingsRoute = require('./src/routes/allBookings/getallbookings.Routes');
-const WebhookRoute = require('./src/routes/webhooks/webhook_frontdeskbooking/webhook.routes');
+const RazorpayWebhookRoute = require('./src/routes/webhooks/razorpay.routes');
 const GuestsRoute = require('./src/routes/adminRoutes/guests.routes');
 const PaymentsRoute = require('./src/routes/adminRoutes/payments.routes');
 const SiteConfigRoute = require('./src/routes/siteConfig.routes');
@@ -67,7 +67,8 @@ app.use(cors({
 }));
 
 // Register webhook routes BEFORE JSON parser (webhook needs raw body for signature verification)
-app.use('/webhooks', WebhookRoute);
+// PRODUCTION: Unified Razorpay webhook handler (handles ALL Razorpay events)
+app.use('/webhooks', RazorpayWebhookRoute);
 
 // Parse JSON and URL-encoded bodies
 app.use(express.json());
