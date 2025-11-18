@@ -877,10 +877,13 @@ const FrontDeskBoard = ({ mode = "admin", propertyId, propertyName: propertyName
           }
 
           const mealPlans = data?.mealPlans || [];
+          console.log("mealPlans",mealPlans)
+          // PRODUCTION: Extract actual MealPlan.id (not PropertyRoomTypeMealPlan.id)
+          // mealPlans structure: [{ id: PropertyRoomTypeMealPlan.id, mealPlan: { id: MealPlan.id, ... }, ... }]
           let nextMealPlanId =
-            previousDraft?.mealPlanId && mealPlans.some((plan) => plan.id === previousDraft.mealPlanId)
+            previousDraft?.mealPlanId && mealPlans.some((plan) => plan.mealPlan?.id === previousDraft.mealPlanId)
               ? previousDraft.mealPlanId
-              : mealPlans[0]?.id || "";
+              : mealPlans[0]?.mealPlan?.id || "";
 
           const baseAdults =
             previousDraft?.adults ??
@@ -2432,8 +2435,10 @@ const FrontDeskBoard = ({ mode = "admin", propertyId, propertyName: propertyName
                     numberFrom(plan.pricing?.doubleOccupancy) ||
                     numberFrom(plan.pricing?.groupOccupancy) ||
                     numberFrom(plan.pricing?.singleOccupancy);
+                  // PRODUCTION: Use actual MealPlan.id (not PropertyRoomTypeMealPlan.id)
+                  const mealPlanId = plan.mealPlan?.id || "";
                   return (
-                    <option key={plan.id} value={plan.id}>
+                    <option key={plan.id} value={mealPlanId}>
                       {labelParts.join(" • ") || "Meal plan"}{" "}
                       {basePrice ? `— ₹${basePrice.toLocaleString("en-IN")}/night` : ""}
                     </option>

@@ -471,7 +471,7 @@ model PropertyRoomType {
   roomType               RoomType                   @relation(fields: [roomTypeId], references: [id])
   mealPlanLinks          PropertyRoomTypeMealPlan[]
   rooms                  Room[]
-  bookings               Booking[]
+  // Note: bookings relation removed - bookings now use BookingRoomSelection instead of direct propertyRoomTypeId
   bookingRoomSelections  BookingRoomSelection[]
   specialRateLinks       SpecialRateRoomType[]
   SpecialRateApplication SpecialRateApplication[]
@@ -517,7 +517,7 @@ model Room {
   propertyRoomType PropertyRoomType @relation(fields: [propertyRoomTypeId], references: [id])
 
   availability Availability[]
-  bookings     Booking[]
+  // Note: bookings relation removed - bookings now use BookingRoomSelection instead of direct roomId
 
   @@index([propertyRoomTypeId])
   @@index([isDeleted])
@@ -556,10 +556,8 @@ model Booking {
   userId             String? @db.Char(36) // Optional for guest bookings (registered users)
   agentId            String? @db.Char(36) // Optional for agent bookings (travel agents)
   propertyId         String  @db.Char(36)
-  propertyRoomTypeId String  @db.Char(36)
-  roomId             String  @db.Char(36)
-  mealPlanId         String? @db.Char(36)
   cancellationPolicyId String? @db.Char(36)
+  // Note: propertyRoomTypeId, roomId, and mealPlanId removed - all details are in BookingRoomSelection
 
   // Guest Information
   guestName     String // Primary guest name
@@ -639,19 +637,14 @@ model Booking {
   user             User?            @relation(fields: [userId], references: [id])
   agent            TravelAgent?     @relation(fields: [agentId], references: [id])
   property         Property         @relation(fields: [propertyId], references: [id])
-  propertyRoomType PropertyRoomType @relation(fields: [propertyRoomTypeId], references: [id])
-  room             Room             @relation(fields: [roomId], references: [id])
-  mealPlan         MealPlan?        @relation(fields: [mealPlanId], references: [id])
   cancellationPolicy CancellationPolicy? @relation(fields: [cancellationPolicyId], references: [id])
+  // Note: propertyRoomType, room, and mealPlan relations removed - all details are in BookingRoomSelection
 
   payments Payment[]
 
   @@index([userId])
   @@index([agentId])
   @@index([propertyId])
-  @@index([propertyRoomTypeId])
-  @@index([roomId])
-  @@index([mealPlanId])
   @@index([orderId])
   @@index([bookingNumber])
   @@index([status])
@@ -678,7 +671,7 @@ model MealPlan {
   updatedAt   DateTime     @updatedAt
   isDeleted   Boolean      @default(false)
 
-  bookings      Booking[]
+  // Note: bookings relation removed - bookings now use BookingRoomSelection instead of direct mealPlanId
   bookingRoomSelections BookingRoomSelection[]
   property      Property                   @relation(fields: [propertyId], references: [id])
   roomTypeLinks PropertyRoomTypeMealPlan[]

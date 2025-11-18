@@ -408,9 +408,6 @@ const createBookingFromOrder = async (orderId, paymentDetails, tx) => {
   let totalRooms = 0;
   let totalAdults = 0;
   let totalChildren = 0;
-  let primaryRoomTypeId = null;
-  let primaryRoomId = null;
-  let primaryMealPlanId = null;
   const bookingRoomSelectionsData = [];
 
   for (const orderSelection of order.roomSelections) {
@@ -429,13 +426,6 @@ const createBookingFromOrder = async (orderId, paymentDetails, tx) => {
     if (selectedRooms.length === 0) {
       console.warn(`⚠️ No valid rooms found for roomTypeId ${orderSelection.roomTypeId} in order ${orderId}`);
       continue;
-    }
-
-    // Set primary values from first selection (for backward compatibility)
-    if (!primaryRoomTypeId) {
-      primaryRoomTypeId = orderSelection.roomTypeId;
-      primaryRoomId = selectedRooms[0].id;
-      primaryMealPlanId = orderSelection.mealPlanId || null;
     }
 
     // Build datesReserved array from datesToBlock or checkIn/checkOut
@@ -549,9 +539,7 @@ const createBookingFromOrder = async (orderId, paymentDetails, tx) => {
       bookingNumber,
       orderId: order.id, // One-to-one: One order = One booking
       propertyId: order.propertyId,
-      propertyRoomTypeId: primaryRoomTypeId, // Primary room type (first one)
-      roomId: primaryRoomId, // Primary room (first one)
-      mealPlanId: primaryMealPlanId, // Primary meal plan (first one, may be null)
+      // Note: propertyRoomTypeId, roomId, and mealPlanId removed - all details are in BookingRoomSelection
 
       // Guest Information
       userId: createdByType === 'user' ? guestId : null,

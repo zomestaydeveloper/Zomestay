@@ -55,11 +55,9 @@ const buildRefundEvaluation = ({ booking, rules }) => {
 
 const extractRoomIdsFromBooking = (booking) => {
   const ids = new Set();
-  if (booking.roomId) {
-    ids.add(booking.roomId);
-  }
 
   // PRODUCTION: Use BookingRoomSelection model (relational approach)
+  // Note: booking.roomId removed - all room details are in BookingRoomSelection
   if (booking.bookingRoomSelections && Array.isArray(booking.bookingRoomSelections)) {
     booking.bookingRoomSelections.forEach((selection) => {
       // Extract room IDs from JSON array
