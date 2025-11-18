@@ -62,7 +62,18 @@ const SiteConfigRoute = require('./src/routes/siteConfig.routes');
 
 // Enable CORS
 app.use(cors({
-  origin: ["http://localhost:5173", "https://zomesstay-web.onrender.com"],
+  origin: [
+    "http://localhost:5173", // Local development
+    "https://zomesstay-web.onrender.com", // Old production (if still used)
+    "http://54.160.150.74", // EC2 IP (temporary - use domain instead)
+    "https://54.160.150.74", // EC2 IP with HTTPS (if SSL configured)
+    "http://techiconnect.shop", // Your domain (HTTP)
+    "https://techiconnect.shop", // Your domain (HTTPS - preferred)
+    "http://www.techiconnect.shop", // www subdomain (HTTP)
+    "https://www.techiconnect.shop", // www subdomain (HTTPS)
+    "http://api.techiconnect.shop", // API subdomain (HTTP)
+    "https://api.techiconnect.shop", // API subdomain (HTTPS - for webhooks)
+  ],
   credentials: true
 }));
 

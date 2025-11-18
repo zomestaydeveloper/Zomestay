@@ -167,14 +167,62 @@ const handlePaymentLinkPaid = async (eventData, requestId) => {
   }
 
   try {
-    // Find order by razorpayOrderId
-    const order = await prisma.order.findUnique({
+    // Find order by razorpayOrderId (this is the Razorpay order ID from webhook)
+    let order = await prisma.order.findUnique({
       where: { razorpayOrderId },
       select: { id: true, status: true },
     });
 
+    // FALLBACK: Handle legacy orders that were saved with payment link ID instead of order ID
+    // This fixes the issue where old payment links saved "plink_..." instead of "order_..."
     if (!order) {
-      console.error(`[${requestId}] ❌ Order not found for razorpayOrderId`, { razorpayOrderId });
+      console.warn(`[${requestId}] ⚠️ Order not found with order_id, checking for legacy payment link ID...`);
+      
+      // Extract payment link ID from webhook payload
+      const paymentLinkId = eventData?.payload?.payment_link?.entity?.id || 
+                           eventData?.payload?.payment_link?.id || 
+                           null;
+      
+      if (paymentLinkId && paymentLinkId.startsWith('plink_')) {
+        console.log(`[${requestId}] 🔍 Trying to find order by payment link ID (legacy format):`, paymentLinkId);
+        
+        // Look for order saved with payment link ID
+        order = await prisma.order.findFirst({
+          where: { razorpayOrderId: paymentLinkId },
+          select: { id: true, status: true, razorpayOrderId: true },
+        });
+        
+        if (order) {
+          console.warn(`[${requestId}] ⚠️ Found order by payment link ID (legacy format). Updating to correct order_id...`);
+          
+          // Update order to use correct order_id for future webhook matching
+          try {
+            order = await prisma.order.update({
+              where: { id: order.id },
+              data: { razorpayOrderId: razorpayOrderId }, // Update to correct order_id
+              select: { id: true, status: true },
+            });
+            console.log(`[${requestId}] ✅ Updated order ${order.id} to use correct razorpayOrderId: ${razorpayOrderId}`);
+          } catch (updateError) {
+            // If update fails (e.g., unique constraint - order_id already exists), use existing order
+            console.warn(`[${requestId}] ⚠️ Failed to update order razorpayOrderId:`, updateError.message);
+            console.log(`[${requestId}] ℹ️ Continuing with existing order...`);
+            // Continue with the order found by payment link ID
+            order = await prisma.order.findFirst({
+              where: { id: order.id },
+              select: { id: true, status: true },
+            });
+          }
+        }
+      }
+    }
+
+    if (!order) {
+      console.error(`[${requestId}] ❌ Order not found for razorpayOrderId`, { 
+        razorpayOrderId,
+        paymentLinkId: eventData?.payload?.payment_link?.entity?.id || null,
+        searchedBy: 'order_id and payment_link_id (legacy)'
+      });
       throw new Error(`Order not found for razorpayOrderId: ${razorpayOrderId}`);
     }
 

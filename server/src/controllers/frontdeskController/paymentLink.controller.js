@@ -344,11 +344,47 @@ const createPaymentLink = async (req, res) => {
     const paymentLink = await razorpay.paymentLink.create(paymentLinkPayload);
     console.log("paymentLink", paymentLink);
 
-    const razorpayOrderId = paymentLink?.order_id || paymentLink?.id || null;
+    // CRITICAL: Extract order_id from Razorpay payment link response
+    // Razorpay payment links have an associated order_id that is used in webhooks
+    // Payment link response: { id: 'plink_...', order_id: 'order_...', ... }
+    // Webhook sends: payment_link.entity.order_id which is the Razorpay order ID (order_...)
+    // So we MUST store the order_id, NOT the payment link ID (plink_...)
+    let razorpayOrderId = paymentLink?.order_id || 
+                          paymentLink?.entity?.order_id || 
+                          null;
 
-    if (!paymentLink || !razorpayOrderId) {
-      throw new Error('Failed to obtain a Razorpay reference for the payment link.');
+    // If order_id is not immediately available in response, fetch from Razorpay API
+    if (!razorpayOrderId && paymentLink?.id) {
+      console.log('[PaymentLink] Order ID not in initial response, fetching from Razorpay API...');
+      try {
+        const fetchedPaymentLink = await razorpay.paymentLink.fetch(paymentLink.id);
+        razorpayOrderId = fetchedPaymentLink?.order_id || 
+                         fetchedPaymentLink?.entity?.order_id || 
+                         null;
+        
+        if (razorpayOrderId) {
+          console.log('[PaymentLink] ✅ Found order_id from fetched payment link:', razorpayOrderId);
+        }
+      } catch (fetchError) {
+        console.error('[PaymentLink] Failed to fetch order_id from Razorpay:', fetchError);
+        // Continue with null - will be handled in validation below
+      }
     }
+
+    // Validate we have an order_id (must start with "order_")
+    if (!razorpayOrderId) {
+      throw new Error('Failed to obtain Razorpay order_id for payment link. Order ID is required for webhook matching.');
+    }
+
+    // Validate format - must be an order ID, not a payment link ID
+    if (!razorpayOrderId.startsWith('order_')) {
+      console.error('[PaymentLink] ❌ Invalid razorpayOrderId format:', razorpayOrderId);
+      console.error('[PaymentLink] Expected order_id starting with "order_", but got:', razorpayOrderId);
+      console.error('[PaymentLink] Payment link ID:', paymentLink?.id);
+      throw new Error(`Invalid Razorpay order ID format. Expected order_id starting with "order_", but got: ${razorpayOrderId}. Please check Razorpay payment link response structure.`);
+    }
+
+    console.log('[PaymentLink] ✅ Using razorpayOrderId:', razorpayOrderId);
 
     // Fetch property room type details for OrderRoomSelection
     const propertyRoomType = await prisma.propertyRoomType.findFirst({
