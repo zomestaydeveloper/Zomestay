@@ -7,6 +7,9 @@ const BookingFailure = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [errorDetails, setErrorDetails] = useState(null);
+  
+  // Detect if we're in agent context
+  const isAgentContext = location.pathname?.startsWith('/app/agent') || location.state?.isAgentContext || false;
 
   useEffect(() => {
     // Get error details from location state
@@ -16,15 +19,16 @@ const BookingFailure = () => {
   }, [location.state]);
 
   const handleGoHome = () => {
-    navigate('/');
+    navigate(isAgentContext ? '/app/agent/home' : '/app/home');
   };
 
   const handleRetryPayment = () => {
     // Navigate back to the property details page to retry payment
     if (errorDetails?.propertyId) {
-      navigate(`/property-details?propertyId=${errorDetails.propertyId}`);
+      const basePath = isAgentContext ? '/app/agent' : '/app';
+      navigate(`${basePath}/properties/${errorDetails.propertyId}`);
     } else {
-      navigate('/');
+      navigate(isAgentContext ? '/app/agent/home' : '/app/home');
     }
   };
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Phone, Shield, Lock, Sparkles, ArrowRight, CheckCircle2 } from "lucide-react";
 import loginPic from "../assets/loginPage/b18c10d224f45a116197d5ad8fd717cc0bd9661a.png";
@@ -79,6 +79,23 @@ const LoginPage = () => {
   const [showAgentLogin, setShowAgentLogin] = useState(false);
   const [showAgentSignup, setShowAgentSignup] = useState(false);
 
+  // Fix mobile viewport height issue when keyboard appears
+  useEffect(() => {
+    const setViewportHeight = () => {
+      const vh = window.innerHeight * 0.01;
+      document.documentElement.style.setProperty('--vh', `${vh}px`);
+    };
+
+    setViewportHeight();
+    window.addEventListener('resize', setViewportHeight);
+    window.addEventListener('orientationchange', setViewportHeight);
+
+    return () => {
+      window.removeEventListener('resize', setViewportHeight);
+      window.removeEventListener('orientationchange', setViewportHeight);
+    };
+  }, []);
+
   const showModal = (type, title, message) => {
     setModal({
       isOpen: true,
@@ -135,22 +152,22 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-      <div className="grid min-h-screen grid-cols-1 lg:grid-cols-[1.7fr_1fr]">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50" style={{ minHeight: 'calc(var(--vh, 1vh) * 100)' }}>
+      <div className="grid min-h-screen grid-cols-1 lg:grid-cols-[1.7fr_1fr]" style={{ minHeight: 'calc(var(--vh, 1vh) * 100)' }}>
         {/* Left side */}
         <div className="flex flex-col px-5 sm:px-8 md:px-12 lg:px-16 py-6 relative overflow-hidden">
           {/* Decorative background elements */}
           <div className="absolute top-0 right-0 w-96 h-96 bg-blue-200/20 rounded-full blur-3xl -z-0"></div>
           <div className="absolute bottom-0 left-0 w-96 h-96 bg-purple-200/20 rounded-full blur-3xl -z-0"></div>
           
-          <div className="relative z-10 flex flex-col h-full">
+          <div className="relative z-10 flex flex-col min-h-full">
             {/* Logo */}
-            <div className="mb-4">
+            <div className="mb-4 flex-shrink-0">
               <img src={Logo} alt="Zomestays" className="w-40 h-[50px] md:h-[60px] md:w-44 drop-shadow-sm" />
             </div>
 
-            {/* Card (centered vertically) */}
-            <div className="flex-1 flex items-center">
+            {/* Card (centered vertically, scrollable on mobile) */}
+            <div className="flex-1 flex items-center min-h-0 py-4 lg:py-0">
               <div className="w-full mx-auto max-w-md sm:max-w-lg lg:max-w-[520px] relative">
                 {/* Glowing background effect */}
                 <div className="absolute -inset-1 bg-gradient-to-r from-blue-500 via-purple-500 to-blue-500 rounded-3xl blur opacity-20 animate-pulse"></div>
@@ -182,7 +199,7 @@ const LoginPage = () => {
                         aria-label="Country code"
                         value={countryCode}
                         onChange={(e) => setCountryCode(e.target.value)}
-                        className="px-3 sm:px-4 text-xs sm:text-sm font-semibold text-gray-700 outline-none border-r-2 border-gray-200 bg-gradient-to-b from-gray-50 to-gray-100 hover:from-gray-100 hover:to-gray-50 transition-all cursor-pointer min-w-[110px] sm:min-w-[130px]"
+                        className="px-3 sm:px-4 text-xs sm:text-sm font-semibold text-gray-700 outline-none border-r-2 border-gray-200 bg-gradient-to-b from-gray-50 to-gray-100 hover:from-gray-100 hover:to-gray-50 transition-all cursor-pointer min-w-[110px] sm:min-w-[130px] flex-shrink-0"
                         disabled={loading}
                       >
                         {COUNTRY_CODES.map((country) => (
@@ -199,10 +216,19 @@ const LoginPage = () => {
                         placeholder="9876543210"
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
-                        className="flex-1 px-5 text-sm text-gray-900 font-medium outline-none placeholder:text-gray-400 bg-white"
+                        className="flex-1 px-4 sm:px-5 text-base sm:text-sm text-gray-900 font-medium outline-none placeholder:text-gray-400 bg-white min-w-0"
                         disabled={loading}
+                        style={{ fontSize: '16px' }} // Prevent iOS zoom
+                        onFocus={(e) => {
+                          // Scroll into view on mobile when keyboard appears
+                          if (window.innerWidth <= 768) {
+                            setTimeout(() => {
+                              e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            }, 300);
+                          }
+                        }}
                       />
-                      <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
                         <Phone className="w-5 h-5 text-gray-300" />
                       </div>
                     </div>
@@ -229,7 +255,7 @@ const LoginPage = () => {
                   </button>
 
                   {/* Trust indicators */}
-                  <div className="mt-5 flex items-center justify-center gap-6 text-xs text-gray-500">
+                  <div className="mt-5 flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-xs text-gray-500">
                     <div className="flex items-center gap-1.5">
                       <Shield className="w-4 h-4 text-green-500" />
                       <span>Secure</span>
@@ -249,14 +275,14 @@ const LoginPage = () => {
                     <p className="text-center text-sm text-gray-500 mb-3 font-medium">
                       Are you a Travel Agent?
                     </p>
-                    <div className="flex items-center justify-center gap-6">
+                    <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6">
                       <button
                         onClick={() => setShowAgentLogin(true)}
                         className="text-sm text-blue-600 hover:text-blue-700 font-semibold transition-colors duration-200 hover:underline underline-offset-4 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:ring-offset-2 rounded-lg px-3 py-1.5 hover:bg-blue-50"
                       >
                         Agent Login
                       </button>
-                      <span className="text-gray-300 font-light">•</span>
+                      <span className="hidden sm:inline text-gray-300 font-light">•</span>
                       <button
                         onClick={() => setShowAgentSignup(true)}
                         className="text-sm text-blue-600 hover:text-blue-700 font-semibold transition-colors duration-200 hover:underline underline-offset-4 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:ring-offset-2 rounded-lg px-3 py-1.5 hover:bg-blue-50"

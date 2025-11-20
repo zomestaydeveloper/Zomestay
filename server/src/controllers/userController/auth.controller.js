@@ -2,7 +2,7 @@ const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const prisma = new PrismaClient();
-const { smsService } = require('../../services/communication');
+const { smsService, emailService, smsTemplates, emailTemplates } = require('../../services/communication');
 
 // In-memory OTP storage for development (replace with Redis/cache in production)
 const otpStore = new Map(); // phone -> { otp, expiresAt }
@@ -60,27 +60,69 @@ const UserAuthController = {
       // Clean expired OTPs periodically
       cleanExpiredOTPs();
 
-      // Send OTP via SMS service
-      const otpMessage = `Your ZomesStay OTP is ${otp}. Valid for 5 minutes. Do not share this OTP with anyone.`;
+      // Check if user exists and has email (optional: send email OTP if available)
+      let userEmail = null;
+      let userName = 'User';
+      try {
+        const existingUser = await prisma.user.findFirst({
+          where: { phone: cleanPhone, isDeleted: false },
+          select: { email: true, firstname: true, lastname: true }
+        });
+        if (existingUser) {
+          userEmail = existingUser.email;
+          if (existingUser.firstname) {
+            userName = `${existingUser.firstname}${existingUser.lastname ? ' ' + existingUser.lastname : ''}`;
+          }
+        }
+      } catch (error) {
+        // If user lookup fails, continue with SMS only
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('Could not fetch user email for OTP:', error.message);
+        }
+      }
+
+      // Send OTP via SMS using template
+      const smsMessage = smsTemplates.otp({ otp, expiresIn: 5 });
+      
+      // For Twilio trial accounts, use TWILIO_PHONE_NUMBER instead of alphanumeric sender ID
+      const smsProvider = process.env.SMS_PROVIDER || 'mock';
+      const smsFrom = (smsProvider === 'twilio' && process.env.TWILIO_PHONE_NUMBER) 
+        ? process.env.TWILIO_PHONE_NUMBER 
+        : 'ZOMESSTAY';
       
       const smsResult = await smsService.send({
         to: fullPhoneNumber,
-        message: otpMessage,
-        from: 'ZOMESSTAY' // Optional: Sender ID
+        message: smsMessage,
+        from: smsFrom
       });
 
-      // Check if SMS was sent successfully
+      // Log SMS failure only
       if (!smsResult.success) {
         console.error('SMS sending failed:', smsResult.error);
-        // In production, you might want to return an error here
-        // For now, we'll log the error but still return success (OTP is stored)
-        // This allows development/testing even if SMS provider is not configured
       }
 
-      // Log OTP in development mode (for testing)
+      // Send OTP via Email if user has email (optional enhancement)
+      let emailResult = null;
+      if (userEmail) {
+        try {
+          const emailContent = emailTemplates.otp({ otp, userName, expiresIn: 5 });
+          emailResult = await emailService.send({
+            to: userEmail,
+            subject: 'OTP Verification - ZomesStay',
+            content: emailContent
+          });
+
+          if (!emailResult.success) {
+            console.error('Email sending failed:', emailResult.error);
+          }
+        } catch (error) {
+          console.error('Error sending OTP email:', error.message);
+        }
+      }
+
+      // Log OTP in development mode only
       if (process.env.NODE_ENV === 'development') {
-        console.log(`📱 OTP for ${fullPhoneNumber}: ${otp}`);
-        console.log(`📧 SMS Status: ${smsResult.success ? 'Sent' : 'Failed'}`, smsResult.messageId || smsResult.error);
+        console.log(`OTP for ${fullPhoneNumber}: ${otp}`);
       }
 
       // Return success response (OTP is NOT included in response for security)
@@ -243,7 +285,7 @@ const UserAuthController = {
 
       // Generate new 4-digit OTP
       const otp = generateOTP();
-      const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes expiry (increased from 60 seconds)
+      const expiresAt = Date.now() + 1 * 60 * 1000; // 5 minutes expiry (increased from 60 seconds)
 
       // Store new OTP (replaces existing if any)
       otpStore.set(cleanPhone, { otp, expiresAt, countryCode });
@@ -251,27 +293,69 @@ const UserAuthController = {
       // Clean expired OTPs periodically
       cleanExpiredOTPs();
 
-      // Send OTP via SMS service
-      const otpMessage = `Your ZomesStay OTP is ${otp}. Valid for 5 minutes. Do not share this OTP with anyone.`;
+      // Check if user exists and has email (optional: send email OTP if available)
+      let userEmail = null;
+      let userName = 'User';
+      try {
+        const existingUser = await prisma.user.findFirst({
+          where: { phone: cleanPhone, isDeleted: false },
+          select: { email: true, firstname: true, lastname: true }
+        });
+        if (existingUser) {
+          userEmail = existingUser.email;
+          if (existingUser.firstname) {
+            userName = `${existingUser.firstname}${existingUser.lastname ? ' ' + existingUser.lastname : ''}`;
+          }
+        }
+      } catch (error) {
+        // If user lookup fails, continue with SMS only
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('Could not fetch user email for OTP resend:', error.message);
+        }
+      }
+
+      // Send OTP via SMS using template
+      const smsMessage = smsTemplates.otp({ otp, expiresIn: 1 });
+      
+      // For Twilio trial accounts, use TWILIO_PHONE_NUMBER instead of alphanumeric sender ID
+      const smsProvider = process.env.SMS_PROVIDER || 'mock';
+      const smsFrom = (smsProvider === 'twilio' && process.env.TWILIO_PHONE_NUMBER) 
+        ? process.env.TWILIO_PHONE_NUMBER 
+        : 'ZOMESSTAY';
       
       const smsResult = await smsService.send({
         to: fullPhoneNumber,
-        message: otpMessage,
-        from: 'ZOMESSTAY' // Optional: Sender ID
+        message: smsMessage,
+        from: smsFrom
       });
 
-      // Check if SMS was sent successfully
+      // Log SMS failure only
       if (!smsResult.success) {
         console.error('SMS sending failed:', smsResult.error);
-        // In production, you might want to return an error here
-        // For now, we'll log the error but still return success (OTP is stored)
-        // This allows development/testing even if SMS provider is not configured
       }
 
-      // Log OTP in development mode (for testing)
+      // Send OTP via Email if user has email (optional enhancement)
+      let emailResult = null;
+      if (userEmail) {
+        try {
+          const emailContent = emailTemplates.otp({ otp, userName, expiresIn: 5 });
+          emailResult = await emailService.send({
+            to: userEmail,
+            subject: 'OTP Verification - ZomesStay',
+            content: emailContent
+          });
+
+          if (!emailResult.success) {
+            console.error('Email sending failed:', emailResult.error);
+          }
+        } catch (error) {
+          console.error('Error sending OTP email:', error.message);
+        }
+      }
+
+      // Log OTP in development mode only
       if (process.env.NODE_ENV === 'development') {
-        console.log(`📱 Resend OTP for ${fullPhoneNumber}: ${otp}`);
-        console.log(`📧 SMS Status: ${smsResult.success ? 'Sent' : 'Failed'}`, smsResult.messageId || smsResult.error);
+        console.log(`Resend OTP for ${fullPhoneNumber}: ${otp}`);
       }
 
       // Return success response (OTP is NOT included in response for security)

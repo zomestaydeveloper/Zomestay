@@ -1,6 +1,6 @@
 // Base API URL
-// export const API_BASE_URL = 'http://54.172.53.96:5000';
-export const API_BASE_URL = 'http://localhost:5000';
+export const API_BASE_URL = 'https://api.techiconnect.shop';
+ //export const API_BASE_URL = 'http://localhost:5000';
 
 // Base API paths
 export const API_BASE = '/api';
@@ -137,6 +137,23 @@ export const BOOKING_CANCELLATION = {
   BASE: '/bookings',
   CANCEL: '/bookings',
   REFUND_COMPLETE: '/bookings',
+};
+
+export const CANCELLATION_REQUEST = {
+  // Get default cancellation reasons (public)
+  GET_REASONS: '/api/cancellation-requests/reasons',
+  // Create cancellation request (user/agent/host)
+  CREATE: '/api/cancellation-requests',
+  // Get own cancellation requests (user/agent/host)
+  GET_MY_REQUESTS: '/api/cancellation-requests/my-requests',
+  // Get all cancellation requests (admin)
+  GET_ALL: '/api/cancellation-requests',
+  // Get cancellation request by ID
+  GET_BY_ID: '/api/cancellation-requests',
+  // Approve cancellation request (admin)
+  APPROVE: '/api/cancellation-requests',
+  // Reject cancellation request (admin)
+  REJECT: '/api/cancellation-requests',
 };
 
 export const RATE_PLAN = {

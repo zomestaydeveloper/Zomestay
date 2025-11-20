@@ -8,13 +8,14 @@ const providerConfig = require('./config/provider.config');
 
 // Import providers
 const mockProvider = require('./providers/sms/mock.provider');
+const twilioProvider = require('./providers/sms/twilio.provider');
 
 // Provider registry
 // Add new providers here: 'providerName': require('./providers/sms/providerName.provider')
 const providers = {
   mock: mockProvider,
+  twilio: twilioProvider,
   // Future providers:
-  // twilio: require('./providers/sms/twilio.provider'),
   // aws-sns: require('./providers/sms/aws-sns.provider'),
   // msg91: require('./providers/sms/msg91.provider'),
 };

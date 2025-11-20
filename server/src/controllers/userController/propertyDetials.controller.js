@@ -810,6 +810,17 @@ const PropertyDetailsController = {
                             code: true  // Room code/number
                             
                         }
+                    },
+                    media: {
+                        where: {
+                            isDeleted: false
+                        },
+                        orderBy: {
+                            order: 'asc'
+                        },
+                        select: {
+                            url: true
+                        }
                     }
                 }
             });
@@ -1012,7 +1023,8 @@ const PropertyDetailsController = {
                         totalRooms,
                         availableRooms: availableRoomsForEntireStay.length,  // Count of available rooms
                         availableRoomsForEntireStay: availableRoomsForEntireStay,  // Actual room details
-                        ratePlanDates: roomTypeRatePlanDates  // Pricing for each date
+                        ratePlanDates: roomTypeRatePlanDates,  // Pricing for each date
+                        media: roomType.media.map(m => m.url)  // Array of image URLs
                     });
                 }
             }

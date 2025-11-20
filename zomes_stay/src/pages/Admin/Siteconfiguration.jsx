@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { siteConfigService } from '../../services';
 import NotificationModal from '../../components/NotificationModal';
-import { Loader2, Save, Settings, Image as ImageIcon, Phone, Mail, MapPin, Globe, Type, MessageSquare } from 'lucide-react';
+import { Loader2, Save, Settings, Image as ImageIcon, Phone, Mail, MapPin, Globe, Type, MessageSquare, X, Upload, Trash2 } from 'lucide-react';
 
 const SiteConfiguration = () => {
   const [loading, setLoading] = useState(false);
@@ -17,7 +17,7 @@ const SiteConfiguration = () => {
   const [formData, setFormData] = useState({
     logo: '',
     phoneNumber: '',
-    bannerImages: ['', '', ''],
+    bannerImages: [],
     heroTitle: '',
     heroSubtitle: '',
     siteName: '',
@@ -31,6 +31,13 @@ const SiteConfiguration = () => {
     }
   });
 
+  // File state for uploads
+  const [logoFile, setLogoFile] = useState(null);
+  const [logoPreview, setLogoPreview] = useState(null);
+  const [bannerFiles, setBannerFiles] = useState([]);
+  const [bannerPreviews, setBannerPreviews] = useState([]);
+  const [existingBannerUrls, setExistingBannerUrls] = useState([]); // Track existing banner URLs from server
+
   // Fetch existing config on mount
   useEffect(() => {
     fetchSiteConfig();
@@ -43,10 +50,14 @@ const SiteConfiguration = () => {
       
       if (response?.data?.success && response?.data?.data) {
         const config = response.data.data;
+        
+        // Get base URL for images
+        const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+        
         setFormData({
           logo: config.logo || '',
           phoneNumber: config.phoneNumber || '',
-          bannerImages: Array.isArray(config.bannerImages) ? [...config.bannerImages, '', '', ''].slice(0, 3) : ['', '', ''],
+          bannerImages: Array.isArray(config.bannerImages) ? config.bannerImages : [],
           heroTitle: config.heroTitle || '',
           heroSubtitle: config.heroSubtitle || '',
           siteName: config.siteName || '',
@@ -59,6 +70,20 @@ const SiteConfiguration = () => {
             twitter: ''
           }
         });
+        
+        // Set previews for existing images
+        if (config.logo) {
+          const logoUrl = config.logo.startsWith('/uploads') ? `${baseURL}${config.logo}` : config.logo;
+          setLogoPreview(logoUrl);
+        }
+        
+        if (Array.isArray(config.bannerImages) && config.bannerImages.length > 0) {
+          const bannerUrls = config.bannerImages.map(img => 
+            img.startsWith('/uploads') ? `${baseURL}${img}` : img
+          );
+          setBannerPreviews(bannerUrls);
+          setExistingBannerUrls(config.bannerImages); // Store original URLs
+        }
       }
     } catch (error) {
       console.error('Failed to fetch site configuration:', error);
@@ -75,15 +100,99 @@ const SiteConfiguration = () => {
     }));
   };
 
-  const handleBannerImageChange = (index, value) => {
-    setFormData(prev => {
-      const newBannerImages = [...prev.bannerImages];
-      newBannerImages[index] = value;
-      return {
-        ...prev,
-        bannerImages: newBannerImages
-      };
+  // Handle logo file selection
+  const handleLogoSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    // Validate SVG file
+    if (file.type !== 'image/svg+xml') {
+      showNotification('error', 'Invalid File', 'Please select an SVG file for the logo');
+      return;
+    }
+    
+    // Validate file size (5MB max)
+    if (file.size > 5 * 1024 * 1024) {
+      showNotification('error', 'File Too Large', 'Logo file must be less than 5MB');
+      return;
+    }
+    
+    setLogoFile(file);
+    
+    // Create preview
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setLogoPreview(reader.result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Handle banner image selection
+  const handleBannerSelect = (e) => {
+    const files = Array.from(e.target.files);
+    
+    // Validate total count (max 5)
+    const totalBanners = bannerPreviews.length + files.length;
+    if (totalBanners > 5) {
+      showNotification('error', 'Too Many Images', 'Maximum 5 banner images allowed');
+      return;
+    }
+    
+    // Validate file types and sizes
+    const validFiles = [];
+    files.forEach(file => {
+      if (!file.type.startsWith('image/')) {
+        showNotification('error', 'Invalid File', `${file.name} is not an image file`);
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        showNotification('error', 'File Too Large', `${file.name} must be less than 5MB`);
+        return;
+      }
+      validFiles.push(file);
     });
+    
+    if (validFiles.length === 0) return;
+    
+    // Add to banner files
+    setBannerFiles(prev => [...prev, ...validFiles]);
+    
+    // Create previews
+    validFiles.forEach(file => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setBannerPreviews(prev => [...prev, reader.result]);
+      };
+      reader.readAsDataURL(file);
+    });
+    
+    // Reset input
+    e.target.value = '';
+  };
+
+  // Remove banner image
+  const handleRemoveBanner = (index) => {
+    // Check if removing an existing image (from server) or a newly uploaded file
+    const isExistingImage = index < existingBannerUrls.length;
+    
+    if (isExistingImage) {
+      // Remove from existing URLs
+      setExistingBannerUrls(prev => prev.filter((_, i) => i !== index));
+    } else {
+      // Remove from newly uploaded files (adjust index for existing images)
+      const fileIndex = index - existingBannerUrls.length;
+      setBannerFiles(prev => prev.filter((_, i) => i !== fileIndex));
+    }
+    
+    // Remove from previews
+    setBannerPreviews(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Remove logo
+  const handleRemoveLogo = () => {
+    setLogoFile(null);
+    setLogoPreview(null);
+    setFormData(prev => ({ ...prev, logo: '' }));
   };
 
   const handleSocialMediaChange = (platform, value) => {
@@ -115,30 +224,59 @@ const SiteConfiguration = () => {
     try {
       setSaving(true);
       
-      // Prepare data for API
-      const configData = {
-        logo: formData.logo || null,
-        phoneNumber: formData.phoneNumber || null,
-        bannerImages: formData.bannerImages.filter(img => img.trim() !== ''),
-        heroTitle: formData.heroTitle || null,
-        heroSubtitle: formData.heroSubtitle || null,
-        siteName: formData.siteName || null,
-        supportEmail: formData.supportEmail || null,
-        supportPhone: formData.supportPhone || null,
-        address: formData.address || null,
-        socialMedia: Object.keys(formData.socialMedia).reduce((acc, key) => {
-          if (formData.socialMedia[key]?.trim()) {
-            acc[key] = formData.socialMedia[key].trim();
-          }
-          return acc;
-        }, {})
-      };
+      // Create FormData for file uploads
+      const formDataToSend = new FormData();
+      
+      // Add logo file if selected
+      if (logoFile) {
+        formDataToSend.append('logo', logoFile);
+      }
+      
+      // Add banner images if selected
+      bannerFiles.forEach((file) => {
+        formDataToSend.append('bannerImages', file);
+      });
+      
+      // Handle banner images logic:
+      // - If we have remaining existing banners AND new files, merge them
+      // - If we only have new files (no existing), replace all
+      // - If we only have existing (no new files), keep them (backend handles this)
+      if (existingBannerUrls.length > 0 && bannerFiles.length > 0) {
+        // Merging: keep existing and add new
+        formDataToSend.append('keepExistingBanners', 'true');
+      }
+      // Note: If all existing banners were removed and we have new files,
+      // backend will replace (keepExistingBanners not set)
+      // If no new files and we have existing, backend keeps them by default
+      
+      // Add text fields
+      if (formData.phoneNumber) formDataToSend.append('phoneNumber', formData.phoneNumber);
+      if (formData.heroTitle) formDataToSend.append('heroTitle', formData.heroTitle);
+      if (formData.heroSubtitle) formDataToSend.append('heroSubtitle', formData.heroSubtitle);
+      if (formData.siteName) formDataToSend.append('siteName', formData.siteName);
+      if (formData.supportEmail) formDataToSend.append('supportEmail', formData.supportEmail);
+      if (formData.supportPhone) formDataToSend.append('supportPhone', formData.supportPhone);
+      if (formData.address) formDataToSend.append('address', formData.address);
+      
+      // Add social media
+      const socialMediaData = Object.keys(formData.socialMedia).reduce((acc, key) => {
+        if (formData.socialMedia[key]?.trim()) {
+          acc[key] = formData.socialMedia[key].trim();
+        }
+        return acc;
+      }, {});
+      if (Object.keys(socialMediaData).length > 0) {
+        formDataToSend.append('socialMedia', JSON.stringify(socialMediaData));
+      }
 
-      const response = await siteConfigService.updateSiteConfig(configData);
+      const response = await siteConfigService.updateSiteConfig(formDataToSend);
 
       if (response?.data?.success) {
         showNotification('success', 'Success', 'Site configuration updated successfully!');
-        // Optionally refetch to get latest data
+        // Reset file states
+        setLogoFile(null);
+        setBannerFiles([]);
+        // Refetch to get latest data
         setTimeout(() => {
           fetchSiteConfig();
         }, 1000);
@@ -184,15 +322,55 @@ const SiteConfiguration = () => {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Logo URL
+                  Logo (SVG only)
                 </label>
-                <input
-                  type="text"
-                  value={formData.logo}
-                  onChange={(e) => handleInputChange('logo', e.target.value)}
-                  placeholder="https://example.com/logo.png"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
+                {logoPreview ? (
+                  <div className="relative inline-block">
+                    <div className="w-32 h-32 border-2 border-gray-300 rounded-lg overflow-hidden bg-gray-50 flex items-center justify-center">
+                      <img 
+                        src={logoPreview} 
+                        alt="Logo preview" 
+                        className="max-w-full max-h-full object-contain"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleRemoveLogo}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
+                      aria-label="Remove logo"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors">
+                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                      <Upload className="w-8 h-8 mb-2 text-gray-400" />
+                      <p className="mb-2 text-sm text-gray-500">
+                        <span className="font-semibold">Click to upload</span> SVG logo
+                      </p>
+                      <p className="text-xs text-gray-500">SVG files only</p>
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/svg+xml"
+                      onChange={handleLogoSelect}
+                      className="hidden"
+                    />
+                  </label>
+                )}
+                {logoPreview && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const input = document.querySelector('input[type="file"][accept="image/svg+xml"]');
+                      if (input) input.click();
+                    }}
+                    className="mt-2 text-sm text-blue-600 hover:text-blue-700 font-medium"
+                  >
+                    Change Logo
+                  </button>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -242,19 +420,54 @@ const SiteConfiguration = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Banner Images (URLs)
+                  Banner Images (Max 5)
                 </label>
-                {formData.bannerImages.map((image, index) => (
-                  <div key={index} className="mb-2">
-                    <input
-                      type="text"
-                      value={image}
-                      onChange={(e) => handleBannerImageChange(index, e.target.value)}
-                      placeholder={`Banner Image ${index + 1} URL`}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
+                {/* Existing/Selected Banner Previews */}
+                {bannerPreviews.length > 0 && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 mb-4">
+                    {bannerPreviews.map((preview, index) => (
+                      <div key={index} className="relative group">
+                        <div className="w-full aspect-video border-2 border-gray-300 rounded-lg overflow-hidden bg-gray-50">
+                          <img 
+                            src={preview} 
+                            alt={`Banner ${index + 1}`} 
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveBanner(index)}
+                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1.5 hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100"
+                          aria-label="Remove banner"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
+                
+                {/* Upload Button */}
+                {bannerPreviews.length < 5 && (
+                  <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors">
+                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                      <Upload className="w-8 h-8 mb-2 text-gray-400" />
+                      <p className="mb-2 text-sm text-gray-500">
+                        <span className="font-semibold">Click to upload</span> banner images
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {bannerPreviews.length} / 5 images selected
+                      </p>
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={handleBannerSelect}
+                      className="hidden"
+                    />
+                  </label>
+                )}
               </div>
             </div>
           </div>

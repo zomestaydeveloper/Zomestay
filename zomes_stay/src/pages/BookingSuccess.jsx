@@ -7,24 +7,28 @@ const BookingSuccess = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [bookingDetails, setBookingDetails] = useState(null);
+  
+  // Detect if we're in agent context
+  const isAgentContext = location.pathname?.startsWith('/app/agent') || location.state?.isAgentContext || false;
 
   useEffect(() => {
     // Get booking details from location state
     if (location.state) {
       setBookingDetails(location.state);
     } else {
-      // If no state, redirect to home
-      navigate('/');
+      // If no state, redirect to appropriate home
+      navigate(isAgentContext ? '/app/agent/home' : '/app/home');
     }
-  }, [location.state, navigate]);
+  }, [location.state, navigate, isAgentContext]);
 
   const handleGoHome = () => {
-    navigate('/');
+    navigate(isAgentContext ? '/app/agent/home' : '/app/home');
   };
 
   const handleViewBooking = () => {
     // Navigate to booking details or booking history
-    navigate('/my-bookings');
+    // For now, navigate to home - can be updated to specific booking details page later
+    navigate(isAgentContext ? '/app/agent/home' : '/app/home');
   };
 
   if (!bookingDetails) {

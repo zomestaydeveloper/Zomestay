@@ -103,29 +103,54 @@ const checkActiveBookingConflict = async (tx, { propertyId, propertyRoomTypeId, 
   const { addDays } = require('./date.utils');
   const endExclusive = addDays(date, 1);
 
+  // Check for conflicts through BookingRoomSelection
+  // roomIds is stored as JSON array, so we need to check if it contains the roomId
   const conflictingBooking = await tx.booking.findFirst({
     where: {
       propertyId,
-      propertyRoomTypeId,
-      roomId,
       isDeleted: false,
       status: { in: ['pending', 'confirmed'] },
       startDate: { lt: endExclusive },
       endDate: { gt: date },
+      bookingRoomSelections: {
+        some: {
+          roomTypeId: propertyRoomTypeId,
+          // Check if roomIds JSON array contains the roomId
+          // Using Prisma's JSON filter: path array contains the value
+        },
+      },
     },
     select: {
       id: true,
       bookingNumber: true,
       startDate: true,
       endDate: true,
+      bookingRoomSelections: {
+        where: {
+          roomTypeId: propertyRoomTypeId,
+        },
+        select: {
+          roomIds: true,
+        },
+      },
     },
   });
 
+  // Check if the roomId is actually in the roomIds array
   if (conflictingBooking) {
-    throw Object.assign(new Error('Room already has a booking that overlaps the selected date'), {
-      code: 'ROOM_BOOKED',
-      details: conflictingBooking,
+    const hasRoomConflict = conflictingBooking.bookingRoomSelections.some((selection) => {
+      const roomIdsArray = Array.isArray(selection.roomIds) 
+        ? selection.roomIds 
+        : JSON.parse(selection.roomIds || '[]');
+      return roomIdsArray.includes(roomId);
     });
+
+    if (hasRoomConflict) {
+      throw Object.assign(new Error('Room already has a booking that overlaps the selected date'), {
+        code: 'ROOM_BOOKED',
+        details: conflictingBooking,
+      });
+    }
   }
 };
 

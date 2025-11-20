@@ -37,6 +37,20 @@ const isWithinRange = (date, start, end) => {
   return time >= start.getTime() && time <= end.getTime();
 };
 
+// Check if a date is in the past (before today at midnight UTC)
+const isPastDate = (date) => {
+  if (!date) return false;
+  const dateObj = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(dateObj.getTime())) return false;
+  
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  const checkDate = new Date(dateObj);
+  checkDate.setUTCHours(0, 0, 0, 0);
+  
+  return checkDate.getTime() < today.getTime();
+};
+
 const buildCalendarGrid = (monthDate) => {
   const monthStart = startOfMonth(monthDate);
   const gridStart = startOfWeek(monthStart);
@@ -455,6 +469,9 @@ const FrontDeskBoard = ({ mode = "admin", propertyId, propertyName: propertyName
   const [bookingContextLoading, setBookingContextLoading] = useState(false);
   const [bookingContextError, setBookingContextError] = useState(null);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+
+  console.log("bookingDraft",bookingDraft)
+  console.log("bookingContext",bookingContext)
   const [datePickerMonth, setDatePickerMonth] = useState(() =>
     startOfMonth(new Date())
   );
@@ -699,6 +716,16 @@ const FrontDeskBoard = ({ mode = "admin", propertyId, propertyName: propertyName
       return;
     }
 
+    // Prevent creating blocks/maintenance/out_of_service for past dates (release is allowed)
+    if (mode === "create" && isPastDate(resolvedDate)) {
+      setRoomStatusRequest({
+        status: "error",
+        error: "Cannot create room status changes for past dates.",
+        message: null,
+      });
+      return;
+    }
+
     const dateKey = formatQueryDate(resolvedDate);
     const blockedByLabel =
       frontdeskActor?.label ||
@@ -877,7 +904,6 @@ const FrontDeskBoard = ({ mode = "admin", propertyId, propertyName: propertyName
           }
 
           const mealPlans = data?.mealPlans || [];
-          console.log("mealPlans",mealPlans)
           // PRODUCTION: Extract actual MealPlan.id (not PropertyRoomTypeMealPlan.id)
           // mealPlans structure: [{ id: PropertyRoomTypeMealPlan.id, mealPlan: { id: MealPlan.id, ... }, ... }]
           let nextMealPlanId =
@@ -1084,8 +1110,10 @@ const FrontDeskBoard = ({ mode = "admin", propertyId, propertyName: propertyName
     : null;
   const pricingSummary = useMemo(() => {
     if (!bookingContext || !bookingDraft) return null;
+    // PRODUCTION: Match by MealPlan.id (not PropertyRoomTypeMealPlan.id)
+    // bookingDraft.mealPlanId contains MealPlan.id, but plan.id is PropertyRoomTypeMealPlan.id
     const mealPlan = (bookingContext.mealPlans || []).find(
-      (plan) => plan.id === bookingDraft.mealPlanId
+      (plan) => plan.mealPlan?.id === bookingDraft.mealPlanId
     );
     if (!mealPlan) return null;
 
@@ -1529,6 +1557,11 @@ const FrontDeskBoard = ({ mode = "admin", propertyId, propertyName: propertyName
   };
 
   const handleEmptyCell = ({ date, room, roomType }) => {
+    // Prevent actions on past dates
+    if (isPastDate(date)) {
+      return;
+    }
+    
     setActiveContext({
       type: "action",
       date,
@@ -1544,9 +1577,16 @@ const FrontDeskBoard = ({ mode = "admin", propertyId, propertyName: propertyName
       return;
     }
 
+    const { date, room, roomType } = activeContext;
+    
+    // Prevent creating bookings for past dates
+    if (isPastDate(date)) {
+      setBookingError("Cannot create bookings for past dates.");
+      return;
+    }
+
     resetHoldState();
 
-    const { date, room, roomType } = activeContext;
     const propertyRoomTypeId = roomType?.id;
     const initialDateObj =
       (date instanceof Date && !Number.isNaN(date.getTime()) && date) ||
@@ -1657,6 +1697,13 @@ const FrontDeskBoard = ({ mode = "admin", propertyId, propertyName: propertyName
       return;
     }
 
+    // Prevent creating bookings for past dates
+    const checkInDate = parseDateOnly(bookingDraft.from);
+    if (isPastDate(checkInDate)) {
+      setBookingError("Cannot create bookings for past dates. Please select today or a future date.");
+      return;
+    }
+
     if (bookingValidation.errors.length > 0) {
       setBookingError(bookingValidation.errors[0]);
       return;
@@ -1696,6 +1743,7 @@ const FrontDeskBoard = ({ mode = "admin", propertyId, propertyName: propertyName
       });
 
       const holdData = response?.data?.data || response?.data || null;
+
       setHoldState({
         status: "success",
         data: holdData,
@@ -1708,6 +1756,7 @@ const FrontDeskBoard = ({ mode = "admin", propertyId, propertyName: propertyName
         error?.response?.data?.message ||
         error?.message ||
         "Failed to place a hold on the selected rooms.";
+      
       setHoldState({ status: "error", data: null, message });
       setBookingError(message);
     }
@@ -1736,6 +1785,11 @@ const FrontDeskBoard = ({ mode = "admin", propertyId, propertyName: propertyName
   };
 
   const handleCalendarDayClick = (day) => {
+    // Prevent selecting past dates
+    if (isPastDate(day)) {
+      return;
+    }
+    
     setDateSelection((prev) => {
       if (!prev.from || (prev.from && prev.to)) {
         const formatted = formatQueryDate(day);
@@ -1754,6 +1808,11 @@ const FrontDeskBoard = ({ mode = "admin", propertyId, propertyName: propertyName
 
       let nextFrom = prev.from;
       let nextTo = day;
+
+      // Ensure selected dates are not in the past
+      if (isPastDate(day)) {
+        return prev; // Don't update if clicking past date
+      }
 
       if (isDateBefore(day, prev.from)) {
         nextFrom = day;
@@ -1791,6 +1850,13 @@ const FrontDeskBoard = ({ mode = "admin", propertyId, propertyName: propertyName
     }
 
     const start = dateSelection.from;
+    
+    // Prevent selecting past dates
+    if (isPastDate(start)) {
+      setBookingError("Cannot select past dates. Please select today or a future date.");
+      return;
+    }
+    
     const rawEnd = dateSelection.to;
     const normalizedEnd =
       rawEnd && rawEnd > start ? rawEnd : addDays(start, 1);
@@ -1883,12 +1949,21 @@ const FrontDeskBoard = ({ mode = "admin", propertyId, propertyName: propertyName
               classNames.push("bg-emerald-500 text-white");
             }
 
+            const isPast = isPastDate(date);
+            const isDisabled = isPast;
+
+            if (isDisabled) {
+              classNames.push("cursor-not-allowed opacity-40");
+            }
+
             return (
               <button
                 key={key}
                 type="button"
-                onClick={() => handleCalendarDayClick(date)}
+                onClick={() => !isDisabled && handleCalendarDayClick(date)}
+                disabled={isDisabled}
                 className={classNames.join(" ")}
+                title={isPast ? "Past dates cannot be selected" : ""}
               >
                 {date.getUTCDate()}
               </button>
@@ -1900,6 +1975,8 @@ const FrontDeskBoard = ({ mode = "admin", propertyId, propertyName: propertyName
   };
 
   const renderContextModal = () => {
+
+    console.log("activeContext",activeContext)
     if (!activeContext) return null;
 
     const closeModal = () => {
@@ -2230,6 +2307,7 @@ const FrontDeskBoard = ({ mode = "admin", propertyId, propertyName: propertyName
           </div>
         );
       } else if (bookingContextError) {
+        console.log("bookingContextError",bookingContextError)
         const retryFrom = bookingDraft?.from || formatQueryDate(activeContext.date);
         const retryTo = bookingDraft?.to || formatQueryDate(activeContext.date);
         content = (
@@ -2581,6 +2659,12 @@ const FrontDeskBoard = ({ mode = "admin", propertyId, propertyName: propertyName
             {holdState.status === "error" && holdState.message && (
               <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
                 {holdState.message}
+              </div>
+            )}
+
+            {holdState.status === "loading" && (
+              <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-600">
+                Creating hold... Please wait...
               </div>
             )}
 
@@ -3125,24 +3209,31 @@ const FrontDeskBoard = ({ mode = "admin", propertyId, propertyName: propertyName
                               );
                             }
 
+                            const isPast = isPastDate(date);
+                            const isDisabled = isPast;
+
                             return (
                               <button
                                 key={`${room.id}-${slot.dateKey || date?.toISOString?.() || index}`}
                                 type="button"
-                                className="flex h-16 flex-col justify-center border-r border-gray-100 bg-white px-3 text-left text-xs font-medium text-gray-400 transition hover:bg-blue-50 hover:text-blue-600"
-                                onClick={() =>
-                                  handleEmptyCell({
-                                    date,
-                                    room,
-                                    roomType,
-                                  })
-                                }
+                                className={`flex h-16 flex-col justify-center border-r border-gray-100 px-3 text-left text-xs font-medium transition ${
+                                  isDisabled
+                                    ? "cursor-not-allowed bg-gray-50 text-gray-300 opacity-60"
+                                    : "bg-white text-gray-400 hover:bg-blue-50 hover:text-blue-600"
+                                }`}
+                                onClick={() => !isDisabled && handleEmptyCell({
+                                  date,
+                                  room,
+                                  roomType,
+                                })}
+                                disabled={isDisabled}
+                                title={isPast ? "Past dates cannot be modified" : "Tap to book / hold / block"}
                               >
                                 <span className="text-[11px] font-semibold uppercase tracking-wide">
                                   {label}
                                 </span>
                                 <span className="text-[11px]">
-                                  Tap to book / hold / block
+                                  {isPast ? "Past date" : "Tap to book / hold / block"}
                                 </span>
                               </button>
                             );

@@ -8,6 +8,7 @@ import OtpVerified from "./pages/OtpVerified";
 import Detials from "./pages/DetialsPage";
 import ContactUs from "./pages/ContactUs";
 import UserProfile from "./pages/UserProfile";
+import UserBookings from "./pages/UserBookings";
 import LegalInfo from "./pages/LegalInfo";
 import FindProperty from "./pages/FindProperty";
 import HowToAgent from "./pages/HowToAgent";
@@ -70,6 +71,7 @@ import PropertyTypes from "./pages/Admin/Property_configurations/PropertyTypes";
 import RoomTypes from "./pages/Admin/Property_configurations/RoomTypes";
 import SiteConfiguration from "./pages/Admin/Siteconfiguration";
 import CallbackRequests from "./pages/Admin/CallbackRequests";
+import CancellationRequests from "./pages/Admin/CancellationRequests";
 import ReduxDebug from "./pages/ReduxDebug";
 //import 'react-datepicker/dist/react-datepicker.css';
 
@@ -94,6 +96,7 @@ export default function App() {
           <Route path="home" element={<HomePage />} />
           <Route path="properties/:id" element={<Detials />} />
           <Route path="user_profile" element={<UserProfile />} />
+          <Route path="bookings" element={<UserBookings />} />
           <Route path="contact_us" element={<ContactUs />} />
           <Route path="legal_info" element={<LegalInfo />} />
           <Route path="find_a_property" element={<FindProperty />} />
@@ -159,7 +162,8 @@ export default function App() {
           <Route path="promotion" element={<PromotionsDiscounts />} /> 
           <Route path="cancellation_policies" element={<CancellationPolicy />} /> 
           <Route path="site-configuration" element={<SiteConfiguration />} /> 
-          <Route path="callback-requests" element={<CallbackRequests />} /> 
+          <Route path="callback-requests" element={<CallbackRequests />} />
+          <Route path="cancellation-requests" element={<CancellationRequests />} /> 
         </Route>
 
 

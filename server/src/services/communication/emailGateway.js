@@ -8,13 +8,14 @@ const providerConfig = require('./config/provider.config');
 
 // Import providers
 const mockProvider = require('./providers/email/mock.provider');
+const nodemailerProvider = require('./providers/email/nodemailer.provider');
 
 // Provider registry
 // Add new providers here: 'providerName': require('./providers/email/providerName.provider')
 const providers = {
   mock: mockProvider,
+  nodemailer: nodemailerProvider,
   // Future providers:
-  // nodemailer: require('./providers/email/nodemailer.provider'),
   // sendgrid: require('./providers/email/sendgrid.provider'),
   // aws-ses: require('./providers/email/aws-ses.provider'),
 };

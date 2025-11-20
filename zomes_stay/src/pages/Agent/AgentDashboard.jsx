@@ -10,6 +10,7 @@ import {
   Search, Filter, AlertCircle, Info, CheckCircle2, XCircle,
   ChevronLeft, ChevronRight
 } from 'lucide-react';
+import CancellationRequestModal from '../../components/shared/CancellationRequestModal';
 import agentAuthService from '../../services/auth/agent_authService';
 import { setAgentLogin } from '../../store/agentAuthSlice';
 import bookingService from '../../services/property/admin/booking/bookingService';
@@ -31,6 +32,8 @@ const AgentDashboard = () => {
   const [bookingFilter, setBookingFilter] = useState('all'); // 'all', 'upcoming', 'past'
   const [bookingsError, setBookingsError] = useState('');
   const [showRoomDetailsModal, setShowRoomDetailsModal] = useState(false);
+  const [showCancellationRequestModal, setShowCancellationRequestModal] = useState(false);
+  const [cancellationRequestBooking, setCancellationRequestBooking] = useState(null);
   
   // Modal states
   const [modal, setModal] = useState({
@@ -496,24 +499,60 @@ const AgentDashboard = () => {
     // Navigation happens immediately, no modal needed
   };
 
-  // Check if booking can be cancelled (not past and not already cancelled)
-  const canCancelBooking = (booking) => {
+  // Check if booking can show cancellation request button
+  // Logic: Only allow cancellation request if check-in is today or in the future
+  // - If check-in is in the past (already checked in), don't allow cancellation
+  // - If check-in is today or future, allow cancellation request
+  // - Don't show for cancelled or completed bookings
+  const canShowCancellationRequest = (booking) => {
     if (!booking) return false;
     
-    // Don't show cancel for already cancelled bookings
-    if (booking.status?.toLowerCase() === 'cancelled') return false;
+    // Don't show for cancelled or completed bookings
+    const status = booking.status?.toLowerCase();
+    if (status === 'cancelled' || status === 'completed') return false;
     
-    // Get check-out date from originalData or formatted checkOut
-    const checkOutDateStr = booking.originalData?.checkOut || booking.checkOut;
-    if (!checkOutDateStr) return false;
+    // Get check-in date from originalData or formatted checkIn
+    const checkInDateStr = booking.checkIn || booking.originalData?.checkIn;
+    if (!checkInDateStr) return false;
     
+    // Create today's date at midnight UTC for consistent comparison
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const checkOutDate = new Date(checkOutDateStr);
-    checkOutDate.setHours(0, 0, 0, 0);
+    today.setUTCHours(0, 0, 0, 0);
     
-    // Show cancel button if check-out is today or in the future (upcoming or present)
-    return checkOutDate >= today;
+    // Parse check-in date - handle both ISO strings and date strings
+    let checkInDate;
+    if (typeof checkInDateStr === 'string') {
+      // If it's already a date string (YYYY-MM-DD), parse it directly
+      if (checkInDateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        checkInDate = new Date(checkInDateStr + 'T00:00:00.000Z');
+      } else {
+        // Otherwise parse as ISO string
+        checkInDate = new Date(checkInDateStr);
+      }
+    } else {
+      checkInDate = new Date(checkInDateStr);
+    }
+    
+    // Set to midnight UTC for comparison
+    checkInDate.setUTCHours(0, 0, 0, 0);
+    
+    // Validate date
+    if (isNaN(checkInDate.getTime())) return false;
+    
+    // Show button only if check-in is today or in the future
+    // If check-in is in the past, guest has already checked in, so don't allow cancellation
+    return checkInDate >= today;
+  };
+
+  const handleRequestCancellation = (booking) => {
+    setCancellationRequestBooking(booking);
+    setShowCancellationRequestModal(true);
+  };
+
+  const handleCancellationRequestSuccess = () => {
+    // Refresh bookings after successful cancellation request
+    setCurrentPage(1);
+    fetchBookings(1);
   };
 
   const getStatusColor = (status) => {
@@ -820,14 +859,14 @@ const AgentDashboard = () => {
                               >
                                 View
                               </button>
-                              {canCancelBooking(booking) && (
+                              {canShowCancellationRequest(booking) && (
                                 <button
-                                  onClick={() => handleCancelBooking(booking)}
-                                  className="text-red-600 hover:text-red-800 font-medium flex items-center gap-1 transition-colors"
-                                  title="Cancel Booking"
+                                  onClick={() => handleRequestCancellation(booking)}
+                                  className="text-orange-600 hover:text-orange-800 font-medium flex items-center gap-1 transition-colors text-xs"
+                                  title="Request Cancellation"
                                 >
-                                  <XCircle className="h-4 w-4" />
-                                  <span>Cancel</span>
+                                  <AlertCircle className="h-3.5 w-3.5" />
+                                  <span>Request Cancel</span>
                                 </button>
                               )}
                             </div>
@@ -905,13 +944,13 @@ const AgentDashboard = () => {
                         >
                           View Details
                         </button>
-                        {canCancelBooking(booking) && (
+                        {canShowCancellationRequest(booking) && (
                           <button
-                            onClick={() => handleCancelBooking(booking)}
-                            className="flex-1 px-3 py-1.5 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors text-xs font-medium flex items-center justify-center gap-1"
+                            onClick={() => handleRequestCancellation(booking)}
+                            className="flex-1 px-3 py-1.5 bg-orange-50 text-orange-600 border border-orange-200 rounded-md hover:bg-orange-100 transition-colors text-xs font-medium flex items-center justify-center gap-1"
                           >
-                            <XCircle className="h-3.5 w-3.5" />
-                            <span>Cancel</span>
+                            <AlertCircle className="h-3.5 w-3.5" />
+                            <span>Request Cancel</span>
                           </button>
                         )}
                       </div>
@@ -1634,6 +1673,20 @@ const AgentDashboard = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Cancellation Request Modal */}
+      {showCancellationRequestModal && cancellationRequestBooking && (
+        <CancellationRequestModal
+          isOpen={showCancellationRequestModal}
+          onClose={() => {
+            setShowCancellationRequestModal(false);
+            setCancellationRequestBooking(null);
+          }}
+          booking={cancellationRequestBooking}
+          onSuccess={handleCancellationRequestSuccess}
+          userContactNumber={cancellationRequestBooking?.originalData?.guest?.phone || cancellationRequestBooking?.customerPhone || auth?.phone || ''}
+        />
       )}
     </div>
   );

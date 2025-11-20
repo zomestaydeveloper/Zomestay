@@ -1,6 +1,7 @@
 const Razorpay = require('razorpay');
 const { PrismaClient } = require('@prisma/client');
 const crypto = require('crypto');
+const { toDateOnly } = require('../../utils/date.utils');
 
 const prisma = new PrismaClient();
 
@@ -112,14 +113,11 @@ const createOrder = async (req, res) => {
       });
     }
 
-    const checkInDate = new Date(checkIn);
-    const checkOutDate = new Date(checkOut);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const maxBookingDate = new Date();
-    maxBookingDate.setFullYear(maxBookingDate.getFullYear() + 1); // Max 1 year in advance
+    // Use toDateOnly() to ensure UTC date handling (prevents timezone offset issues)
+    const checkInDate = toDateOnly(checkIn);
+    const checkOutDate = toDateOnly(checkOut);
     
-    if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) {
+    if (!checkInDate || !checkOutDate) {
       return res.status(400).json({
         success: false,
         message: 'Invalid check-in or check-out date format',
@@ -127,8 +125,12 @@ const createOrder = async (req, res) => {
       });
     }
 
-    checkInDate.setHours(0, 0, 0, 0);
-    checkOutDate.setHours(0, 0, 0, 0);
+    // Get today's date in UTC (midnight UTC)
+    const today = toDateOnly(new Date());
+    
+    // Calculate max booking date (1 year from today) in UTC
+    const maxBookingDate = new Date(today);
+    maxBookingDate.setUTCFullYear(maxBookingDate.getUTCFullYear() + 1);
 
     if (checkInDate < today) {
       return res.status(400).json({
@@ -358,11 +360,14 @@ const createOrder = async (req, res) => {
         // Check if rooms are available for the selected dates
         for (const roomId of roomIds) {
           // Check existing availability for this room and dates
+          // Use toDateOnly() to ensure UTC date handling
+          const dateObjects = datesToBlock.map(date => toDateOnly(date)).filter(Boolean);
+          
           const existingAvailability = await tx.availability.findMany({
             where: {
               roomId: roomId,
               date: {
-                in: datesToBlock.map(date => new Date(date))
+                in: dateObjects
               },
               isDeleted: false
             }
@@ -379,10 +384,14 @@ const createOrder = async (req, res) => {
 
           // Block this room for all the dates
           for (const dateStr of datesToBlock) {
+            const dateObj = toDateOnly(dateStr);
+            if (!dateObj) {
+              throw new Error(`Invalid date format in datesToBlock: ${dateStr}`);
+            }
             await tx.availability.create({
               data: {
                 roomId: roomId,
-                date: new Date(dateStr),
+                date: dateObj, // Use UTC date from toDateOnly()
                 status: 'blocked',
                 reason: 'Temporary hold for payment processing',
                 blockedBy: 'temp-hold', // We'll update this with order ID
@@ -418,10 +427,28 @@ const createOrder = async (req, res) => {
       let razorpayOrder;
       try {
         razorpayOrder = await razorpay.orders.create(options);
+        
+        // PRODUCTION: Validate Razorpay response
+        if (!razorpayOrder || !razorpayOrder.id) {
+          console.error(`[${requestId}] Invalid Razorpay response:`, razorpayOrder);
+          throw new Error('Invalid response from payment gateway. Please try again.');
+        }
       } catch (razorpayError) {
         // If Razorpay fails, transaction will rollback and release rooms
         console.error(`[${requestId}] Razorpay order creation failed:`, razorpayError);
-        throw new Error(`Payment gateway error: ${razorpayError.message || 'Failed to create payment order'}`);
+        
+        // PRODUCTION: Handle Razorpay error structure
+        // Razorpay errors have structure: { error: { code, description, ... } }
+        let errorMessage = 'Failed to create payment order';
+        if (razorpayError.error && razorpayError.error.description) {
+          errorMessage = razorpayError.error.description;
+        } else if (razorpayError.message) {
+          errorMessage = razorpayError.message;
+        } else if (razorpayError.description) {
+          errorMessage = razorpayError.description;
+        }
+        
+        throw new Error(`Payment gateway error: ${errorMessage}`);
       }
       
       // 4. Save order to database
@@ -461,8 +488,8 @@ const createOrder = async (req, res) => {
               price: Math.round(selection.price * 100), // Convert to paise
               tax: Math.round(selection.tax * 100), // Convert to paise
               totalPrice: Math.round(selection.totalPrice * 100), // Convert to paise
-              checkIn: new Date(selection.checkIn),
-              checkOut: new Date(selection.checkOut),
+              checkIn: toDateOnly(selection.checkIn), // Use UTC date handling
+              checkOut: toDateOnly(selection.checkOut), // Use UTC date handling
               datesToBlock: selection.datesToBlock // JSON array
             }))
           }
@@ -474,11 +501,14 @@ const createOrder = async (req, res) => {
 
       // 5. Update the blocks with the order ID (link blocks to order)
       for (const blockedRoom of blockedRooms) {
+        // Use toDateOnly() to ensure UTC date handling
+        const dateObjects = blockedRoom.dates.map(date => toDateOnly(date)).filter(Boolean);
+        
         await tx.availability.updateMany({
           where: {
             roomId: blockedRoom.roomId,
             date: {
-              in: blockedRoom.dates.map(date => new Date(date))
+              in: dateObjects
             },
             status: 'blocked',
             reason: 'Temporary hold for payment processing',

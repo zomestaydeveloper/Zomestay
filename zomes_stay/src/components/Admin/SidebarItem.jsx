@@ -41,11 +41,12 @@ const SidebarItem = ({ item, depth = 0 }) => {
     return (
       <Link
         to={fullPath}
-        className={`block rounded-md px-3 py-2 text-sm ${
+        className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm ${
           active ? "bg-indigo-50 text-indigo-600" : "text-gray-600 hover:bg-gray-50"
         }`}
         style={padLeft}
       >
+        {item.icon && <span>{item.icon}</span>}
         {item.label}
       </Link>
     );

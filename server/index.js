@@ -59,23 +59,20 @@ const RazorpayWebhookRoute = require('./src/routes/webhooks/razorpay.routes');
 const GuestsRoute = require('./src/routes/adminRoutes/guests.routes');
 const PaymentsRoute = require('./src/routes/adminRoutes/payments.routes');
 const SiteConfigRoute = require('./src/routes/siteConfig.routes');
+const ReviewRoute = require('./src/routes/reviewRoutes/review.routes');
+const CancellationRequestRoute = require('./src/routes/cancellationRequestRoutes/cancellationRequest.routes');
 
 // Enable CORS
 app.use(cors({
   origin: [
-    "http://localhost:5173", // Local development
-    "https://zomesstay-web.onrender.com", // Old production (if still used)
-    "http://54.160.150.74", // EC2 IP (temporary - use domain instead)
-    "https://54.160.150.74", // EC2 IP with HTTPS (if SSL configured)
-    "http://techiconnect.shop", // Your domain (HTTP)
-    "https://techiconnect.shop", // Your domain (HTTPS - preferred)
-    "http://www.techiconnect.shop", // www subdomain (HTTP)
-    "https://www.techiconnect.shop", // www subdomain (HTTPS)
-    "http://api.techiconnect.shop", // API subdomain (HTTP)
-    "https://api.techiconnect.shop", // API subdomain (HTTPS - for webhooks)
+    "http://localhost:5173",              // Local Dev
+    "https://techiconnect.shop",          // Main Domain (Frontend)
+    "https://www.techiconnect.shop",      // Optional (WWW)
+    "https://api.techiconnect.shop",      // API Subdomain
   ],
   credentials: true
 }));
+
 
 // Register webhook routes BEFORE JSON parser (webhook needs raw body for signature verification)
 // PRODUCTION: Unified Razorpay webhook handler (handles ALL Razorpay events)
@@ -120,6 +117,8 @@ app.use('/api', agentAuthRoute);
 app.use('/api/travel-agents', TravelAgentRoute);
 app.use('/api/properties-for-agent', PropertyForAgentRoute);
 app.use('/api/agent-discounts', AgentPropertyDiscountRoute);
+app.use('/api', ReviewRoute);
+app.use('/api', CancellationRequestRoute);
 
 
 

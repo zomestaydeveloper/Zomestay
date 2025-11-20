@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { bookingService } from "../../../services/property/admin";
-import { X, Eye } from "lucide-react";
+import { X, Eye, AlertCircle } from "lucide-react";
+import CancellationRequestModal from "../CancellationRequestModal";
 
 const PAGE_LIMIT = 20;
 
@@ -76,10 +77,68 @@ export default function BookingList({
   const [cancellingId, setCancellingId] = useState(null);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [showRoomDetailsModal, setShowRoomDetailsModal] = useState(false);
+  const [showCancellationRequestModal, setShowCancellationRequestModal] = useState(false);
+  const [cancellationRequestBooking, setCancellationRequestBooking] = useState(null);
 
   const normalizedRole = useMemo(() => normalizeRole(role), [role]);
   const requiresEntityId = ROLE_REQUIRING_ID.has(normalizedRole);
   const canCancelBookings = normalizedRole === "admin";
+  
+  // Check if booking can show cancellation request button
+  // Logic: Only allow cancellation request if check-in is today or in the future
+  // - If check-in is in the past (already checked in), don't allow cancellation
+  // - If check-in is today or future, allow cancellation request
+  // - Don't show for cancelled or completed bookings
+  // Note: Only shown for host role, not for admin (admin has direct cancel button)
+  const canShowCancellationRequest = (booking) => {
+    if (!booking) return false;
+    
+    // Don't show for cancelled or completed bookings
+    const status = booking.status?.toLowerCase();
+    if (status === 'cancelled' || status === 'completed') return false;
+    
+    // Get check-in date from booking data
+    const checkInDateStr = booking.checkIn || booking.startDate || booking.originalData?.checkIn;
+    if (!checkInDateStr) return false;
+    
+    // Create today's date at midnight UTC for consistent comparison
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    
+    // Parse check-in date - handle both ISO strings and date strings
+    let checkInDate;
+    if (typeof checkInDateStr === 'string') {
+      // If it's already a date string (YYYY-MM-DD), parse it directly
+      if (checkInDateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        checkInDate = new Date(checkInDateStr + 'T00:00:00.000Z');
+      } else {
+        // Otherwise parse as ISO string
+        checkInDate = new Date(checkInDateStr);
+      }
+    } else {
+      checkInDate = new Date(checkInDateStr);
+    }
+    
+    // Set to midnight UTC for comparison
+    checkInDate.setUTCHours(0, 0, 0, 0);
+    
+    // Validate date
+    if (isNaN(checkInDate.getTime())) return false;
+    
+    // Show button only if check-in is today or in the future
+    // If check-in is in the past, guest has already checked in, so don't allow cancellation
+    return checkInDate >= today;
+  };
+  
+  const handleRequestCancellation = (booking) => {
+    setCancellationRequestBooking(booking);
+    setShowCancellationRequestModal(true);
+  };
+  
+  const handleCancellationRequestSuccess = () => {
+    // Refresh bookings after successful cancellation request
+    fetchBookings();
+  };
 
   const extraParamsMemo = useMemo(() => {
     if (!extraParams) return {};
@@ -379,7 +438,7 @@ export default function BookingList({
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200">
                   Status
                 </th>
-                {canCancelBookings && (
+                {(canCancelBookings || normalizedRole === "host" || normalizedRole === "user" || normalizedRole === "agent") && (
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200">
                     Actions
                   </th>
@@ -454,22 +513,40 @@ export default function BookingList({
                       {booking.status || "—"}
                     </span>
                   </td>
-                  {canCancelBookings && (
+                  {(canCancelBookings || normalizedRole === "host" || normalizedRole === "user" || normalizedRole === "agent") && (
                     <td className="px-4 py-3 whitespace-nowrap text-sm">
-                      {booking.status?.toLowerCase() === "cancelled" ? (
-                        <span className="text-gray-500">Already cancelled</span>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleCancel(booking)}
-                          disabled={cancellingId === booking.id || loading}
-                          className="px-3 py-2 text-xs font-medium text-white bg-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                          {cancellingId === booking.id
-                            ? "Cancelling..."
-                            : "Cancel Booking"}
-                        </button>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {/* Admin: Show Cancel button */}
+                        {canCancelBookings && (
+                          <>
+                            {booking.status?.toLowerCase() === "cancelled" ? (
+                              <span className="text-gray-500">Already cancelled</span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleCancel(booking)}
+                                disabled={cancellingId === booking.id || loading}
+                                className="px-3 py-2 text-xs font-medium text-white bg-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                              >
+                                {cancellingId === booking.id
+                                  ? "Cancelling..."
+                                  : "Cancel Booking"}
+                              </button>
+                            )}
+                          </>
+                        )}
+                        {/* Host/User/Agent: Show Request Cancellation button (only if not admin) */}
+                        {!canCancelBookings && canShowCancellationRequest(booking) && (
+                          <button
+                            type="button"
+                            onClick={() => handleRequestCancellation(booking)}
+                            className="px-3 py-2 text-xs font-medium text-orange-600 bg-orange-50 border border-orange-200 rounded-md hover:bg-orange-100 transition-colors flex items-center gap-1"
+                          >
+                            <AlertCircle className="h-3.5 w-3.5" />
+                            Request Cancellation
+                          </button>
+                        )}
+                      </div>
                     </td>
                   )}
                 </tr>
@@ -621,6 +698,20 @@ export default function BookingList({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Cancellation Request Modal */}
+      {showCancellationRequestModal && cancellationRequestBooking && (
+        <CancellationRequestModal
+          isOpen={showCancellationRequestModal}
+          onClose={() => {
+            setShowCancellationRequestModal(false);
+            setCancellationRequestBooking(null);
+          }}
+          booking={cancellationRequestBooking}
+          onSuccess={handleCancellationRequestSuccess}
+          userContactNumber={cancellationRequestBooking?.guest?.phone || ''}
+        />
       )}
     </div>
   );

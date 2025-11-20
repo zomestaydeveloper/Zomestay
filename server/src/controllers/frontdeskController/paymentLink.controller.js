@@ -26,7 +26,6 @@ const PAYMENTLINK_TTL_BUFFER_SECONDS = 60;
 const createPaymentLink = async (req, res) => {
   const { propertyId } = req.params;
 
-  console.log("req.body", req.body);
   console.log("propertyId", propertyId);
   const {
     propertyRoomTypeId,

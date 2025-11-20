@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Phone, LogOut } from 'lucide-react';
+import { Phone, LogOut, ChevronDown, User, BookOpen } from 'lucide-react';
 import { useSelector, useDispatch } from 'react-redux';
 import { logoutUser } from '../store/userAuthSlice';
 import { logoutAgent } from '../store/agentAuthSlice';
@@ -12,6 +12,7 @@ import { findRoleFromPathname } from '../utils/findrole';
 
 const DefaultHeader = () => {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
@@ -135,24 +136,51 @@ const DefaultHeader = () => {
               Agent Mode
             </div>
           )}
-          {/* Only show Profile and Logout for USER (based on route) */}
+          {/* Only show Profile dropdown and Logout for USER (based on route) */}
           {isUserLoggedIn && (
             <>
-              <button 
-                className="bg-white border border-gray-200 shadow-lg w-20 h-10 flex items-center justify-center rounded-full hover:bg-gray-50 transition-colors" 
-                onClick={() => navigate('/app/user_profile')}
-                title="Profile"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24">
-                  <rect y="5" width="24" height="2" rx="1" fill="#004AAD"/>
-                  <rect y="11" width="24" height="2" rx="1" fill="#004AAD"/>
-                  <rect y="17" width="24" height="2" rx="1" fill="#004AAD"/>
-                </svg>
-                <svg xmlns="http://www.w3.org/2000/svg" fill="#004AAD" viewBox="0 0 24 24" width="22" height="22">
-                  <circle cx="12" cy="8" r="4"/>
-                  <path d="M12 14c-4 0-6 2-6 4v2h12v-2c0-2-2-4-6-4z"/>
-                </svg>
-              </button>
+              <div className="relative">
+                <button 
+                  className="bg-white border border-gray-200 shadow-lg px-4 h-10 flex items-center gap-2 rounded-full hover:bg-gray-50 transition-colors"
+                  onClick={() => setUserDropdownOpen(!userDropdownOpen)}
+                  title="Menu"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="#004AAD" viewBox="0 0 24 24" width="20" height="20">
+                    <circle cx="12" cy="8" r="4" />
+                    <path d="M12 14c-4 0-6 2-6 4v2h12v-2c0-2-2-4-6-4z" />
+                  </svg>
+                  <ChevronDown size={16} className={`text-gray-600 transition-transform ${userDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {userDropdownOpen && (
+                  <div 
+                    className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate('/app/user_profile');
+                        setUserDropdownOpen(false);
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                    >
+                      <User size={16} />
+                      Profile
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate('/app/bookings');
+                        setUserDropdownOpen(false);
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                    >
+                      <BookOpen size={16} />
+                      Bookings
+                    </button>
+                  </div>
+                )}
+              </div>
               <button
                 onClick={handleLogout}
                 className="bg-red-600 text-white text-xs px-4 py-2 rounded-full font-semibold hover:bg-red-700 transition-colors flex items-center gap-2"
@@ -227,17 +255,30 @@ const DefaultHeader = () => {
                 Agent Mode
               </div>
             )}
-            {/* Only show Profile for USER (based on route) */}
+            {/* Only show Profile and Bookings for USER (based on route) */}
             {isUserLoggedIn && (
-              <button 
-                onClick={() => {
-                  navigate('/app/user_profile');
-                  setMenuOpen(false);
-                }}
-                className="w-full border border-gray-300 text-gray-700 text-sm h-12 rounded-lg hover:bg-gray-50 transition-colors font-semibold flex items-center justify-center"
-              >
-                Profile
-              </button>
+              <>
+                <button 
+                  onClick={() => {
+                    navigate('/app/user_profile');
+                    setMenuOpen(false);
+                  }}
+                  className="w-full border border-gray-300 text-gray-700 text-sm h-12 rounded-lg hover:bg-gray-50 transition-colors font-semibold flex items-center justify-center gap-2"
+                >
+                  <User size={18} />
+                  Profile
+                </button>
+                <button 
+                  onClick={() => {
+                    navigate('/app/bookings');
+                    setMenuOpen(false);
+                  }}
+                  className="w-full border border-gray-300 text-gray-700 text-sm h-12 rounded-lg hover:bg-gray-50 transition-colors font-semibold flex items-center justify-center gap-2"
+                >
+                  <BookOpen size={18} />
+                  Bookings
+                </button>
+              </>
             )}
               {isAgentLoggedIn && (
               <button 
@@ -280,6 +321,14 @@ const DefaultHeader = () => {
           </div>
         </div>
       </div>
+
+      {/* Close dropdown when clicking outside */}
+      {userDropdownOpen && (
+        <div 
+          className="fixed inset-0 z-30" 
+          onClick={() => setUserDropdownOpen(false)}
+        />
+      )}
     </header>
   );
 };

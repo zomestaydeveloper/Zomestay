@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'https://api.techiconnect.shop/api';
 
 const roomsService = {
   getAvailableRooms: async (propertyId, roomTypeIds = [], checkIn = null, checkOut = null, roomsNeeded = 1) => {

@@ -172,6 +172,7 @@ model Admin {
 
   // Relations
   approvedAgents TravelAgent[]
+  cancellationRequests CancellationRequest[] // Cancellation requests reviewed by this admin
 
   @@index([isDeleted])
 }
@@ -641,6 +642,8 @@ model Booking {
   // Note: propertyRoomType, room, and mealPlan relations removed - all details are in BookingRoomSelection
 
   payments Payment[]
+  review   Review? // One-to-one: One booking can have one review
+  cancellationRequests CancellationRequest[] // Cancellation requests for this booking
 
   @@index([userId])
   @@index([agentId])
@@ -654,6 +657,46 @@ model Booking {
   @@index([cancellationPolicyId])
   @@index([createdByType])
   @@index([createdById])
+}
+
+/**
+ * ===================== Cancellation Requests =====================
+ */
+
+model CancellationRequest {
+  id            String   @id @default(uuid()) @db.Char(36)
+  bookingId     String   @db.Char(36)
+  
+  // Requester Information
+  requestedBy   String   @db.Char(36) // userId, agentId, or hostId
+  role          String   // 'user', 'agent', 'host'
+  
+  // Request Details
+  reason        String   @db.Text // Selected reason from default options
+  customReason  String?  @db.Text // Additional custom reason/details
+  contactNumber String   // Contact number for admin to call
+  
+  // Status and Admin Review
+  status        String   @default("pending") // 'pending', 'approved', 'rejected'
+  adminNotes    String?  @db.Text // Admin's notes when approving/rejecting
+  reviewedAt    DateTime? // When admin reviewed the request
+  reviewedBy    String?  @db.Char(36) // Admin ID who reviewed
+  
+  // Timestamps
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  isDeleted     Boolean  @default(false)
+  
+  // Relations
+  booking       Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  admin         Admin?   @relation(fields: [reviewedBy], references: [id])
+  
+  @@index([bookingId])
+  @@index([requestedBy])
+  @@index([status])
+  @@index([role])
+  @@index([createdAt])
+  @@map("cancellation_requests")
 }
 
 /**
@@ -920,19 +963,22 @@ model Payment {
 
 model Review {
   id          String   @id @default(uuid()) @db.Char(36)
+  bookingId   String   @unique @db.Char(36) // One review per booking
   userId      String   @db.Char(36)
   propertyId  String   @db.Char(36)
   description String?  @db.Text
-  rating      Int
+  rating      Int      // 1-5 stars
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   isDeleted   Boolean  @default(false)
 
   user     User     @relation(fields: [userId], references: [id])
   property Property @relation(fields: [propertyId], references: [id])
+  booking  Booking  @relation(fields: [bookingId], references: [id])
 
-  @@unique([userId, propertyId, isDeleted])
   @@index([propertyId])
+  @@index([bookingId])
+  @@index([userId])
   @@index([isDeleted])
 }
 

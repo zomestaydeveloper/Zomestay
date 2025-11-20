@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import SideCard from "../../components/Admin/SideCard";
 import Header from "../../components/Admin/Header";
 import Footer from "../../components/Admin/Footer";
+import PendingCancellationPopup from "../../components/Admin/PendingCancellationPopup";
 import { Outlet } from "react-router-dom";
 
 const BaseLayout = () => {
@@ -58,6 +59,9 @@ const BaseLayout = () => {
         </main>
         <Footer />
       </div>
+
+      {/* Pending Cancellation Requests Popup */}
+      <PendingCancellationPopup />
     </div>
   );
 };

@@ -294,19 +294,47 @@ const cancelBooking = async (req, res) => {
           },
         });
 
-        const roomIds = extractRoomIdsFromBooking(booking);
-        if (roomIds.length > 0) {
-          await tx.availability.deleteMany({
-            where: {
-              roomId: { in: roomIds },
-              date: {
-                gte: booking.startDate,
-                lt: booking.endDate,
+        // Delete availability records for each room selection
+        // Use checkIn/checkOut dates from BookingRoomSelection (not booking.startDate/endDate)
+        // Availability records are created per day using checkIn/checkOut dates
+        if (booking.bookingRoomSelections && Array.isArray(booking.bookingRoomSelections)) {
+          const { toDateOnly } = require('../../utils/date.utils');
+          
+          for (const selection of booking.bookingRoomSelections) {
+            const roomIds = Array.isArray(selection.roomIds) 
+              ? selection.roomIds 
+              : (typeof selection.roomIds === 'string' ? JSON.parse(selection.roomIds || '[]') : []);
+            
+            if (roomIds.length === 0) continue;
+            
+            // Use checkIn/checkOut from selection, fallback to booking dates
+            // Convert to date-only for proper comparison with Availability.date field
+            const checkInDate = selection.checkIn 
+              ? toDateOnly(selection.checkIn) 
+              : toDateOnly(booking.startDate);
+            const checkOutDate = selection.checkOut 
+              ? toDateOnly(selection.checkOut) 
+              : toDateOnly(booking.endDate);
+            
+            if (!checkInDate || !checkOutDate) {
+              console.warn(`⚠️ Invalid dates for booking ${booking.id}, selection ${selection.id}`);
+              continue;
+            }
+            
+            const deletedCount = await tx.availability.deleteMany({
+              where: {
+                roomId: { in: roomIds },
+                date: {
+                  gte: checkInDate,
+                  lt: checkOutDate,
+                },
+                status: 'booked',
+                isDeleted: false,
               },
-              status: 'booked',
-              isDeleted: false,
-            },
-          });
+            });
+            
+            console.log(`✅ Deleted ${deletedCount.count} availability record(s) for booking ${booking.bookingNumber}`);
+          }
         }
 
         return {
@@ -391,19 +419,47 @@ const cancelBooking = async (req, res) => {
         },
       });
 
-      const roomIds = extractRoomIdsFromBooking(booking);
-      if (roomIds.length > 0) {
-        await tx.availability.deleteMany({
-          where: {
-            roomId: { in: roomIds },
-            date: {
-              gte: booking.startDate,
-              lt: booking.endDate,
+      // Delete availability records for each room selection
+      // Use checkIn/checkOut dates from BookingRoomSelection (not booking.startDate/endDate)
+      // Availability records are created per day using checkIn/checkOut dates
+      if (booking.bookingRoomSelections && Array.isArray(booking.bookingRoomSelections)) {
+        const { toDateOnly } = require('../../utils/date.utils');
+        
+        for (const selection of booking.bookingRoomSelections) {
+          const roomIds = Array.isArray(selection.roomIds) 
+            ? selection.roomIds 
+            : (typeof selection.roomIds === 'string' ? JSON.parse(selection.roomIds || '[]') : []);
+          
+          if (roomIds.length === 0) continue;
+          
+          // Use checkIn/checkOut from selection, fallback to booking dates
+          // Convert to date-only for proper comparison with Availability.date field
+          const checkInDate = selection.checkIn 
+            ? toDateOnly(selection.checkIn) 
+            : toDateOnly(booking.startDate);
+          const checkOutDate = selection.checkOut 
+            ? toDateOnly(selection.checkOut) 
+            : toDateOnly(booking.endDate);
+          
+          if (!checkInDate || !checkOutDate) {
+            console.warn(`⚠️ Invalid dates for booking ${booking.id}, selection ${selection.id}`);
+            continue;
+          }
+          
+          const deletedCount = await tx.availability.deleteMany({
+            where: {
+              roomId: { in: roomIds },
+              date: {
+                gte: checkInDate,
+                lt: checkOutDate,
+              },
+              status: 'booked',
+              isDeleted: false,
             },
-            status: 'booked',
-            isDeleted: false,
-          },
-        });
+          });
+          
+          console.log(`✅ Deleted ${deletedCount.count} availability record(s) for booking ${booking.bookingNumber}`);
+        }
       }
 
       return {

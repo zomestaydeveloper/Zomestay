@@ -1,1 +1,3 @@
-node_modules
+# Server-specific ignores (if any)
+# Most ignores are handled by root .gitignore
+# Add server-specific patterns here if needed
