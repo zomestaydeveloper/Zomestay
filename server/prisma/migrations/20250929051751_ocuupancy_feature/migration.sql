@@ -1,6 +1,0 @@
--- AlterTable
-ALTER TABLE `propertyroomtype` ADD COLUMN `Occupancy` INTEGER NOT NULL DEFAULT 2,
-    ADD COLUMN `extraBedCapacity` INTEGER NOT NULL DEFAULT 0,
-    ADD COLUMN `extraBedPriceAdult` DECIMAL(10, 2) NOT NULL DEFAULT 0,
-    ADD COLUMN `extraBedPriceChild` DECIMAL(10, 2) NOT NULL DEFAULT 0,
-    ADD COLUMN `extraBedPriceInfant` DECIMAL(10, 2) NOT NULL DEFAULT 0;

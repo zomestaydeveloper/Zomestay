@@ -2,10 +2,11 @@
 import React, { useState } from "react";
 import Logo from "../../assets/loginPage/logo.png";
 import { useNavigate } from "react-router-dom";
-import {hostAuthService , inventoryService} from "../../services";
+import { hostAuthService, inventoryService } from "../../services";
 import { toast } from "react-toastify";
 import { useDispatch } from "react-redux";
 import { setHostLogin } from "../../store/hostAuthSlice";
+import { setAdminLogin } from "../../store/adminAuthSlice";
 import { setHostProperty } from "../../store/propertySlice";
 import { persistor } from "../../store/store";
 
@@ -61,23 +62,71 @@ const HostLogin = () => {
       const response = await hostAuthService.login({
         ...formData,
       });
-      const dataHost = response?.data?.data;
+      console.log("Host Login Response:", response);
+      let dataHost = response?.data?.data;
+
+      // Fallback: sometimes API returns data directly in response.data
+      if (!dataHost && response?.data?.token) {
+        console.warn("Falling back to response.data for host login info");
+        dataHost = response.data;
+      }
+
+      if (dataHost?.admin || dataHost?.token && JSON.parse(atob(dataHost.token.split('.')[1])).role === 'admin') {
+        // User is actually an Admin
+        console.log("Detailed Admin detection: User logged in as Admin on Host page. Redirecting...");
+
+        // If dataHost doesn't have the admin object but the token says admin, we might need to be careful.
+        // But based on user logs, dataHost.admin exists.
+        const adminData = dataHost?.admin || {};
+
+        dispatch(setAdminLogin({
+          email: adminData.email || formData.email,
+          first_name: adminData.firstName,
+          last_name: adminData.lastName,
+          profileImage: adminData.profileImage,
+          id: adminData.id,
+          adminAccessToken: dataHost.token, // Use the token from response
+        }));
+
+        await persistor.flush();
+        toast.info("Logged in as Admin. Redirecting to Admin Panel...");
+        navigate("/admin/base/dashboard", { replace: true });
+        return;
+      }
+
+      if (!dataHost?.token) {
+        console.error("Login successful but no token found in response:", response);
+        throw new Error("Login failed: No access token received from server");
+      }
+
+      // Ensure we have a host object, even if empty, to avoid crashes
+      const hostData = dataHost?.host || {};
+
+      console.log("Dispatching Host Login:", {
+        email: hostData.email,
+        first_name: hostData.firstName,
+        last_name: hostData.lastName,
+        profileImage: hostData.profileImage,
+        id: hostData.id,
+        hostAccessToken: dataHost.token,
+      });
 
       dispatch(
         setHostLogin({
-          email: dataHost?.host?.email,
-          first_name: dataHost?.host?.firstName,
-          last_name: dataHost?.host?.lastName,
-          profileImage: dataHost?.host?.profileImage,
-          id: dataHost?.host?.id,
-          hostAccessToken: dataHost?.token,
+          email: hostData.email,
+          first_name: hostData.firstName,
+          last_name: hostData.lastName,
+          profileImage: hostData.profileImage,
+          id: hostData.id,
+          hostAccessToken: dataHost.token,
         })
       );
 
-      if (dataHost?.host?.id && dataHost?.token) {
+      // Only fetch property if we actually have a valid Host ID
+      if (hostData.id && dataHost.token) {
         try {
           const propertyResponse = await inventoryService.getPropertyByID(
-            dataHost.host.id,
+            hostData.id,
             {
               headers: {
                 Authorization: `Bearer ${dataHost.token}`,
@@ -91,17 +140,19 @@ const HostLogin = () => {
             setHostProperty(
               propertyData
                 ? {
-                    id: propertyData.id,
-                    name: propertyData.title,
-                  }
+                  id: propertyData.id,
+                  name: propertyData.title,
+                }
                 : null
             )
           );
         } catch (propertyError) {
           console.error("Failed to fetch host property:", propertyError);
+          // Don't clear token or login state just because property fetch failed
           dispatch(setHostProperty(null));
         }
       } else {
+        console.warn("Skipping property fetch: No Host ID found");
         dispatch(setHostProperty(null));
       }
 
@@ -111,6 +162,7 @@ const HostLogin = () => {
       await persistor.flush();
 
       toast.success("Login successful!");
+      console.log("Navigating to dashboard...");
       navigate("/host/base/dashboard", { replace: true });
     } catch (error) {
       let errorMessage = "Login failed. Please try again.";
@@ -122,6 +174,7 @@ const HostLogin = () => {
           errorMessage = "Access denied. Admin privileges required.";
         }
       }
+      console.error("Login Error Catch:", error);
       toast.error(errorMessage);
     } finally {
       setLoading(false);

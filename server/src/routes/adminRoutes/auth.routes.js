@@ -28,3 +28,5 @@ adminAuthRouter.get('/test', (req, res) => {
 
 // Export the router
 module.exports = adminAuthRouter;
+
+

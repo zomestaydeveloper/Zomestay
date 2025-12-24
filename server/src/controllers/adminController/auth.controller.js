@@ -5,6 +5,10 @@ const { signToken } = require('../../utils/jwt.utils');
 
 const prisma = new PrismaClient();
 
+/* =======================
+   Helper functions
+======================= */
+
 const toEnum = (val, allowed, def) => {
   if (!val) return def;
   const v = String(val).toUpperCase();
@@ -18,7 +22,13 @@ const toDateOrNull = (val) => {
   return isNaN(d.getTime()) ? null : d;
 };
 
+/* =======================
+   Controller
+======================= */
+
 const AuthController = {
+
+  /* ---------- SIGNUP ---------- */
   signup: async (req, res) => {
     try {
       const b = req.body || {};
@@ -27,13 +37,12 @@ const AuthController = {
         password,
         firstName,
         lastName,
-        status,        
+        status,
         phone,
         dob,
         gender,
-        emailVerified, 
-        phoneVerified ,
-    
+        emailVerified,
+        phoneVerified
       } = b;
 
       if (!email || !password || !firstName || !lastName) {
@@ -45,26 +54,30 @@ const AuthController = {
 
       const statusEnum = toEnum(status, ['ACTIVE', 'INACTIVE'], 'ACTIVE');
 
-      const existing = await prisma.admin.findUnique({ where: { email } });
+      const existing = await prisma.admin.findUnique({
+        where: { email }
+      });
+
       if (existing) {
-        return res.status(409).json({ success: false, message: 'Email already exists' });
+        return res.status(409).json({
+          success: false,
+          message: 'Email already exists'
+        });
       }
 
       const hashed = await bcrypt.hash(password, 10);
 
       const fileObj =
         req.file ||
-        (req.files?.profileImage?.[0]) ||
-        (req.files?.file?.[0]) ||
+        req.files?.profileImage?.[0] ||
+        req.files?.file?.[0] ||
         null;
 
       const profileImage = fileObj
-        ? `/uploads/images/${path.basename(fileObj.filename || fileObj.originalname)}`
+        ? `/uploads/images/${path.basename(
+            fileObj.filename || fileObj.originalname
+          )}`
         : null;
-
-      const dobDate            = toDateOrNull(dob);
-      const emailVerifiedAt    = toDateOrNull(emailVerified);
-      const phoneVerifiedAt    = toDateOrNull(phoneVerified);
 
       const admin = await prisma.admin.create({
         data: {
@@ -72,12 +85,12 @@ const AuthController = {
           password: hashed,
           firstName,
           lastName,
-          status: statusEnum,             
+          status: statusEnum,
           phone: phone || null,
-          profileImage,                   
-          emailVerified: emailVerifiedAt, 
-          phoneVerified: phoneVerifiedAt,
-          dob: dobDate,                   
+          profileImage,
+          emailVerified: toDateOrNull(emailVerified),
+          phoneVerified: toDateOrNull(phoneVerified),
+          dob: toDateOrNull(dob),
           gender: gender || null
         },
         select: {
@@ -100,119 +113,149 @@ const AuthController = {
       return res.status(201).json({
         success: true,
         message: 'Admin created successfully',
-        data: admin 
-
+        data: admin
       });
+
     } catch (err) {
-     
-
-     console.log("debuging",err)
-
+      console.error('SIGNUP ERROR:', err);
       return res.status(500).json({
         success: false,
         message: 'Error creating admin'
       });
     }
   },
-login: async (req, res) => {
 
-const ALLOWED_FIELDS = ["email", "password"];
+  /* ---------- LOGIN ---------- */
+  login: async (req, res) => {
+    try {
+      console.log('LOGIN BODY:', req.body);
 
-const isValidRequest = (req) => {
-  const { body } = req;
-  return Object.keys(body).every((key) => ALLOWED_FIELDS.includes(key));
-};
+      // 1️⃣ Hard guard — NEVER crash
+      if (!req.body || typeof req.body !== 'object') {
+        return res.status(400).json({
+          success: false,
+          message: 'Request body is missing or invalid'
+        });
+      }
 
-if(!isValidRequest(req)){
-    return res.status(400).json({
+      const { email, password } = req.body;
+
+      // 2️⃣ Required fields
+      if (!email || !password) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email and password are required'
+        });
+      }
+
+      // 3️⃣ Block unexpected fields
+      const ALLOWED_FIELDS = ['email', 'password'];
+      const extraFields = Object.keys(req.body).filter(
+        (key) => !ALLOWED_FIELDS.includes(key)
+      );
+
+      if (extraFields.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Unauthorized fields detected',
+          fields: extraFields
+        });
+      }
+
+      // 4️⃣ Find admin
+      const admin = await prisma.admin.findUnique({
+        where: { email }
+      });
+
+      if (!admin) {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid email or password'
+        });
+      }
+
+      // 5️⃣ Password check
+      const isValidPassword = await bcrypt.compare(password, admin.password);
+      if (!isValidPassword) {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid email or password'
+        });
+      }
+
+      // 6️⃣ JWT config check
+      if (!process.env.JWT_SECRET || !process.env.JWT_REFRESH_SECRET) {
+        return res.status(500).json({
+          success: false,
+          message: 'JWT secrets not configured'
+        });
+      }
+
+      // 7️⃣ Tokens
+      const accessToken = signToken(
+        { id: admin.id, role: 'admin' },
+        { expiresIn: '1h' }
+      );
+
+      const refreshToken = signToken(
+        { id: admin.id, tokenType: 'refresh', role: 'admin' },
+        { expiresIn: '30d' }
+      );
+
+      // 8️⃣ Cookie
+      res.cookie('refresh_token', refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/auth/refresh',
+        maxAge: 30 * 24 * 60 * 60 * 1000
+      });
+
+      // 9️⃣ Response
+      return res.status(200).json({
+        success: true,
+        message: 'Login successful',
+        data: {
+          token: accessToken,
+          admin: {
+            email: admin.email,
+            firstName: admin.firstName,
+            lastName: admin.lastName,
+            status: admin.status,
+            role: 'admin',
+            phone: admin.phone,
+            profileImage: admin.profileImage,
+            createdAt: admin.createdAt,
+            updatedAt: admin.updatedAt
+          }
+        }
+      });
+
+    } catch (error) {
+      console.error('LOGIN ERROR:', error);
+      return res.status(500).json({
         success: false,
-        message: 'unAuthoriesed request'
-    });
-}
-
-const { email, password } = req.body;
-
-const admin = await prisma.admin.findUnique({ where: { email } });
-if (!admin) {
-    return res.status(401).json({
-        success: false,
-        message: 'Invalid email or password'
-    });
-}
-
-const isValidPassword = await bcrypt.compare(password, admin.password)
-if (!isValidPassword) {
-    return res.status(401).json({
-        success: false,
-        message: 'Invalid email or password'
-    });
-}
-
-if (!process.env.JWT_SECRET || !process.env.JWT_REFRESH_SECRET) {
-  return res.status(500).json({
-    success: false,
-    message: 'JWT secrets not configured'
-  });
-}
-const accessToken = signToken(
-  { id: admin.id, role: "admin" },
-  { expiresIn: "1h" } 
-);
- 
-  const refreshToken = signToken(
-    { id: admin.id, tokenType: "refresh", role: "admin" },
-    { expiresIn: "30d" }
-  );
-
-
-res.cookie("refresh_token", refreshToken, {
-  httpOnly: true,            
-  secure: true,            
-  sameSite: "lax",           
-  path: "/auth/refresh",    
-  maxAge: 30 * 24 * 60 * 60 * 1000, 
-});
-
-
-return res.status(200).json({
-  success: true,
-  message: "Login successful",
-  data: {
-    token: accessToken,
-    admin: {
-      email: admin.email,
-      firstName: admin.firstName,
-      lastName: admin.lastName,
-      status: admin.status,
-      role: "admin",
-      phone: admin.phone,
-      profileImage: admin.profileImage,
-      createdAt: admin.createdAt,
-      updatedAt: admin.updatedAt,
-    },
+        message: 'Login failed'
+      });
+    }
   },
-});
-},
 
-
-
-logout: async (req, res) => {
-  try {
-    
-    res.clearCookie("refresh_token");
-
-    return res.status(200).json({
-      success: true,
-      message: "Logout successful"
-    });
-  } catch (error) {
-    console.error('Error logging out:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Error logging out'
-    });
+  /* ---------- LOGOUT ---------- */
+  logout: async (req, res) => {
+    try {
+      res.clearCookie('refresh_token');
+      return res.status(200).json({
+        success: true,
+        message: 'Logout successful'
+      });
+    } catch (error) {
+      console.error('LOGOUT ERROR:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Error logging out'
+      });
+    }
   }
-}
-}
+};
 
 module.exports = AuthController;
