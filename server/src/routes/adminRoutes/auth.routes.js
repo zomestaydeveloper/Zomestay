@@ -10,7 +10,7 @@ adminAuthRouter.post('/logout', AuthController.logout);
 adminAuthRouter.get('/test', (req, res) => {
   const authHeader = req.headers['authorization']; // or req.get('authorization')
   
-  // Bearer <token>
+  // Bearer - <token>
   const token = authHeader && authHeader.split(' ')[1];
 
   console.log("Authorization Header:", authHeader);
