@@ -353,6 +353,9 @@ model Property {
   checkInTime      String         @default("14:00") // Default check-in time: 2 PM
   checkOutTime     String         @default("11:00") // Default check-out time: 11 AM
   cancellationPolicyId String?       @db.Char(36)
+  commissionPercentage Decimal?   @db.Decimal(5, 2) // Admin commission percentage (0-100%)
+  taxSlabs          Json?         // Tax slabs based on room tariff: [{min: number, max: number|null, rate: number}]
+  cessRate          Decimal?      @db.Decimal(5, 2) // Optional CESS rate percentage (0-100%)
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
   isDeleted        Boolean        @default(false)

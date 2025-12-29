@@ -26,6 +26,12 @@ const propertyUpdationService = {
       payload
     ),
 
+  updateTax: (propertyId, payload) =>
+    apiService.patch(
+      `${PROPERTY.PROPERTY}/${encodeId(propertyId)}/tax`,
+      payload
+    ),
+
   updateRoomTypes: (propertyId, payload, config) =>
     apiService.patch(
       `${PROPERTY.PROPERTY}/${encodeId(propertyId)}/room-types`,

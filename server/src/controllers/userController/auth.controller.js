@@ -466,6 +466,30 @@ const UserAuthController = {
         error: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
+  },
+
+  /**
+   * Logout user
+   * POST /api/users/logout
+   */
+  logout: async (req, res) => {
+    try {
+      // Clear any refresh token cookies if using cookies
+      res.clearCookie("refresh_token");
+      res.clearCookie("user_refresh_token");
+
+      return res.status(200).json({
+        success: true,
+        message: "Logout successful"
+      });
+    } catch (error) {
+      console.error('User Logout Error:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Error logging out',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
   }
 };
 

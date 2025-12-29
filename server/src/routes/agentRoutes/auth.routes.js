@@ -20,4 +20,7 @@ router.put('/travel-agent/profile/update', authenticateTravelAgent, uploadImage.
 // Change Travel Agent Password (requires authentication)
 router.put('/travel-agent/password/change', authenticateTravelAgent, TravelAgentAuthController.changePassword);
 
+// Travel Agent Logout (optional authentication - allows logout even with expired tokens)
+router.post('/travel-agent/logout', TravelAgentAuthController.logout);
+
 module.exports = router;

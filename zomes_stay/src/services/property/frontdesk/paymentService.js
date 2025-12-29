@@ -17,6 +17,20 @@ const paymentService = {
 
     return apiService.post(url, payload);
   },
+
+  createCashBooking: ({ propertyId, payload }) => {
+    if (!propertyId) {
+      throw new Error("Property identifier is required to create a cash booking");
+    }
+
+    if (!payload || typeof payload !== "object") {
+      throw new Error("Cash booking payload is required");
+    }
+
+    const url = FRONT_DESK.CASH_BOOKING.replace(":propertyId", encodeId(propertyId));
+
+    return apiService.post(url, payload);
+  },
 };
 
 export default paymentService;

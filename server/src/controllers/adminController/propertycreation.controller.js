@@ -1,7 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { requireAdmin, requireAdminOrHost } = require('../../utils/auth.utils');
-const { validatePropertyImages, validateRoomTypeImages } = require('../../utils/imageValidation.utils');
 
 // Your existing date utils
 const dayUTC = (dateStr) => {
@@ -77,8 +76,10 @@ const propertyCreation = {
         amenityIds,
         facilityIds,
         safetyIds,
-        roomtypes,
         cancellationPolicyId,
+        commissionPercentage,
+        taxSlabs,
+        cessRate,
       } = req.body;
 
       // Validate required fields
@@ -118,64 +119,12 @@ const propertyCreation = {
         id && typeof id === 'string' && id.trim()
       );
 
-      // Parse and validate room types
-      const roomTypesRaw = safeJSON(roomtypes, []);
-
-      const roomTypeAmenityIdSet = new Set();
-
-      const roomTypeList = (Array.isArray(roomTypesRaw) ? roomTypesRaw : [])
-        .map((rt) => {
-          if (!rt || typeof rt !== 'object') return null;
-
-          const normalisedRoomTypeId =
-            typeof rt.roomTypeId === 'string' ? rt.roomTypeId.trim() : '';
-
-          const normalisedAmenityIds = Array.isArray(rt.amenityIds)
-            ? rt.amenityIds
-                .map((amenity) => {
-                  if (!amenity) return null;
-                  if (typeof amenity === 'string') {
-                    return amenity.trim();
-                  }
-                  if (typeof amenity === 'object') {
-                    const candidate = amenity.id || amenity.value || amenity.amenityId;
-                    return typeof candidate === 'string' ? candidate.trim() : null;
-                  }
-                  return null;
-                })
-                .filter((id) => id && id.length > 0)
-            : [];
-
-          normalisedAmenityIds.forEach((id) => roomTypeAmenityIdSet.add(id));
-
-          return {
-            ...rt,
-            roomTypeId: normalisedRoomTypeId,
-            amenityIds: normalisedAmenityIds,
-          };
-        })
-        .filter((rt) => {
-          if (!rt) return false;
-          if (!rt.roomTypeId) return false;
-          const hasOccupancy =
-            rt.Occupancy !== undefined &&
-            rt.Occupancy !== null &&
-            !Number.isNaN(Number(rt.Occupancy));
-          const hasExtraBeds =
-            rt.extraBedCapacity !== undefined &&
-            rt.extraBedCapacity !== null &&
-            !Number.isNaN(Number(rt.extraBedCapacity));
-          return hasOccupancy && hasExtraBeds;
-        });
-
-      // Validate file uploads
+      // Handle city icon file if uploaded (part of location data)
       const filesByField = (req.files || []).reduce((acc, f) => {
         (acc[f.fieldname] ||= []).push(f);
         return acc;
       }, {});
-      const mediaFiles = filesByField['media'] || [];
       
-      // Handle city icon file if uploaded
       const cityIconFile = filesByField['cityIcon']?.[0] || null;
       
       // Add city icon to location data if uploaded
@@ -187,35 +136,18 @@ const propertyCreation = {
             message: 'City icon must be an SVG file'
           });
         }
+        // Validate file size (2MB limit)
+        const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB in bytes
+        if (cityIconFile.size && cityIconFile.size > MAX_FILE_SIZE) {
+          return res.status(400).json({
+            success: false,
+            message: 'City icon file size must be less than 2MB'
+          });
+        }
         // Get the file URL from multer
         const cityIconUrl = cityIconFile.url || `/uploads/${cityIconFile.subdirectory || 'images'}/${cityIconFile.filename}`;
         // Add city icon to location data
         locationData.cityIcon = cityIconUrl;
-      }
-
-      // Validate property images (size, type, aspect ratio)
-      const propertyImageValidation = await validatePropertyImages(mediaFiles);
-      if (!propertyImageValidation.valid) {
-        return res.status(400).json({
-          success: false,
-          message: 'Property image validation failed',
-          errors: propertyImageValidation.errors
-        });
-      }
-
-      // Validate room type images
-      for (const [index, rt] of roomTypeList.entries()) {
-        const roomTypeImageFiles = filesByField[`roomTypeImages_${index}`] || [];
-        if (roomTypeImageFiles.length > 0) {
-          const roomTypeImageValidation = await validateRoomTypeImages(roomTypeImageFiles);
-          if (!roomTypeImageValidation.valid) {
-            return res.status(400).json({
-              success: false,
-              message: `Room type ${index + 1} image validation failed`,
-              errors: roomTypeImageValidation.errors
-            });
-          }
-        }
       }
 
       // Validate foreign keys exist
@@ -282,23 +214,118 @@ const propertyCreation = {
       await mustExist(prisma.amenity, amenityList, 'Amenity');
       await mustExist(prisma.facility, facilityList, 'Facility');
       await mustExist(prisma.safetyHygiene, safetyList, 'Safety hygiene');
-      const roomTypeAmenityList = Array.from(roomTypeAmenityIdSet);
-      if (roomTypeAmenityList.length) {
-        await mustExist(prisma.amenity, roomTypeAmenityList, 'Room type amenity');
-      }
-      await mustExist(prisma.roomType, roomTypeList.map(rt => rt.roomTypeId), 'RoomType');
 
-      // Validate meal plans
-      const mealPlanIds = Array.from(new Set(
-        roomTypeList.flatMap(rt => 
-          Array.isArray(rt.mealPlans) ? rt.mealPlans.map(mp => mp.mealPlanId).filter(Boolean) : []
-        )
-      ));
-      if (mealPlanIds.length) {
-        await mustExist(prisma.mealPlan, mealPlanIds, 'MealPlan');
+      // Validate commission percentage if provided
+      let commissionPercentageValue = null;
+      if (commissionPercentage !== undefined && commissionPercentage !== null && commissionPercentage !== '') {
+        const commissionNum = parseFloat(commissionPercentage);
+        if (isNaN(commissionNum) || commissionNum < 0 || commissionNum > 100) {
+          return res.status(400).json({
+            success: false,
+            message: 'Commission percentage must be a number between 0 and 100'
+          });
+        }
+        commissionPercentageValue = commissionNum;
       }
 
-      let coverImageUrl = null;
+      // Validate and parse tax slabs if provided
+      let taxSlabsValue = null;
+      if (taxSlabs !== undefined && taxSlabs !== null && taxSlabs !== '') {
+        let parsedTaxSlabs;
+        try {
+          parsedTaxSlabs = typeof taxSlabs === 'string' ? JSON.parse(taxSlabs) : taxSlabs;
+        } catch (err) {
+          return res.status(400).json({
+            success: false,
+            message: 'Invalid taxSlabs format. Expected a valid JSON array.'
+          });
+        }
+
+        if (!Array.isArray(parsedTaxSlabs)) {
+          return res.status(400).json({
+            success: false,
+            message: 'taxSlabs must be an array'
+          });
+        }
+
+        if (parsedTaxSlabs.length === 0) {
+          return res.status(400).json({
+            success: false,
+            message: 'taxSlabs array cannot be empty. At least one tax slab is required.'
+          });
+        }
+
+        // Validate each tax slab
+        for (let i = 0; i < parsedTaxSlabs.length; i++) {
+          const slab = parsedTaxSlabs[i];
+          
+          if (!slab || typeof slab !== 'object') {
+            return res.status(400).json({
+              success: false,
+              message: `Tax slab at index ${i} must be an object`
+            });
+          }
+
+          // Validate min
+          if (typeof slab.min !== 'number' || slab.min < 0 || !Number.isInteger(slab.min)) {
+            return res.status(400).json({
+              success: false,
+              message: `Tax slab at index ${i}: min must be a non-negative integer`
+            });
+          }
+
+          // Validate max (can be null or number)
+          if (slab.max !== null && (typeof slab.max !== 'number' || slab.max < slab.min || !Number.isInteger(slab.max))) {
+            return res.status(400).json({
+              success: false,
+              message: `Tax slab at index ${i}: max must be null or an integer >= min`
+            });
+          }
+
+          // Validate rate
+          if (typeof slab.rate !== 'number' || slab.rate < 0 || slab.rate > 100) {
+            return res.status(400).json({
+              success: false,
+              message: `Tax slab at index ${i}: rate must be a number between 0 and 100`
+            });
+          }
+
+          // Check for gaps or overlaps with previous slab
+          if (i > 0) {
+            const prevSlab = parsedTaxSlabs[i - 1];
+            const prevMax = prevSlab.max === null ? Infinity : prevSlab.max;
+            
+            if (slab.min > prevMax + 1) {
+              return res.status(400).json({
+                success: false,
+                message: `Tax slab at index ${i}: gap detected. min (${slab.min}) should be <= ${prevMax + 1}`
+              });
+            }
+            
+            if (slab.min <= prevMax && prevSlab.max !== null) {
+              return res.status(400).json({
+                success: false,
+                message: `Tax slab at index ${i}: overlap detected with previous slab. min (${slab.min}) should be > ${prevMax}`
+              });
+            }
+          }
+        }
+
+        taxSlabsValue = parsedTaxSlabs;
+      }
+
+      // Validate CESS rate if provided
+      let cessRateValue = null;
+      if (cessRate !== undefined && cessRate !== null && cessRate !== '') {
+        const cessNum = parseFloat(cessRate);
+        if (isNaN(cessNum) || cessNum < 0 || cessNum > 100) {
+          return res.status(400).json({
+            success: false,
+            message: 'CESS rate must be a number between 0 and 100'
+          });
+        }
+        cessRateValue = cessNum;
+      }
 
       // Main transaction
       const result = await prisma.$transaction(async (tx) => {
@@ -313,6 +340,9 @@ const propertyCreation = {
             ownerHostId: host.id || null,
             location: locationData,
             cancellationPolicyId: trimmedCancellationPolicyId,
+            commissionPercentage: commissionPercentageValue,
+            taxSlabs: taxSlabsValue,
+            cessRate: cessRateValue,
           },
           select: { id: true }
         });
@@ -360,107 +390,12 @@ const propertyCreation = {
           );
         }
 
-        // Media files
-        if (mediaFiles.length) {
-          relationPromises.push(
-            tx.propertyMedia.createMany({
-              data: mediaFiles.map((file, idx) => {
-                const fileUrl =
-                  file.url || `/uploads/images/${file.filename}`;
-                if (idx === 0) {
-                  coverImageUrl = fileUrl;
-                }
-                return {
-                  propertyId: property.id,
-                  url: fileUrl,
-                  type: file.mimetype.startsWith('image') ? 'image' : 'video',
-                  isFeatured: idx === 0,
-                  order: idx,
-                };
-              }),
-            })
-          );
-        }
 
         // Wait for all parallel operations
         await Promise.all(relationPromises);
 
-        if (coverImageUrl) {
-          await tx.property.update({
-            where: { id: property.id },
-            data: { coverImage: coverImageUrl },
-          });
-        }
-
-        // 3. Create room types with amenities and images
-        const createdRoomTypes = [];
-        if (roomTypeList.length) {
-          for (const [index, rt] of roomTypeList.entries()) {
-            const occupancyValue = validateNumber(
-              rt.occupancy ?? rt.Occupancy ?? 2,
-              'occupancy',
-              1
-            );
-            const extraBedCapacityValue = validateNumber(
-              rt.extraBedCapacity ?? 0,
-              'extraBedCapacity',
-              0
-            );
-            const minOccupancyValue = validateNumber(
-              rt.minOccupancy ?? 1,
-              'minOccupancy',
-              1
-            );
-            const numberOfBedsValue = validateNumber(
-              rt.numberOfBeds ?? occupancyValue ?? 1,
-              'numberOfBeds',
-              1
-            );
-            const maxOccupancy = occupancyValue + extraBedCapacityValue;
-
-            const roomTypeData = {
-              propertyId: property.id,
-              roomTypeId: rt.roomTypeId,           
-              Occupancy: occupancyValue,
-              extraBedCapacity: extraBedCapacityValue,
-              minOccupancy: minOccupancyValue,
-              maxOccupancy: maxOccupancy,
-              numberOfBeds: numberOfBedsValue,
-              bedType: rt.bedType || 'DOUBLE',
-            };
-
-            const createdRoomType = await tx.propertyRoomType.create({
-              data: roomTypeData,
-            });
-
-            createdRoomTypes.push(createdRoomType);
-
-            // Handle room type amenities
-            if (rt.amenityIds && Array.isArray(rt.amenityIds) && rt.amenityIds.length > 0) {
-              await tx.propertyRoomTypeAmenity.createMany({
-                data: rt.amenityIds.map((amenityId) => ({
-                  propertyRoomTypeId: createdRoomType.id,
-                  amenityId,
-                })),
-                skipDuplicates: true
-              });
-            }
-
-            // Handle room type images
-            const roomTypeImageFiles = filesByField[`roomTypeImages_${index}`] || [];
-            if (roomTypeImageFiles.length > 0) {
-              await tx.propertyRoomTypeMedia.createMany({
-                data: roomTypeImageFiles.map((file, fileIndex) => ({
-                  propertyRoomTypeId: createdRoomType.id,
-                  url: file.url || `/uploads/${file.subdirectory || 'images'}/${file.filename}`,
-                  type: file.mimetype.startsWith('image') ? 'image' : 'video',
-                  isFeatured: fileIndex === 0,
-                  order: fileIndex,
-                }))
-              });
-            }
-          }
-        }
+        // Return property for response
+        return property;
       }, {
         maxWait: MAX_TRANSACTION_WAIT,
         timeout: MAX_TRANSACTION_TIMEOUT,
@@ -469,8 +404,11 @@ const propertyCreation = {
 
       return res.status(201).json({
         success: true,
-        message: 'Property created successfully with all configurations',
-        data: result,
+        message: 'Property created successfully. Add images and room types in the edit page.',
+        data: {
+          id: result.id,
+          property: result
+        },
       });
 
     } catch (error) {

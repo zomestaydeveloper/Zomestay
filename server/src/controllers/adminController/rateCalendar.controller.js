@@ -250,7 +250,7 @@ const rateCalendarController = {
             });
         }
     },
-
+    
     // Update specific rate
     updateRate: async (req, res) => {
         try {

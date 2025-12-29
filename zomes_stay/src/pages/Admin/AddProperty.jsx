@@ -1,374 +1,40 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Plus, X, Trash2, Upload, MapPin, User, Home, Camera, AlertTriangle } from "lucide-react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
+import { useSelector } from "react-redux";
 import { propertyService, cancellationPolicyService, propertyUpdationService, mediaService } from "../../services";
 import ErrorDialog from "../../components/ErrorDialog";
-
-// SuccessDialog Component
-const SuccessDialog = ({ isOpen, message, onClose }) => {
-  if (!isOpen) return null;
-
-  return (
-    <>
-      {/* Overlay */}
-      <div 
-        className="fixed inset-0 bg-black/40 bg-opacity-50 z-[60]" 
-        onClick={onClose}
-      />
-      
-      {/* Modal */}
-      <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-[70] w-full max-w-md">
-        <div className="bg-white rounded-lg shadow-xl p-6 mx-4">
-          <div className="flex items-start space-x-4">
-            <div className="flex-shrink-0">
-              <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <div className="flex-1">
-              <h3 className="text-lg font-medium text-gray-900">
-                Success
-              </h3>
-              <p className="mt-2 text-sm text-gray-500">
-                {message}
-              </p>
-            </div>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600"
-            >
-              <X size={20} />
-            </button>
-          </div>
-          <div className="mt-4 flex justify-end">
-            <button
-              type="button"
-              className="inline-flex justify-center px-4 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-md hover:bg-green-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-green-500"
-              onClick={onClose}
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      </div>
-    </>
-  );
-};
-
-// MultiSelect Component
-const MultiSelect = ({ options, selected, onChange, placeholder, onAddNew, label }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-
-  const filteredOptions = options.filter((o) =>
-    (o.name || "").toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const handleToggleOption = (option) => {
-    const isSelected = selected.some((item) => item.id === option.id);
-    onChange(
-      isSelected
-        ? selected.filter((item) => item.id !== option.id)
-        : [...selected, option]
-    );
-  };
-
-  return (
-    <div className="relative">
-      <label className="block text-sm font-medium text-gray-700 mb-2">
-        {label}
-      </label>
-      <div
-        className="border border-gray-300 rounded p-2 min-h-[40px] cursor-pointer bg-white"
-        onClick={() => setIsOpen((s) => !s)}
-      >
-        {selected.length === 0 ? (
-          <span className="text-gray-400 text-sm">{placeholder}</span>
-        ) : (
-          <div className="flex flex-wrap gap-1">
-            {selected.map((item) => (
-              <span
-                key={item.id}
-                className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs flex items-center gap-1"
-              >
-                {item.name}
-                <X
-                  size={12}
-                  className="cursor-pointer hover:text-blue-600"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onChange(selected.filter((s) => s.id !== item.id));
-                  }}
-                />
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {isOpen && (
-        <div className="absolute top-full left-0 right-0 bg-white border border-gray-300 rounded mt-1 z-10 max-h-56 overflow-y-auto">
-          <div className="p-2 border-b">
-            <input
-              type="text"
-              placeholder="Search..."
-              className="w-full p-1 text-sm border border-gray-300 rounded"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onClick={(e) => e.stopPropagation()}
-            />
-          </div>
-
-          <div className="max-h-40 overflow-y-auto">
-            {filteredOptions.map((option) => {
-              const checked = selected.some((s) => s.id === option.id);
-              return (
-                <div
-                  key={option.id}
-                  className="p-2 hover:bg-gray-100 cursor-pointer flex items-center gap-2"
-                  onClick={() => handleToggleOption(option)}
-                >
-                  <input type="checkbox" checked={checked} readOnly />
-                  <span className="text-sm">{option.name}</span>
-                </div>
-              );
-            })}
-          </div>
-
-          {onAddNew && (
-            <div className="border-t p-2">
-              <button
-                type="button"
-                onClick={() => {
-                  onAddNew();
-                  setIsOpen(false);
-                }}
-                className="w-full text-left text-sm text-blue-600 hover:text-blue-800"
-              >
-                + Add New {label}
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
-
-// Add Item Modal
-const AddItemModal = ({ isOpen, onClose, onAdd, title, needsIcon = true }) => {
-  const [formData, setFormData] = useState({});
-  const [loading, setLoading] = useState(false);
-  const [iconFile, setIconFile] = useState(null);
-  const [submitError, setSubmitError] = useState("");
-  const [iconError, setIconError] = useState("");
-
-  if (!isOpen) return null;
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      let submitData;
-      
-      if (needsIcon) {
-        // Create FormData for file upload (amenities, facilities, safety)
-        submitData = new FormData();
-        submitData.append('name', formData.name);
-        if (iconFile) {
-          submitData.append('icon', iconFile);
-        }
-      } else {
-        // Simple object for room types (no icon needed)
-        submitData = { name: formData.name };
-      }
-      
-      await onAdd(submitData);
-      setFormData({});
-      setIconFile(null);
-      setSubmitError("");
-      setIconError("");
-      onClose();
-    } catch (err) {
-      console.error(`Error adding ${title}:`, err);
-      const message = err?.response?.data?.message || `Failed to add ${title}.`;
-      setSubmitError(message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      // Validate SVG file
-      if (file.type !== 'image/svg+xml') {
-        setIconError('Please select an SVG file for the icon');
-        setIconFile(null);
-        return;
-      }
-      setIconError("");
-      setIconFile(file);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md">
-        <h3 className="text-lg font-semibold mb-4">Add {title}</h3>
-        <form onSubmit={handleSubmit}>
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              {title} Name
-            </label>
-            <input
-              type="text"
-              value={formData.name || ""}
-              onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-              placeholder={`e.g., ${title} Name`}
-              className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              required
-            />
-          </div>
-          
-          {needsIcon && (
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Icon (SVG File)
-              </label>
-              <input
-                type="file"
-                accept=".svg,image/svg+xml"
-                onChange={handleFileChange}
-                className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                required
-              />
-              {iconFile && (
-                <p className="text-sm text-green-600 mt-1">
-                  Selected: {iconFile.name}
-                </p>
-              )}
-            </div>
-          )}
-          {iconError && (
-            <p className="text-sm text-red-600 mt-2">{iconError}</p>
-          )}
-          {submitError && (
-            <p className="text-sm text-red-600 mt-2">{submitError}</p>
-          )}
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={loading}
-              className="px-4 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-            >
-              {loading ? "Adding..." : "Add"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-};
-
-// Add Room Type Modal (Simplified - No Amenities)
-const AddRoomTypeModal = ({ isOpen, onClose, onAdd }) => {
-  const [formData, setFormData] = useState({ name: '' });
-  const [loading, setLoading] = useState(false);
-  const [submitError, setSubmitError] = useState("");
-
-  if (!isOpen) return null;
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const submitData = {
-        name: formData.name
-      };
-      
-      await onAdd(submitData);
-      setFormData({ name: '' });
-      setSubmitError("");
-      onClose();
-    } catch (err) {
-      console.error('Error adding room type:', err);
-      const message = err?.response?.data?.message || 'Failed to add room type.';
-      setSubmitError(message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md">
-        <h3 className="text-lg font-semibold mb-4">Add Room Type</h3>
-        <form onSubmit={handleSubmit}>
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Room Type Name
-            </label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-              placeholder="e.g., Deluxe Suite"
-              className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              required
-            />
-          </div>
-          
-          {submitError && (
-            <p className="text-sm text-red-600 mb-2">{submitError}</p>
-          )}
-          
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={loading}
-              className="px-4 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-            >
-              {loading ? "Adding..." : "Add Room Type"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-};
+// Import refactored components
+import { SuccessDialog, AddItemModal, AddRoomTypeModal } from "../../components/shared/PropertyForm";
+import { 
+  BasicInformationSection, 
+  CancellationPolicySection, 
+  FeaturesSection,
+  LocationSection,
+  RoomTypesSection,
+  MediaUploadSection,
+  TaxConfigurationSection
+} from "../../components/shared/PropertyForm/sections";
 
 const PropertyForm = ({ mode = "create" }) => {
   const navigate = useNavigate();
   const params = useParams();
+  const location = useLocation();
   const propertyId = mode === "edit" ? params?.propertyId || "" : "";
   const isEdit = mode === "edit";
+  
+  // Determine user role for role-based UI visibility
+  const adminAuth = useSelector((state) => state.adminAuth);
+  const hostAuth = useSelector((state) => state.hostAuth);
+  const isAdmin = location.pathname.startsWith('/admin/base') || Boolean(adminAuth?.adminAccessToken);
+  const isHost = location.pathname.startsWith('/host/base') || Boolean(hostAuth?.hostAccessToken);
 
   // Refs for auto-focus
-  const titleRef = useRef(null);
-  const ownerHostIdRef = useRef(null);
-  const propertyTypeRef = useRef(null);
-  const streetRef = useRef(null);
-  const cityRef = useRef(null);
-  const stateRef = useRef(null);
-  const zipCodeRef = useRef(null);
   const mediaRef = useRef(null);
+  
+  // Title uniqueness check state (for future enhancement - backend validates on submit)
+  const [titleCheckLoading, setTitleCheckLoading] = useState(false);
+  const [titleUniquenessError, setTitleUniquenessError] = useState("");
   
   // Form state
   const [formData, setFormData] = useState({
@@ -379,6 +45,7 @@ const PropertyForm = ({ mode = "create" }) => {
     ownerHostId: "",
     propertyTypeId: "",
     cancellationPolicyId: "",
+    commissionPercentage: "",
     location: {
       address: {
         street: "",
@@ -401,11 +68,14 @@ const PropertyForm = ({ mode = "create" }) => {
     amenityIds: [],
     facilityIds: [],
     safetyIds: [],
-    roomTypes: []
+    roomTypes: [],
+    taxSlabs: [
+      { min: 0, max: 999, rate: 0 },
+      { min: 1000, max: 7499, rate: 5 },
+      { min: 7500, max: null, rate: 18 }
+    ],
+    cessRate: ""
   });
-
-
-  
 
   // Media state
   const [mediaFiles, setMediaFiles] = useState([]);
@@ -457,6 +127,7 @@ const PropertyForm = ({ mode = "create" }) => {
     features: false,
     roomTypes: false,
     media: false,
+    tax: false,
   });
 
   const normaliseRulesFromServer = useCallback((value) => {
@@ -519,6 +190,7 @@ const PropertyForm = ({ mode = "create" }) => {
       }
     };
   }, []);
+
   const fetchPropertyDetails = useCallback(
     async ({ showLoading = true } = {}) => {
       if (!isEdit || !propertyId || !creationDataReady) return;
@@ -542,15 +214,13 @@ const PropertyForm = ({ mode = "create" }) => {
 
         const rulesArray = normaliseRulesFromServer(property.rulesAndPolicies);
 
-        // Load existing city icon if available (only set preview, not file)
+        // Load existing city icon if available
         const existingCityIcon = property.location?.cityIcon;
         if (existingCityIcon) {
           const iconUrl = mediaService.getMedia(existingCityIcon);
           setCityIconPreview(iconUrl);
-          // Don't set cityIconFile - it's an existing icon, not a new upload
           setCityIconFile(null);
         } else {
-          // No existing icon, clear preview
           setCityIconPreview(null);
           setCityIconFile(null);
         }
@@ -590,6 +260,11 @@ const PropertyForm = ({ mode = "create" }) => {
           ownerHostId: property.ownerHostId || prev.ownerHostId || '',
           propertyTypeId: property.propertyTypeId || prev.propertyTypeId || '',
           cancellationPolicyId: property.cancellationPolicyId || prev.cancellationPolicyId || '',
+          commissionPercentage: property.commissionPercentage ? String(property.commissionPercentage) : '',
+          taxSlabs: property.taxSlabs && Array.isArray(property.taxSlabs) && property.taxSlabs.length > 0
+            ? property.taxSlabs
+            : prev.taxSlabs,
+          cessRate: property.cessRate ? String(property.cessRate) : '',
           location: normaliseLocationFromServer(property.location) || prev.location,
           amenityIds: propertyAmenities.map((item) => ({
             id: item.id,
@@ -630,7 +305,6 @@ const PropertyForm = ({ mode = "create" }) => {
 
         setMediaFiles([]);
         setRoomTypeImages({});
-        // Don't reset city icon preview if there's an existing one - it's already set above
         setCityIconFile(null);
         setCityIconError("");
       } catch (error) {
@@ -704,17 +378,14 @@ const PropertyForm = ({ mode = "create" }) => {
   const handleSaveLocation = async () => {
     const formDataToSend = new FormData();
     
-    // If city icon preview is cleared (user clicked remove), set cityIcon to null
     const locationData = { ...formData.location };
     
-    // If no preview and no new file, it means user removed the icon
     if (!cityIconPreview && !cityIconFile) {
       locationData.cityIcon = null;
     }
     
     formDataToSend.append('location', JSON.stringify(locationData));
     
-    // Append city icon file if a new one is selected
     if (cityIconFile) {
       formDataToSend.append('cityIcon', cityIconFile);
     }
@@ -723,7 +394,6 @@ const PropertyForm = ({ mode = "create" }) => {
       'location',
       async () => {
         const response = await propertyUpdationService.updateLocation(propertyId, formDataToSend);
-        // Refresh property details to get updated city icon
         await fetchPropertyDetails({ showLoading: false });
         return response;
       },
@@ -743,6 +413,68 @@ const PropertyForm = ({ mode = "create" }) => {
       () => propertyUpdationService.updateFeatures(propertyId, payload),
       'Property features updated successfully.'
     );
+  };
+
+  const handleSaveTax = async () => {
+    // Validate tax slabs before saving
+    const taxErrors = {};
+    
+    if (!formData.taxSlabs || !Array.isArray(formData.taxSlabs) || formData.taxSlabs.length === 0) {
+      taxErrors.taxSlabs = "At least one tax slab is required";
+    } else {
+      formData.taxSlabs.forEach((slab, index) => {
+        if (typeof slab.min !== 'number' || slab.min < 0 || !Number.isInteger(slab.min)) {
+          taxErrors[`taxSlab_${index}_min`] = `Tax slab ${index + 1}: Min must be a non-negative integer`;
+        }
+        if (slab.max !== null && (typeof slab.max !== 'number' || slab.max < slab.min || !Number.isInteger(slab.max))) {
+          taxErrors[`taxSlab_${index}_max`] = `Tax slab ${index + 1}: Max must be null or >= min`;
+        }
+        if (typeof slab.rate !== 'number' || slab.rate < 0 || slab.rate > 100) {
+          taxErrors[`taxSlab_${index}_rate`] = `Tax slab ${index + 1}: Rate must be between 0 and 100`;
+        }
+        if (index > 0) {
+          const prevSlab = formData.taxSlabs[index - 1];
+          const prevMax = prevSlab.max === null ? Infinity : prevSlab.max;
+          if (slab.min > prevMax + 1) {
+            taxErrors[`taxSlab_${index}_gap`] = `Tax slab ${index + 1}: Gap detected. Min should be <= ${prevMax + 1}`;
+          }
+          if (slab.min <= prevMax && prevSlab.max !== null) {
+            taxErrors[`taxSlab_${index}_overlap`] = `Tax slab ${index + 1}: Overlap detected with previous slab`;
+          }
+        }
+      });
+    }
+    
+    if (formData.cessRate !== "" && formData.cessRate !== null && formData.cessRate !== undefined) {
+      const cessNum = Number(formData.cessRate);
+      if (isNaN(cessNum) || cessNum < 0 || cessNum > 100) {
+        taxErrors.cessRate = "CESS rate must be a number between 0 and 100";
+      }
+    }
+    
+    if (Object.keys(taxErrors).length > 0) {
+      setErrors(prev => ({ ...prev, ...taxErrors }));
+      setErrorDialog({ isOpen: true, message: "Please fix tax configuration errors before saving" });
+      return;
+    }
+
+    const payload = {
+      taxSlabs: formData.taxSlabs,
+      cessRate: formData.cessRate ? Number(formData.cessRate) : null,
+    };
+
+    await runSectionSave(
+      'tax',
+      () => propertyUpdationService.updateTax(propertyId, payload),
+      'Tax configuration updated successfully.'
+    );
+  };
+
+  const handleTaxSlabsChange = (updatedSlabs) => {
+    setFormData(prev => ({
+      ...prev,
+      taxSlabs: updatedSlabs
+    }));
   };
 
   const handleSaveRoomTypes = async () => {
@@ -896,7 +628,7 @@ const PropertyForm = ({ mode = "create" }) => {
         setPropertyTypes(data.propertyTypes || []);
       } catch (error) {
         console.error("Error fetching form data:", error);
-        toast.error("Failed to load form data");
+        setErrorDialog({ isOpen: true, message: "Failed to load form data" });
       } finally {
         setCreationDataReady(true);
       }
@@ -936,9 +668,9 @@ const PropertyForm = ({ mode = "create" }) => {
     fetchCancellationPolicies();
   }, []);
 
-useEffect(() => {
-  fetchPropertyDetails({ showLoading: true });
-}, [fetchPropertyDetails]);
+  useEffect(() => {
+    fetchPropertyDetails({ showLoading: true });
+  }, [fetchPropertyDetails]);
 
   // Clear error when user starts typing
   const clearError = (fieldName) => {
@@ -960,8 +692,12 @@ useEffect(() => {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     
-    // Clear error for this field
     clearError(name);
+    
+    // Clear title uniqueness error when user types
+    if (name === 'title') {
+      setTitleUniquenessError("");
+    }
     
     if (name.startsWith('location.')) {
       const [_, parent, child] = name.split('.');
@@ -1155,11 +891,9 @@ useEffect(() => {
       roomTypes: prev.roomTypes.filter((_, i) => i !== index)
     }));
     
-    // Clean up room type images
     setRoomTypeImages(prev => {
       const newImages = { ...prev };
       delete newImages[index];
-      // Shift remaining indices
       const shiftedImages = {};
       Object.keys(newImages).forEach(key => {
         const keyIndex = parseInt(key);
@@ -1175,7 +909,6 @@ useEffect(() => {
     setRoomTypeImageErrors(prev => {
       const newErrors = { ...prev };
       delete newErrors[index];
-      // Shift remaining indices
       const shiftedErrors = {};
       Object.keys(newErrors).forEach(key => {
         const keyIndex = parseInt(key);
@@ -1254,7 +987,6 @@ useEffect(() => {
 
   // Update room type
   const updateRoomType = (index, field, value) => {
-    // Clear room type errors when user makes changes
     clearError(`roomType_${index}`);
     clearError(`minOccupancy_${index}`);
     clearError(`occupancy_${index}`);
@@ -1266,7 +998,6 @@ useEffect(() => {
         i === index ? { ...rt, [field]: value } : rt
       );
       
-      // Real-time validation: if user fixes the min/max relationship, clear the error
       const updatedRoomType = updatedRoomTypes[index];
       if (updatedRoomType.minOccupancy && updatedRoomType.Occupancy && 
           updatedRoomType.minOccupancy <= updatedRoomType.Occupancy) {
@@ -1469,14 +1200,12 @@ useEffect(() => {
 
   // Add new items with API calls
   const handleAddAmenity = async (data) => {
-    // Clear all errors when adding new item
     clearAllErrors();
     
     try {
       await propertyService.createAmenity(data);
       setSuccessDialog({ isOpen: true, message: "Amenity added successfully" });
       
-      // Refresh amenities list
       const response = await propertyService.getCreationFormData();
       const formData = response.data.data;
       setAmenities(formData.amenities || []);
@@ -1494,7 +1223,6 @@ useEffect(() => {
       await propertyService.createFacility(data);
       setSuccessDialog({ isOpen: true, message: "Facility added successfully" });
       
-      // Refresh facilities list
       const response = await propertyService.getCreationFormData();
       const formData = response.data.data;
       setFacilities(formData.facilities || []);
@@ -1512,7 +1240,6 @@ useEffect(() => {
       await propertyService.createSafety(data);
       setSuccessDialog({ isOpen: true, message: "Safety feature added successfully" });
       
-      // Refresh safety list
       const response = await propertyService.getCreationFormData();
       const formData = response.data.data;
       setSafetyHygiene(formData.safetyHygiene || []);
@@ -1530,7 +1257,6 @@ useEffect(() => {
       await propertyService.createPropertyType(data);
       setSuccessDialog({ isOpen: true, message: "Property type added successfully" });
       
-      // Refresh property types list
       const response = await propertyService.getCreationFormData();
       const formData = response.data.data;
       setPropertyTypes(formData.propertyTypes || []);
@@ -1548,7 +1274,6 @@ useEffect(() => {
       await propertyService.createRoomType(data);
       setSuccessDialog({ isOpen: true, message: "Room type added successfully" });
       
-      // Refresh room types list
       const response = await propertyService.getCreationFormData();
       const formData = response.data.data;
       setRoomTypes(formData.roomTypes || []);
@@ -1559,7 +1284,6 @@ useEffect(() => {
     }
   };
 
-
   // Auto-focus to first error field
   const focusFirstError = (errorKeys) => {
     const focusOrder = [
@@ -1569,13 +1293,6 @@ useEffect(() => {
     for (const field of focusOrder) {
       if (errorKeys.includes(field)) {
         const refMap = {
-          'title': titleRef,
-          'ownerHostId': ownerHostIdRef,
-          'propertyTypeId': propertyTypeRef,
-          'street': streetRef,
-          'city': cityRef,
-          'state': stateRef,
-          'zipCode': zipCodeRef,
           'media': mediaRef
         };
         
@@ -1598,42 +1315,106 @@ useEffect(() => {
     if (!formData.location.address.city.trim()) newErrors.city = "City is required";
     if (!formData.location.address.state.trim()) newErrors.state = "State is required";
     if (!formData.location.address.zipCode.trim()) newErrors.zipCode = "ZIP code is required";
-    const activeExistingMediaCount = existingMedia.filter((item) => !item.isDeleted).length;
-    if ((!isEdit && mediaFiles.length === 0) || (isEdit && activeExistingMediaCount === 0 && mediaFiles.length === 0)) {
-      newErrors.media = "At least one image is required";
+    
+    // Validate commission percentage if provided
+    if (formData.commissionPercentage !== "" && formData.commissionPercentage !== null && formData.commissionPercentage !== undefined) {
+      const commissionNum = Number(formData.commissionPercentage);
+      if (isNaN(commissionNum) || commissionNum < 0 || commissionNum > 100) {
+        newErrors.commissionPercentage = "Commission percentage must be a number between 0 and 100";
+      }
     }
-    if (!isEdit && formData.roomTypes.length === 0) newErrors.roomTypes = "At least one room type is required";
+    
+    // Validate location coordinates if provided
+    if (formData.location.coordinates.latitude !== null && formData.location.coordinates.latitude !== undefined && formData.location.coordinates.latitude !== "") {
+      const lat = Number(formData.location.coordinates.latitude);
+      if (isNaN(lat) || lat < -90 || lat > 90) {
+        newErrors.latitude = "Latitude must be between -90 and 90";
+      }
+    }
+    if (formData.location.coordinates.longitude !== null && formData.location.coordinates.longitude !== undefined && formData.location.coordinates.longitude !== "") {
+      const lng = Number(formData.location.coordinates.longitude);
+      if (isNaN(lng) || lng < -180 || lng > 180) {
+        newErrors.longitude = "Longitude must be between -180 and 180";
+      }
+    }
+    
+    // Validate tax configuration
+    if (!formData.taxSlabs || !Array.isArray(formData.taxSlabs) || formData.taxSlabs.length === 0) {
+      newErrors.taxSlabs = "At least one tax slab is required";
+    } else {
+      formData.taxSlabs.forEach((slab, index) => {
+        if (typeof slab.min !== 'number' || slab.min < 0 || !Number.isInteger(slab.min)) {
+          newErrors[`taxSlab_${index}_min`] = `Tax slab ${index + 1}: Min must be a non-negative integer`;
+        }
+        
+        if (slab.max !== null && (typeof slab.max !== 'number' || slab.max < slab.min || !Number.isInteger(slab.max))) {
+          newErrors[`taxSlab_${index}_max`] = `Tax slab ${index + 1}: Max must be null or >= min`;
+        }
+        
+        if (typeof slab.rate !== 'number' || slab.rate < 0 || slab.rate > 100) {
+          newErrors[`taxSlab_${index}_rate`] = `Tax slab ${index + 1}: Rate must be between 0 and 100`;
+        }
+        
+        // Check for gaps/overlaps
+        if (index > 0) {
+          const prevSlab = formData.taxSlabs[index - 1];
+          const prevMax = prevSlab.max === null ? Infinity : prevSlab.max;
+          
+          if (slab.min > prevMax + 1) {
+            newErrors[`taxSlab_${index}_gap`] = `Tax slab ${index + 1}: Gap detected. Min should be <= ${prevMax + 1}`;
+          }
+          
+          if (slab.min <= prevMax && prevSlab.max !== null) {
+            newErrors[`taxSlab_${index}_overlap`] = `Tax slab ${index + 1}: Overlap detected with previous slab`;
+          }
+        }
+      });
+    }
+    
+    // Validate CESS rate if provided
+    if (formData.cessRate !== "" && formData.cessRate !== null && formData.cessRate !== undefined) {
+      const cessNum = Number(formData.cessRate);
+      if (isNaN(cessNum) || cessNum < 0 || cessNum > 100) {
+        newErrors.cessRate = "CESS rate must be a number between 0 and 100";
+      }
+    }
+    
+    // Media and room types validation only for edit mode
+    if (isEdit) {
+      const activeExistingMediaCount = existingMedia.filter((item) => !item.isDeleted).length;
+      if (activeExistingMediaCount === 0 && mediaFiles.length === 0) {
+        newErrors.media = "At least one image is required";
+      }
+    }
 
-    // Validate room types
-    formData.roomTypes.forEach((rt, index) => {
-      if (!rt.roomTypeId) newErrors[`roomType_${index}`] = "Room type is required";
-      
-      // Validate minOccupancy
-      if (rt.minOccupancy < 1 || rt.minOccupancy > 10) {
-        newErrors[`minOccupancy_${index}`] = "Min occupancy must be between 1 and 10";
-      }
-      
-      // Validate maxOccupancy (Occupancy)
-      if (rt.Occupancy < 1 || rt.Occupancy > 10) {
-        newErrors[`occupancy_${index}`] = "Max occupancy must be between 1 and 10";
-      }
-      
-      // Validate that minOccupancy <= maxOccupancy
-      if (rt.minOccupancy && rt.Occupancy && rt.minOccupancy > rt.Occupancy) {
-        newErrors[`minOccupancy_${index}`] = "Min occupancy cannot be greater than max occupancy";
-      }
-      
-      if (rt.extraBedCapacity < 0 || rt.extraBedCapacity > 5) {
-        newErrors[`extraBed_${index}`] = "Extra bed capacity must be between 0 and 5";
-      }
-      if (rt.numberOfBeds < 1 || rt.numberOfBeds > 10) {
-        newErrors[`numberOfBeds_${index}`] = "Number of beds must be between 1 and 10";
-      }
-    });
+    // Validate room types only for edit mode
+    if (isEdit) {
+      formData.roomTypes.forEach((rt, index) => {
+        if (!rt.roomTypeId) newErrors[`roomType_${index}`] = "Room type is required";
+        
+        if (rt.minOccupancy < 1 || rt.minOccupancy > 10) {
+          newErrors[`minOccupancy_${index}`] = "Min occupancy must be between 1 and 10";
+        }
+        
+        if (rt.Occupancy < 1 || rt.Occupancy > 10) {
+          newErrors[`occupancy_${index}`] = "Max occupancy must be between 1 and 10";
+        }
+        
+        if (rt.minOccupancy && rt.Occupancy && rt.minOccupancy > rt.Occupancy) {
+          newErrors[`minOccupancy_${index}`] = "Min occupancy cannot be greater than max occupancy";
+        }
+        
+        if (rt.extraBedCapacity < 0 || rt.extraBedCapacity > 5) {
+          newErrors[`extraBed_${index}`] = "Extra bed capacity must be between 0 and 5";
+        }
+        if (rt.numberOfBeds < 1 || rt.numberOfBeds > 10) {
+          newErrors[`numberOfBeds_${index}`] = "Number of beds must be between 1 and 10";
+        }
+      });
+    }
 
     setErrors(newErrors);
     
-    // Auto-focus to first error
     if (Object.keys(newErrors).length > 0) {
       setTimeout(() => focusFirstError(Object.keys(newErrors)), 100);
     }
@@ -1641,12 +1422,10 @@ useEffect(() => {
     return Object.keys(newErrors).length === 0;
   };
 
-  // Backend validation
   // Form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // First, do client-side validation
     if (!validateForm()) {
       setErrorDialog({ isOpen: true, message: "Please fix the errors before submitting" });
       return;
@@ -1668,7 +1447,8 @@ useEffect(() => {
 
       const rulesString = rulesArray.join('\n');
 
-      const normalisedRoomTypesForSubmit = formData.roomTypes.map((rt) => ({
+      // Only normalize room types for edit mode
+      const normalisedRoomTypesForSubmit = isEdit ? formData.roomTypes.map((rt) => ({
         id: rt.id || '',
         roomTypeId: rt.roomTypeId,
         minOccupancy: rt.minOccupancy,
@@ -1702,55 +1482,93 @@ useEffect(() => {
               return payload;
             });
         })(),
-      }));
+      })) : [];
+
+      // Prepare tax configuration for submission
+      const taxSlabsToSend = formData.taxSlabs && Array.isArray(formData.taxSlabs) && formData.taxSlabs.length > 0
+        ? formData.taxSlabs
+        : null;
+      
+      // Simplify CESS rate handling
+      const cessRateToSend = formData.cessRate && formData.cessRate !== "" && formData.cessRate !== null && formData.cessRate !== undefined
+        ? Number(formData.cessRate)
+        : null;
 
       const submitData = {
         ...formData,
         rulesAndPolicies: rulesString,
-        roomTypes: normalisedRoomTypesForSubmit,
+        taxSlabs: taxSlabsToSend,
+        cessRate: cessRateToSend,
+        ...(isEdit && { roomTypes: normalisedRoomTypesForSubmit }),
       };
 
       const formDataToSend = new FormData();
 
+      // Explicitly handle taxSlabs and cessRate to avoid null stringification issues
       Object.keys(submitData).forEach((key) => {
         if (
           key !== 'mediaFiles' &&
           key !== 'amenityIds' &&
           key !== 'facilityIds' &&
           key !== 'safetyIds' &&
-          key !== 'roomTypes'
+          key !== 'roomTypes' &&
+          key !== 'taxSlabs' &&  // Handle separately
+          key !== 'cessRate'      // Handle separately
         ) {
-          if (typeof submitData[key] === 'object') {
+          if (typeof submitData[key] === 'object' && submitData[key] !== null && !Array.isArray(submitData[key])) {
+            // Handle objects (like location) - but not arrays
             formDataToSend.append(key, JSON.stringify(submitData[key]));
-          } else {
+          } else if (Array.isArray(submitData[key])) {
+            // Handle arrays explicitly
+            formDataToSend.append(key, JSON.stringify(submitData[key]));
+          } else if (submitData[key] !== null && submitData[key] !== undefined && submitData[key] !== '') {
+            // Handle primitives (strings, numbers, etc.) - skip empty strings
             formDataToSend.append(key, submitData[key]);
           }
+          // Skip null/undefined/empty string values
         }
       });
+
+      // Explicitly append taxSlabs if not null (prevent double encoding)
+      if (taxSlabsToSend !== null && Array.isArray(taxSlabsToSend) && taxSlabsToSend.length > 0) {
+        // Ensure it's not already a string (prevent double encoding)
+        const taxSlabsValue = typeof taxSlabsToSend === 'string' ? taxSlabsToSend : JSON.stringify(taxSlabsToSend);
+        formDataToSend.append('taxSlabs', taxSlabsValue);
+      }
+      
+      // Explicitly append cessRate if not null
+      if (cessRateToSend !== null && cessRateToSend !== undefined) {
+        formDataToSend.append('cessRate', String(cessRateToSend));
+      }
 
       submitData.amenityIds.forEach((item) => formDataToSend.append('amenityIds', item.id));
       submitData.facilityIds.forEach((item) => formDataToSend.append('facilityIds', item.id));
       submitData.safetyIds.forEach((item) => formDataToSend.append('safetyIds', item.id));
 
-      formDataToSend.append('roomtypes', JSON.stringify(submitData.roomTypes));
+      // Only append room types and media for edit mode
+      if (isEdit) {
+        if (submitData.roomTypes && submitData.roomTypes.length > 0) {
+          formDataToSend.append('roomtypes', JSON.stringify(submitData.roomTypes));
+        }
 
-      mediaFiles.forEach((file) => {
-        formDataToSend.append('media', file);
-      });
+        mediaFiles.forEach((file) => {
+          formDataToSend.append('media', file);
+        });
 
-      // Append city icon if selected
+        Object.keys(roomTypeImages).forEach((roomTypeIndex) => {
+          const images = roomTypeImages[roomTypeIndex];
+          if (images && images.length > 0) {
+            images.forEach((file) => {
+              formDataToSend.append(`roomTypeImages_${roomTypeIndex}`, file);
+            });
+          }
+        });
+      }
+
+      // City icon can be added during creation (for location)
       if (cityIconFile) {
         formDataToSend.append('cityIcon', cityIconFile);
       }
-
-      Object.keys(roomTypeImages).forEach((roomTypeIndex) => {
-        const images = roomTypeImages[roomTypeIndex];
-        if (images && images.length > 0) {
-          images.forEach((file) => {
-            formDataToSend.append(`roomTypeImages_${roomTypeIndex}`, file);
-          });
-        }
-      });
 
       if (isEdit) {
         const activeExistingMedia = existingMedia
@@ -1812,15 +1630,24 @@ useEffect(() => {
       if (isEdit) {
         await propertyService.updatePropertyDetails(propertyId, formDataToSend);
         setSuccessDialog({ isOpen: true, message: "Property updated successfully" });
+        setTimeout(() => {
+          navigate('/admin/base/properties');
+        }, 2000);
       } else {
-        await propertyService.createProperty(formDataToSend);
-        setSuccessDialog({ isOpen: true, message: "Property created successfully" });
+        const response = await propertyService.createProperty(formDataToSend);
+        const createdPropertyId = response?.data?.data?.id || response?.data?.data?.property?.id;
+        setSuccessDialog({ 
+          isOpen: true, 
+          message: "Property created successfully! Redirecting to edit page to add images and room types..." 
+        });
+        setTimeout(() => {
+          if (createdPropertyId) {
+            navigate(`/admin/base/properties/${createdPropertyId}/edit`);
+          } else {
+            navigate('/admin/base/properties');
+          }
+        }, 2000);
       }
-
-      setTimeout(() => {
-        // Navigate to admin properties page after successful creation/update
-        navigate('/admin/base/properties');
-      }, 2000);
 
     } catch (error) {
       console.error("Error saving property:", error);
@@ -1884,970 +1711,150 @@ useEffect(() => {
         </div>
         
         <form onSubmit={handleFormSubmit} className="space-y-4">
-          {/* Basic Information */}
-          <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
-            <div className="border-b border-gray-200 px-6 py-3">
-              <h2 className="text-sm font-semibold text-gray-900 flex items-center">
-                <Home className="h-4 w-4 mr-2 text-blue-600" />
-                Basic Information
-              </h2>
-            </div>
-            <div className="p-6">
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-2">
-                  Property Title *
-                </label>
-                <input
-                  ref={titleRef}
-                  type="text"
-                  name="title"
-                  value={formData.title}
-                  onChange={handleInputChange}
-                  className="block w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-                {errors.title && <p className="text-red-500 text-xs mt-1">{errors.title}</p>}
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-2">
-                  Property Type *
-                </label>
-                <div className="flex gap-2">
-                  <select
-                    ref={propertyTypeRef}
-                    name="propertyTypeId"
-                    value={formData.propertyTypeId}
-                    onChange={handleInputChange}
-                    className="flex-1 px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  >
-                    <option value="">Select Property Type</option>
-                    {propertyTypes.map((type) => (
-                      <option key={type.id} value={type.id}>
-                        {type.name}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => setShowAddPropertyType(true)}
-                    className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center"
-                    title="Add New Property Type"
-                  >
-                    <Plus size={14} />
-                  </button>
-                </div>
-                {errors.propertyTypeId && <p className="text-red-500 text-xs mt-1">{errors.propertyTypeId}</p>}
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-2">
-                  Owner Host ID (Email) *
-                </label>
-                <input
-                  ref={ownerHostIdRef}
-                  type="email"
-                  name="ownerHostId"
-                  value={formData.ownerHostId}
-                  onChange={handleInputChange}
-                  className="block w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-                {errors.ownerHostId && <p className="text-red-500 text-xs mt-1">{errors.ownerHostId}</p>}
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-2">
-                  Status
-                </label>
-                <select
-                  name="status"
-                  value={formData.status}
-                  onChange={handleInputChange}
-                  className="block w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="mt-4">
-              <label className="block text-xs font-medium text-gray-700 mb-2">
-                Description
-              </label>
-              <textarea
-                name="description"
-                value={formData.description}
-                onChange={handleInputChange}
-                rows={3}
-                className="block w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div className="mt-4">
-              <label className="block text-xs font-medium text-gray-700 mb-2">
-                Rules and Policies (comma-separated)
-              </label>
-              <textarea
-                name="rulesAndPolicies"
-                value={formData.rulesAndPolicies}
-                onChange={handleInputChange}
-                rows={2}
-                className="block w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="No smoking, No pets, Check-in after 2 PM..."
-              />
-            </div>
-            </div>
-          </div>
-
-        {/* Policies */}
-        <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
-          <div className="border-b border-gray-200 px-6 py-3">
-            <h2 className="text-sm font-semibold text-gray-900 flex items-center">
-              <User className="h-4 w-4 mr-2 text-blue-600" />
-              Cancellation Policy
-            </h2>
-          </div>
-          <div className="p-6 space-y-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-2">
-                Select a policy *
-              </label>
-              <select
-                name="cancellationPolicyId"
-                value={formData.cancellationPolicyId}
-                onChange={handleInputChange}
-                className="block w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              >
-                <option value="">Select Cancellation Policy</option>
-                {cancellationPolicies.map((policy) => (
-                  <option key={policy.id} value={policy.id}>
-                    {policy.name}
-                  </option>
-                ))}
-              </select>
-              {errors.cancellationPolicyId && (
-                <p className="text-red-500 text-xs mt-1">{errors.cancellationPolicyId}</p>
-              )}
-            </div>
-
-            <div className="border border-gray-100 rounded-lg bg-gray-50 p-4">
-              {selectedCancellationPolicy ? (
-                <>
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900">
-                        {selectedCancellationPolicy.name}
-                      </p>
-                      {selectedCancellationPolicy.description && (
-                        <p className="text-xs text-gray-500 mt-1">
-                          {selectedCancellationPolicy.description}
-                        </p>
-                      )}
-                    </div>
-                    {selectedCancellationPolicy.isDefault && (
-                      <span className="px-2 py-1 text-[10px] font-semibold text-green-700 bg-green-100 rounded-full uppercase tracking-wide">
-                        Default
-                      </span>
-                    )}
-                  </div>
-
-                  {selectedCancellationPolicy.rules && selectedCancellationPolicy.rules.length > 0 ? (
-                    <div className="space-y-2">
-                      {selectedCancellationPolicy.rules
-                        .slice()
-                        .sort((a, b) => a.sortOrder - b.sortOrder)
-                        .map((rule) => (
-                          <div
-                            key={`${rule.daysBefore}-${rule.sortOrder}`}
-                            className="flex items-center justify-between bg-white rounded-md border border-gray-100 px-3 py-2"
-                          >
-                            <div className="text-xs text-gray-600">
-                              {rule.daysBefore === 0
-                                ? "On check-in day"
-                                : `${rule.daysBefore} day${rule.daysBefore > 1 ? "s" : ""} before`}
-                            </div>
-                            <div className="text-xs font-semibold text-gray-900">
-                              {rule.refundPercentage}% refund
-                            </div>
-                          </div>
-                        ))}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-gray-500">
-                      No specific rules defined for this policy.
-                    </p>
-                  )}
-                </>
-              ) : (
-                <div className="text-xs text-gray-500">
-                  Select a cancellation policy to preview its refund rules.
-                </div>
-              )}
-            </div>
-            </div>
-            {isEdit && (
-              <div className="mt-6 flex justify-end pr-5 pb-3">
-                <button
-                  type="button"
-                  onClick={handleSaveBasics}
-                  disabled={sectionSaving.basics}
-                  className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 disabled:opacity-60"
-                >
-                  {sectionSaving.basics ? "Saving..." : "Update Basics"}
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Location */}
-          <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
-            <div className="border-b border-gray-200 px-6 py-3">
-              <h2 className="text-sm font-semibold text-gray-900 flex items-center">
-                <MapPin className="h-4 w-4 mr-2 text-blue-600" />
-                Location Information
-              </h2>
-            </div>
-            <div className="p-6">
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-2">
-                  Street *
-                </label>
-                <input
-                  ref={streetRef}
-                  type="text"
-                  name="location.address.street"
-                  value={formData.location.address.street}
-                  onChange={handleInputChange}
-                  className="block w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-                {errors.street && <p className="text-red-500 text-xs mt-1">{errors.street}</p>}
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-2">
-                District *
-                </label>
-                <input
-                  ref={cityRef}
-                  type="text"
-                  name="location.address.city"
-                  value={formData.location.address.city}
-                  onChange={handleInputChange}
-                  className="block w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-                {errors.city && <p className="text-red-500 text-xs mt-1">{errors.city}</p>}
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-2">
-                  State *
-                </label>
-                <input
-                  ref={stateRef}
-                  type="text"
-                  name="location.address.state"
-                  value={formData.location.address.state}
-                  onChange={handleInputChange}
-                  className="block w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-                {errors.state && <p className="text-red-500 text-xs mt-1">{errors.state}</p>}
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-2">
-                  ZIP Code *
-                </label>
-                <input
-                  ref={zipCodeRef}
-                  type="text"
-                  name="location.address.zipCode"
-                  value={formData.location.address.zipCode}
-                  onChange={handleInputChange}
-                  className="block w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-                {errors.zipCode && <p className="text-red-500 text-xs mt-1">{errors.zipCode}</p>}
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-2">
-                  Country
-                </label>
-                <input
-                  type="text"
-                  name="location.address.country"
-                  value={formData.location.address.country}
-                  onChange={handleInputChange}
-                  className="block w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
-                  readOnly
-                />
-              </div>
-            </div>
-
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-2">
-                  Latitude
-                </label>
-                <input
-                  type="number"
-                  step="any"
-                  name="location.coordinates.latitude"
-                  value={formData.location.coordinates.latitude || ""}
-                  onChange={handleInputChange}
-                  className="block w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-2">
-                  Longitude
-                </label>
-                <input
-                  type="number"
-                  step="any"
-                  name="location.coordinates.longitude"
-                  value={formData.location.coordinates.longitude || ""}
-                  onChange={handleInputChange}
-                  className="block w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-
-            {/* City Icon Upload */}
-            <div className="mt-4">
-              <label className="block text-xs font-medium text-gray-700 mb-2">
-                City Icon (SVG) {isEdit && '(Only one icon allowed)'}
-              </label>
-              {cityIconPreview && (
-                <div className="mb-3 relative inline-block">
-                  <div className="max-h-24 max-w-24 border border-gray-300 rounded-md p-2 bg-gray-50 flex items-center justify-center">
-                    <img
-                      src={cityIconPreview}
-                      alt="City icon preview"
-                      className="max-h-20 max-w-20 object-contain"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      // Revoke object URL if it's a blob URL (new file)
-                      if (cityIconPreview && cityIconPreview.startsWith('blob:')) {
-                        URL.revokeObjectURL(cityIconPreview);
-                      }
-                      setCityIconFile(null);
-                      setCityIconPreview(null);
-                      setCityIconError("");
-                    }}
-                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
-                    title="Remove city icon"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </div>
-              )}
-              {!cityIconPreview && (
-                <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors">
-                  <div className="flex flex-col items-center justify-center pt-3 pb-4">
-                    <Upload className="w-6 h-6 mb-1 text-gray-500" />
-                    <p className="mb-1 text-xs text-gray-500">
-                      <span className="font-semibold">Click to upload</span> or drag and drop
-                    </p>
-                    <p className="text-[10px] text-gray-500">SVG file only (MAX. 2MB)</p>
-                  </div>
-                  <input
-                    type="file"
-                    accept=".svg,image/svg+xml"
-                    onChange={(e) => {
-                      const file = e.target.files[0];
-                      if (file) {
-                        // Validate SVG file
-                        if (file.type !== 'image/svg+xml' && !file.name.endsWith('.svg')) {
-                          setCityIconError('Please select an SVG file for the city icon');
-                          setCityIconFile(null);
-                          setCityIconPreview(null);
-                          return;
-                        }
-                        // Validate file size (2MB)
-                        if (file.size > 2 * 1024 * 1024) {
-                          setCityIconError('File size must be less than 2MB');
-                          setCityIconFile(null);
-                          setCityIconPreview(null);
-                          return;
-                        }
-                        // Revoke previous blob URL if exists
-                        if (cityIconPreview && cityIconPreview.startsWith('blob:')) {
-                          URL.revokeObjectURL(cityIconPreview);
-                        }
-                        setCityIconError("");
-                        setCityIconFile(file);
-                        const previewUrl = URL.createObjectURL(file);
-                        setCityIconPreview(previewUrl);
-                      }
-                    }}
-                    className="hidden"
-                    disabled={isSubmitting}
-                  />
-                </label>
-              )}
-              {cityIconPreview && (
-                <label className="flex flex-col items-center justify-center w-full h-20 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors">
-                  <div className="flex flex-col items-center justify-center pt-2 pb-2">
-                    <Upload className="w-5 h-5 mb-1 text-gray-500" />
-                    <p className="text-xs text-gray-500">
-                      <span className="font-semibold">Replace icon</span>
-                    </p>
-                  </div>
-                  <input
-                    type="file"
-                    accept=".svg,image/svg+xml"
-                    onChange={(e) => {
-                      const file = e.target.files[0];
-                      if (file) {
-                        // Validate SVG file
-                        if (file.type !== 'image/svg+xml' && !file.name.endsWith('.svg')) {
-                          setCityIconError('Please select an SVG file for the city icon');
-                          return;
-                        }
-                        // Validate file size (2MB)
-                        if (file.size > 2 * 1024 * 1024) {
-                          setCityIconError('File size must be less than 2MB');
-                          return;
-                        }
-                        // Revoke previous blob URL if exists
-                        if (cityIconPreview && cityIconPreview.startsWith('blob:')) {
-                          URL.revokeObjectURL(cityIconPreview);
-                        }
-                        setCityIconError("");
-                        setCityIconFile(file);
-                        const previewUrl = URL.createObjectURL(file);
-                        setCityIconPreview(previewUrl);
-                      }
-                      // Reset input value to allow selecting the same file again
-                      e.target.value = '';
-                    }}
-                    className="hidden"
-                    disabled={isSubmitting}
-                  />
-                </label>
-              )}
-              {cityIconError && (
-                <p className="text-red-500 text-xs mt-1">{cityIconError}</p>
-              )}
-            </div>
-            {isEdit && (
-              <div className="mt-6 flex justify-end">
-                <button
-                  type="button"
-                  onClick={handleSaveLocation}
-                  disabled={sectionSaving.location}
-                  className="inline-flex items-center px-4 py-2 text-xs font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 disabled:opacity-60"
-                >
-                  {sectionSaving.location ? "Saving..." : "Update Location"}
-                </button>
-              </div>
-            )}
-            </div>
-          </div>
-
-          {/* Features */}
-          <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
-            <div className="border-b border-gray-200 px-6 py-3">
-              <h2 className="text-sm font-semibold text-gray-900">Property Features</h2>
-            </div>
-            <div className="p-6">
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <MultiSelect
-                options={amenities}
-                selected={formData.amenityIds}
-                onChange={(selected) => setFormData(prev => ({ ...prev, amenityIds: selected }))}
-                placeholder="Select amenities"
-                onAddNew={() => setShowAddAmenity(true)}
-                label="Amenities"
-              />
-
-              <MultiSelect
-                options={facilities}
-                selected={formData.facilityIds}
-                onChange={(selected) => setFormData(prev => ({ ...prev, facilityIds: selected }))}
-                placeholder="Select facilities"
-                onAddNew={() => setShowAddFacility(true)}
-                label="Facilities"
-              />
-
-              <MultiSelect
-                options={safetyHygiene}
-                selected={formData.safetyIds}
-                onChange={(selected) => setFormData(prev => ({ ...prev, safetyIds: selected }))}
-                placeholder="Select safety features"
-                onAddNew={() => setShowAddSafety(true)}
-                label="Safety & Hygiene"
-              />
-            </div>
-            {isEdit && (
-              <div className="mt-6 flex justify-end">
-                <button
-                  type="button"
-                  onClick={handleSaveFeatures}
-                  disabled={sectionSaving.features}
-                  className="inline-flex items-center px-4 py-2 text-xs font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 disabled:opacity-60"
-                >
-                  {sectionSaving.features ? "Saving..." : "Update Features"}
-                </button>
-              </div>
-            )}
-            </div>
-          </div>
-
-          {/* Room Types */}
-          <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
-            <div className="border-b border-gray-200 px-6 py-3">
-              <div className="flex justify-between items-center">
-                <h2 className="text-sm font-semibold text-gray-900">Room Types</h2>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowAddRoomType(true)}
-                    className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-lg shadow-sm text-white bg-green-600 hover:bg-green-700"
-                  >
-                    <Plus className="h-3 w-3 mr-1" />
-                    Create Room Type
-                  </button>
-                  <button
-                    type="button"
-                    onClick={addRoomType}
-                    className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700"
-                  >
-                    <Plus className="h-3 w-3 mr-1" />
-                    Add Room Type
-                  </button>
-                </div>
-              </div>
-            </div>
-            <div className="p-6">
-
-            {formData.roomTypes.length === 0 ? (
-              <p className="text-gray-500 text-xs">No room types added yet. Click "Add Room Type" to get started.</p>
-            ) : (
-              <div className="space-y-4">
-                {formData.roomTypes.map((roomType, index) => (
-                  <div key={index} className="p-4 border border-gray-200 rounded-lg bg-gray-50">
-                    <div className="flex justify-between items-center mb-3">
-                      <h4 className="text-sm font-medium text-gray-800">Room Type {index + 1}</h4>
-                      <button
-                        type="button"
-                        onClick={() => handleRequestRemoveRoomType(index)}
-                        className="text-red-600 hover:text-red-800"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-                      <div className="lg:col-span-4">
-                        <label className="block text-xs font-medium text-gray-700 mb-2">
-                          Room Type *
-                        </label>
-                        <select
-                          value={roomType.roomTypeId}
-                          onChange={(e) => updateRoomType(index, 'roomTypeId', e.target.value)}
-                          className="block w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          required
-                        >
-                          <option value="">Select Room Type</option>
-                          {roomTypes.map((type) => (
-                            <option key={type.id} value={type.id}>
-                              {type.name}
-                            </option>
-                          ))}
-                        </select>
-                        {errors[`roomType_${index}`] && (
-                          <p className="text-red-500 text-xs mt-1">{errors[`roomType_${index}`]}</p>
-                        )}
-                      </div>
-
-                      <div className="lg:col-span-4">
-                        <label className="block text-xs font-medium text-gray-700 mb-2">
-                          Min Occupancy (1-10) *
-                        </label>
-                        <input
-                          type="number"
-                          min="1"
-                          max="10"
-                          value={roomType.minOccupancy}
-                          onChange={(e) => updateRoomType(index, 'minOccupancy', parseInt(e.target.value))}
-                          className="block w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          required
-                        />
-                        {errors[`minOccupancy_${index}`] && (
-                          <p className="text-red-500 text-xs mt-1">{errors[`minOccupancy_${index}`]}</p>
-                        )}
-                      </div>
-
-                      <div className="lg:col-span-4">
-                        <label className="block text-xs font-medium text-gray-700 mb-2">
-                         Occupancy (1-10) *
-                        </label>
-                        <input
-                          type="number"
-                          min="1"
-                          max="10"
-                          value={roomType.Occupancy}
-                          onChange={(e) => updateRoomType(index, 'Occupancy', parseInt(e.target.value))}
-                          className="block w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          required
-                        />
-                        {errors[`occupancy_${index}`] && (
-                          <p className="text-red-500 text-xs mt-1">{errors[`occupancy_${index}`]}</p>
-                        )}
-                      </div>
-                      </div>
-
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-                      <div className="lg:col-span-4">
-                        <label className="block text-xs font-medium text-gray-700 mb-2">
-                          Extra Bed Capacity (0-5)
-                        </label>
-                        <input
-                          type="number"
-                          min="0"
-                          max="5"
-                          value={roomType.extraBedCapacity}
-                          onChange={(e) => updateRoomType(index, 'extraBedCapacity', parseInt(e.target.value))}
-                          className="block w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                        {errors[`extraBed_${index}`] && (
-                          <p className="text-red-500 text-xs mt-1">{errors[`extraBed_${index}`]}</p>
-                        )}
-                      </div>
-
-                      <div className="lg:col-span-4">
-                        <label className="block text-xs font-medium text-gray-700 mb-2">
-                          Number of Beds (1-10) *
-                        </label>
-                        <input
-                          type="number"
-                          min="1"
-                          max="10"
-                          value={roomType.numberOfBeds ?? 1}
-                          onChange={(e) => updateRoomType(index, 'numberOfBeds', parseInt(e.target.value, 10) || 1)}
-                          className="block w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          required
-                        />
-                        {errors[`numberOfBeds_${index}`] && (
-                          <p className="text-red-500 text-xs mt-1">
-                            {errors[`numberOfBeds_${index}`]}
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="lg:col-span-4">
-                        <label className="block text-xs font-medium text-gray-700 mb-2">
-                          Bed Type
-                        </label>
-                        <select
-                          value={roomType.bedType || 'DOUBLE'}
-                          onChange={(e) => updateRoomType(index, 'bedType', e.target.value)}
-                          className="block w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                          <option value="SINGLE">Single</option>
-                          <option value="DOUBLE">Double</option>
-                          <option value="QUEEN">Queen</option>
-                          <option value="KING">King</option>
-                          <option value="TWIN">Twin</option>
-                          <option value="FULL">Full</option>
-                          <option value="SOFA_BED">Sofa Bed</option>
-                          <option value="BUNK_BED">Bunk Bed</option>
-                          <option value="MURPHY_BED">Murphy Bed</option>
-                          <option value="WATER_BED">Water Bed</option>
-                          <option value="AIR_BED">Air Bed</option>
-                          <option value="CUSTOM">Custom</option>
-                        </select>
-                        {errors[`bedType_${index}`] && (
-                          <p className="text-red-500 text-xs mt-1">{errors[`bedType_${index}`]}</p>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Amenities Section */}
-                    <div className="mt-4">
-                      <div className="flex justify-between items-center mb-2">
-                        <label className="block text-xs font-medium text-gray-700">
-                          Amenities
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => setShowAddAmenity(true)}
-                          className="text-blue-600 hover:text-blue-800 text-xs"
-                        >
-                          + Add New Amenity
-                        </button>
-                      </div>
-                      <div className="max-h-32 overflow-y-auto border border-gray-200 rounded-lg p-2">
-                        {amenities.map((amenity) => {
-                          const isSelected = roomType.amenityIds?.some(item => item.id === amenity.id) || false;
-                          return (
-                            <div
-                              key={amenity.id}
-                              className="flex items-center gap-2 p-1 hover:bg-gray-50 cursor-pointer"
-                              onClick={() => handleRoomTypeAmenityToggle(index, amenity)}
-                            >
-                              <input type="checkbox" checked={isSelected} readOnly />
-                              <span className="text-xs">{amenity.name}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Room Type Images Section */}
-                    <div className="mt-4">
-                      <label className="block text-xs font-medium text-gray-700 mb-2">
-                        Room Type Images (16:9 aspect ratio, max 2MB each, up to 12 images)
-                      </label>
-
-                      {isEdit && roomType.media && roomType.media.some((item) => !item.isDeleted) && (
-                        <div className="mb-3">
-                          <h5 className="text-xs font-semibold text-gray-600 mb-2">
-                            Existing Images
-                          </h5>
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                            {roomType.media
-                              .filter((mediaItem) => !mediaItem.isDeleted)
-                              .map((mediaItem, mediaIdx) => (
-                                <div
-                                  key={mediaItem.id || `${roomType.id}-${mediaIdx}`}
-                                  className="relative border border-gray-200 rounded-lg overflow-hidden"
-                                >
-                                  <img
-                                    src={mediaService.getMedia(mediaItem.url)}
-                                    alt={`Room type ${index + 1} image ${mediaIdx + 1}`}
-                                    className="w-full h-20 object-cover bg-gray-100"
-                                  />
-                                  <div className="absolute inset-0 flex flex-col justify-between p-1">
-                                    <div className="flex justify-between items-start">
-                                      {mediaItem.isFeatured && (
-                                        <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-blue-600 text-white rounded">
-                                          Primary
-                                        </span>
-                                      )}
-                                      <button
-                                        type="button"
-                                        onClick={() => handleRoomTypeExistingMediaRemove(index, mediaItem.id)}
-                                        className="px-1.5 py-0.5 text-[10px] font-semibold bg-red-500 text-white rounded hover:bg-red-600"
-                                      >
-                                        Remove
-                                      </button>
-                                    </div>
-                                    {!mediaItem.isFeatured && (
-                                      <button
-                                        type="button"
-                                        onClick={() => handleRoomTypeExistingMediaSetPrimary(index, mediaItem.id)}
-                                        className="self-center px-2 py-0.5 text-[10px] font-semibold bg-white/80 text-gray-700 rounded hover:bg-white"
-                                      >
-                                        Set Primary
-                                      </button>
-                                    )}
-                                  </div>
-                                </div>
-                              ))}
-                          </div>
-                        </div>
-                      )}
-
-                      <input
-                        type="file"
-                        multiple
-                        accept="image/*"
-                        onChange={(e) => handleRoomTypeImageChange(index, e)}
-                        className="block w-full text-xs text-gray-500
-                          file:mr-4 file:py-2 file:px-4
-                          file:rounded-lg file:border-0
-                          file:text-xs file:font-semibold
-                          file:bg-blue-50 file:text-blue-700
-                          hover:file:bg-blue-100"
-                      />
-                      
-                      {roomTypeImageErrors[index] && roomTypeImageErrors[index].length > 0 && (
-                        <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-lg">
-                          <ul className="text-red-600 text-xs">
-                            {roomTypeImageErrors[index].map((error, errorIndex) => (
-                              <li key={errorIndex}>{error}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-
-                      {roomTypeImages[index] && roomTypeImages[index].length > 0 && (
-                        <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2">
-                          {roomTypeImages[index].map((file, fileIndex) => (
-                            <div key={fileIndex} className="relative">
-                              <img
-                                src={URL.createObjectURL(file)}
-                                alt={`Room Type ${index + 1} Preview ${fileIndex + 1}`}
-                                className="w-full h-20 object-cover rounded-lg border border-gray-200"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveNewRoomTypeImage(index, fileIndex)}
-                                className="absolute top-1 right-1 px-1.5 py-0.5 text-[10px] font-semibold bg-red-500 text-white rounded hover:bg-red-600"
-                              >
-                                Remove
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-            {errors.roomTypes && <p className="text-red-500 text-xs mt-1">{errors.roomTypes}</p>}
-            {isEdit && (
-              <div className="mt-6 flex justify-end">
-                <button
-                  type="button"
-                  onClick={handleSaveRoomTypes}
-                  disabled={sectionSaving.roomTypes}
-                  className="inline-flex items-center px-4 py-2 text-xs font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 disabled:opacity-60"
-                >
-                  {sectionSaving.roomTypes ? "Saving..." : "Update Room Types"}
-                </button>
-              </div>
-            )}
-            </div>
-          </div>
-
-          {/* Media Upload */}
-          <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
-            <div className="border-b border-gray-200 px-6 py-3">
-              <h2 className="text-sm font-semibold text-gray-900 flex items-center">
-                <Camera className="h-4 w-4 mr-2 text-blue-600" />
-                Property Images (16:9 aspect ratio, max 2MB each, up to 12 images)
-              </h2>
-            </div>
-            <div className="p-6">
-            
-            {isEdit && existingMedia.some((mediaItem) => !mediaItem.isDeleted) && (
-              <div className="mb-4">
-                <h3 className="text-xs font-semibold text-gray-700 mb-2">Existing Images</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {existingMedia.map((mediaItem, index) => {
-                    if (mediaItem.isDeleted) {
-                      return null;
-                    }
-                    const isCover =
-                      coverSelection?.type === 'existing'
-                        ? coverSelection.index === index
-                        : mediaItem.isFeatured;
-                    return (
-        <div
-          key={mediaItem.id || mediaItem.url || index}
-          className="relative border border-gray-200 rounded-lg overflow-hidden"
-        >
-          <img
-            src={mediaService.getMedia(mediaItem.url)}
-            alt={`Existing media ${index + 1}`}
-            className="w-full h-32 object-cover bg-gray-100"
+          {/* Basic Information - Now using refactored component */}
+          <BasicInformationSection
+            formData={formData}
+            errors={errors}
+            propertyTypes={propertyTypes}
+            handleInputChange={handleInputChange}
+            onAddPropertyType={() => setShowAddPropertyType(true)}
+            isEdit={isEdit}
+            onSave={handleSaveBasics}
+            isSaving={sectionSaving.basics}
+            isAdmin={isAdmin}
+            titleUniquenessError={titleUniquenessError}
+            titleCheckLoading={titleCheckLoading}
           />
-                        <div className="absolute inset-0 flex flex-col justify-between p-2">
-                          <div className="flex justify-between items-start">
-                            {isCover && (
-                              <span className="px-2 py-1 text-[10px] font-semibold bg-blue-600 text-white rounded-full uppercase tracking-wide">
-                                Cover
-                              </span>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => handleExistingPropertyMediaRemove(index)}
-                              className="px-1.5 py-0.5 text-[10px] font-semibold bg-red-500 text-white rounded hover:bg-red-600"
-                            >
-                              Remove
-                            </button>
-                          </div>
-                          {!isCover && (
-                            <button
-                              type="button"
-                              onClick={() => handleExistingPropertyMediaSetCover(index)}
-                              className="self-center px-2 py-0.5 text-[10px] font-semibold bg-white/80 text-gray-700 rounded hover:bg-white"
-                            >
-                              Set Cover
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
 
-            <div className="mb-4">
-              <input
-                ref={mediaRef}
-                type="file"
-                multiple
-                accept="image/*"
-                onChange={handleMediaChange}
-                className="block w-full text-xs text-gray-500
-                  file:mr-4 file:py-2 file:px-4
-                  file:rounded-lg file:border-0
-                  file:text-xs file:font-semibold
-                  file:bg-blue-50 file:text-blue-700
-                  hover:file:bg-blue-100"
-              />
-            </div>
+          {/* Cancellation Policy - Now using refactored component */}
+          <CancellationPolicySection
+            formData={formData}
+            errors={errors}
+            cancellationPolicies={cancellationPolicies}
+            selectedCancellationPolicy={selectedCancellationPolicy}
+            handleInputChange={handleInputChange}
+          />
 
-            {mediaFiles.length > 0 && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {mediaFiles.map((file, index) => (
-                  <div key={index} className="relative">
-                    <img
-                      src={URL.createObjectURL(file)}
-                      alt={`Preview ${index + 1}`}
-                      className="w-full h-32 object-cover rounded-lg border border-gray-200"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveNewPropertyImage(index)}
-                      className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
-                      aria-label="Remove image"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
+          {/* Location - Now using refactored component */}
+          <LocationSection
+            formData={formData}
+            errors={errors}
+            handleInputChange={handleInputChange}
+            cityIconPreview={cityIconPreview}
+            cityIconFile={cityIconFile}
+            cityIconError={cityIconError}
+            onCityIconChange={(e) => {
+              const file = e.target.files[0];
+              if (file) {
+                if (file.type !== 'image/svg+xml' && !file.name.endsWith('.svg')) {
+                  setCityIconError('Please select an SVG file for the city icon');
+                  setCityIconFile(null);
+                  setCityIconPreview(null);
+                  return;
+                }
+                if (file.size > 2 * 1024 * 1024) {
+                  setCityIconError('File size must be less than 2MB');
+                  setCityIconFile(null);
+                  setCityIconPreview(null);
+                  return;
+                }
+                if (cityIconPreview && cityIconPreview.startsWith('blob:')) {
+                  URL.revokeObjectURL(cityIconPreview);
+                }
+                setCityIconError("");
+                setCityIconFile(file);
+                const previewUrl = URL.createObjectURL(file);
+                setCityIconPreview(previewUrl);
+              }
+              e.target.value = '';
+            }}
+            onCityIconRemove={() => {
+              if (cityIconPreview && cityIconPreview.startsWith('blob:')) {
+                URL.revokeObjectURL(cityIconPreview);
+              }
+              setCityIconFile(null);
+              setCityIconPreview(null);
+              setCityIconError("");
+            }}
+            isEdit={isEdit}
+            isSubmitting={isSubmitting}
+            onSave={handleSaveLocation}
+            isSaving={sectionSaving.location}
+          />
 
-            {errors.media && <p className="text-red-500 text-xs mt-1">{errors.media}</p>}
-            {isEdit && (
-              <div className="mt-6 flex justify-end">
-                <button
-                  type="button"
-                  onClick={handleSaveMedia}
-                  disabled={sectionSaving.media}
-                  className="inline-flex items-center px-4 py-2 text-xs font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 disabled:opacity-60"
-                >
-                  {sectionSaving.media ? "Saving..." : "Update Media"}
-                </button>
-              </div>
-            )}
-            </div>
-          </div>
+          {/* Features - Now using refactored component */}
+          <FeaturesSection
+            formData={formData}
+            amenities={amenities}
+            facilities={facilities}
+            safetyHygiene={safetyHygiene}
+            handleAmenitiesChange={(selected) => setFormData(prev => ({ ...prev, amenityIds: selected }))}
+            handleFacilitiesChange={(selected) => setFormData(prev => ({ ...prev, facilityIds: selected }))}
+            handleSafetyChange={(selected) => setFormData(prev => ({ ...prev, safetyIds: selected }))}
+            onAddAmenity={() => setShowAddAmenity(true)}
+            onAddFacility={() => setShowAddFacility(true)}
+            onAddSafety={() => setShowAddSafety(true)}
+            isEdit={isEdit}
+            onSave={handleSaveFeatures}
+            isSaving={sectionSaving.features}
+          />
+
+          {/* Tax Configuration - Now using refactored component (Admin Only) */}
+          {isAdmin && (
+            <TaxConfigurationSection
+              formData={formData}
+              errors={errors}
+              handleInputChange={handleInputChange}
+              onTaxSlabsChange={handleTaxSlabsChange}
+              isEdit={isEdit}
+              onSave={handleSaveTax}
+              isSaving={sectionSaving.tax}
+              isAdmin={isAdmin}
+            />
+          )}
+
+          {/* Room Types - Only visible in edit mode */}
+          {isEdit && (
+            <RoomTypesSection
+              formData={formData}
+              errors={errors}
+              roomTypes={roomTypes}
+              amenities={amenities}
+              roomTypeImages={roomTypeImages}
+              roomTypeImageErrors={roomTypeImageErrors}
+              isEdit={isEdit}
+              onAddRoomType={addRoomType}
+              onCreateRoomType={() => setShowAddRoomType(true)}
+              onAddNewAmenity={() => setShowAddAmenity(true)}
+              updateRoomType={updateRoomType}
+              handleRequestRemoveRoomType={handleRequestRemoveRoomType}
+              handleRoomTypeAmenityToggle={handleRoomTypeAmenityToggle}
+              handleRoomTypeImageChange={handleRoomTypeImageChange}
+              handleRoomTypeExistingMediaRemove={handleRoomTypeExistingMediaRemove}
+              handleRoomTypeExistingMediaSetPrimary={handleRoomTypeExistingMediaSetPrimary}
+              handleRemoveNewRoomTypeImage={handleRemoveNewRoomTypeImage}
+              onSave={handleSaveRoomTypes}
+              isSaving={sectionSaving.roomTypes}
+            />
+          )}
+
+          {/* Media Upload - Only visible in edit mode */}
+          {isEdit && (
+            <MediaUploadSection
+              isEdit={isEdit}
+              existingMedia={existingMedia}
+              mediaFiles={mediaFiles}
+              coverSelection={coverSelection}
+              errors={errors}
+              mediaRef={mediaRef}
+              handleMediaChange={handleMediaChange}
+              handleExistingPropertyMediaRemove={handleExistingPropertyMediaRemove}
+              handleExistingPropertyMediaSetCover={handleExistingPropertyMediaSetCover}
+              handleRemoveNewPropertyImage={handleRemoveNewPropertyImage}
+              onSave={handleSaveMedia}
+              isSaving={sectionSaving.media}
+            />
+          )}
 
           {/* Submit Button */}
           {!isEdit && (
@@ -2911,7 +1918,7 @@ useEffect(() => {
         </div>
       )}
 
-      {/* Modals */}
+      {/* Modals - Now using refactored components */}
       <AddItemModal
         isOpen={showAddAmenity}
         onClose={() => setShowAddAmenity(false)}
@@ -2957,7 +1964,7 @@ useEffect(() => {
         onClose={() => setErrorDialog({ isOpen: false, message: '' })}
       />
 
-      {/* Success Dialog */}
+      {/* Success Dialog - Now using refactored component */}
       <SuccessDialog
         isOpen={successDialog.isOpen}
         message={successDialog.message}

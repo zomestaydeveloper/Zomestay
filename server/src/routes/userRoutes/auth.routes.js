@@ -14,4 +14,7 @@ router.post('/users/verify-otp', UserAuthController.verifyOTP);
 // Create user after OTP verification (Hybrid approach)
 router.post('/users/create', UserAuthController.createUser);
 
+// User Logout (optional authentication - allows logout even with expired tokens)
+router.post('/users/logout', UserAuthController.logout);
+
 module.exports = router;

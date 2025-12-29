@@ -18,20 +18,20 @@ const DefaultHeader = () => {
   const location = useLocation();
   const userAuth = useSelector((state) => state.userAuth);
   const agentAuth = useSelector((state) => state.agentAuth);
-  
+
   // Site Configuration State
   const [siteConfig, setSiteConfig] = useState({
     logo: null,
     phoneNumber: null
   });
-  
+
   /**
    * Detect role from current route/pathname using utility function
    * This ensures correct role detection even when multiple roles are logged in
    * Priority: /app/agent/* → agent, /app/* → user
    */
   const currentRole = findRoleFromPathname(location.pathname) || 'user';
-  
+
   // Determine if current role is logged in based on route context
   const isUserLoggedIn = currentRole === 'user' && Boolean(userAuth?.userAccessToken);
   const isAgentLoggedIn = currentRole === 'agent' && Boolean(agentAuth?.agentAccessToken);
@@ -63,14 +63,12 @@ const DefaultHeader = () => {
     try {
       // Call appropriate logout API based on role
       if (currentRole === 'agent') {
-        console.log("agent logout");
         try {
           await agentAuthService.logout();
         } catch (error) {
           console.error('Agent logout API error:', error);
         }
       } else {
-        console.log("user logout");
         try {
           await userAuthService.logout();
         } catch (error) {
@@ -86,10 +84,14 @@ const DefaultHeader = () => {
       // Clear appropriate Redux state based on role
       if (currentRole === 'agent') {
         dispatch(logoutAgent());
+        // Clear localStorage persist key (aligned with Admin/Host pattern)
+        localStorage.removeItem("persist:agentAuth");
         // Navigate to agent login or home
         navigate('/', { replace: true });
       } else {
         dispatch(logoutUser());
+        // Clear localStorage persist key (aligned with Admin/Host pattern)
+        localStorage.removeItem("persist:userAuth");
         // Navigate to login page
         navigate('/', { replace: true });
       }
@@ -102,12 +104,12 @@ const DefaultHeader = () => {
   };
   return (
     <header className="sticky top-0 z-50  bg-white ">
-      <div  className="h-20 pl-4 pt-4 sm:h-24 lg:h-[115px] lg:pl-8 lg:pt-8 flex items-center justify-between border border-b border-gray-200">
+      <div className="h-20 pl-4 pt-4 sm:h-24 lg:h-[115px] lg:pl-8 lg:pt-8 flex items-center justify-between border border-b border-gray-200">
         {siteConfig.logo && (
-          <img 
-            src={siteConfig.logo} 
-            alt="Logo" 
-            className="w-10 md:w-20  pb-3 pl-3 cursor-pointer" 
+          <img
+            src={siteConfig.logo}
+            alt="Logo"
+            className="w-10 md:w-20  pb-3 pl-3 cursor-pointer"
             onClick={() => {
               // Navigate based on current role
               if (currentRole === 'agent') {
@@ -115,7 +117,7 @@ const DefaultHeader = () => {
               } else {
                 navigate('/app/home');
               }
-            }} 
+            }}
           />
         )}
         {/* Hamburger Icon for mobile */}
@@ -140,7 +142,7 @@ const DefaultHeader = () => {
           {isUserLoggedIn && (
             <>
               <div className="relative">
-                <button 
+                <button
                   className="bg-white border border-gray-200 shadow-lg px-4 h-10 flex items-center gap-2 rounded-full hover:bg-gray-50 transition-colors"
                   onClick={() => setUserDropdownOpen(!userDropdownOpen)}
                   title="Menu"
@@ -152,7 +154,7 @@ const DefaultHeader = () => {
                   <ChevronDown size={16} className={`text-gray-600 transition-transform ${userDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
                 {userDropdownOpen && (
-                  <div 
+                  <div
                     className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50"
                     onClick={(e) => e.stopPropagation()}
                   >
@@ -195,41 +197,51 @@ const DefaultHeader = () => {
           {isAgentLoggedIn && (
 
             <>
-            <button 
-                className="bg-white border border-gray-200 shadow-lg w-20 h-10 flex items-center justify-center rounded-full hover:bg-gray-50 transition-colors" 
+              <button
+                className="bg-white border border-gray-200 shadow-lg w-20 h-10 flex items-center justify-center rounded-full hover:bg-gray-50 transition-colors"
                 onClick={() => navigate('/agent/dashboard')}
                 title="Profile"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="100" fill="none" viewBox="0 0 24 24">
-                  <rect y="5" width="24" height="2" rx="1" fill="#004AAD"/>
-                  <rect y="11" width="24" height="2" rx="1" fill="#004AAD"/>
-                  <rect y="17" width="24" height="2" rx="1" fill="#004AAD"/>
+                  <rect y="5" width="24" height="2" rx="1" fill="#004AAD" />
+                  <rect y="11" width="24" height="2" rx="1" fill="#004AAD" />
+                  <rect y="17" width="24" height="2" rx="1" fill="#004AAD" />
                 </svg>
                 <svg xmlns="http://www.w3.org/2000/svg" fill="#004AAD" viewBox="0 0 24 24" width="22" height="22">
-                  <circle cx="12" cy="8" r="4"/>
-                  <path d="M12 14c-4 0-6 2-6 4v2h12v-2c0-2-2-4-6-4z"/>
+                  <circle cx="12" cy="8" r="4" />
+                  <path d="M12 14c-4 0-6 2-6 4v2h12v-2c0-2-2-4-6-4z" />
                 </svg>
               </button>
-            <button
-              onClick={handleLogout}
-              className="bg-red-600 text-white text-xs px-4 py-2 rounded-full font-semibold hover:bg-red-700 transition-colors flex items-center gap-2"
-              title="Logout"
-            >
-              <LogOut size={14} />
-              Logout
-            </button>
+              <button
+                onClick={handleLogout}
+                className="bg-red-600 text-white text-xs px-4 py-2 rounded-full font-semibold hover:bg-red-700 transition-colors flex items-center gap-2"
+                title="Logout"
+              >
+                <LogOut size={14} />
+                Logout
+              </button>
             </>
           )}
+          {/* Login Button for Desktop (Not Logged In) */}
+          {!isUserLoggedIn && !isAgentLoggedIn && (
+            <button
+              onClick={() => navigate("/login")}
+              className="bg-[#004AAD] text-white text-xs px-6 py-2.5 rounded-full font-bold hover:bg-[#00398a] transition-all duration-300 shadow-md flex items-center gap-2 mr-16"
+            >
+              <User size={16} />
+              Login
+            </button>
+          )}
         </div>
-      </div> 
+      </div>
       {/* Mobile Navigation Drawer */}
       <div className={`fixed inset-0 z-50 md:hidden transition-opacity duration-300 ${menuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
         {/* Backdrop */}
-        <div 
+        <div
           className="absolute inset-0 bg-black/50"
           onClick={() => setMenuOpen(false)}
         />
-        
+
         {/* Side Menu */}
         <div className={`absolute left-0 top-0 h-full w-80 max-w-[85vw] bg-white shadow-2xl transform transition-transform duration-300 ${menuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
           {/* Header */}
@@ -246,7 +258,7 @@ const DefaultHeader = () => {
               </svg>
             </button>
           </div>
-          
+
           {/* Navigation Items */}
           <div className="p-6 space-y-4 pb-24">
             {/* Show Agent Mode indicator when agent is logged in (mobile) */}
@@ -258,7 +270,7 @@ const DefaultHeader = () => {
             {/* Only show Profile and Bookings for USER (based on route) */}
             {isUserLoggedIn && (
               <>
-                <button 
+                <button
                   onClick={() => {
                     navigate('/app/user_profile');
                     setMenuOpen(false);
@@ -268,7 +280,7 @@ const DefaultHeader = () => {
                   <User size={18} />
                   Profile
                 </button>
-                <button 
+                <button
                   onClick={() => {
                     navigate('/app/bookings');
                     setMenuOpen(false);
@@ -280,8 +292,8 @@ const DefaultHeader = () => {
                 </button>
               </>
             )}
-              {isAgentLoggedIn && (
-              <button 
+            {isAgentLoggedIn && (
+              <button
                 onClick={() => {
                   navigate('/agent/dashboard');
                   setMenuOpen(false);
@@ -291,8 +303,21 @@ const DefaultHeader = () => {
                 Profile
               </button>
             )}
+            {/* Login Option for Mobile */}
+            {!isUserLoggedIn && !isAgentLoggedIn && (
+              <button
+                onClick={() => {
+                  navigate("/login");
+                  setMenuOpen(false);
+                }}
+                className="w-full bg-[#004AAD] text-white text-sm h-12 rounded-lg hover:bg-[#00398a] transition-colors font-semibold flex items-center justify-center gap-2"
+              >
+                <User size={18} />
+                Login / Signup
+              </button>
+            )}
           </div>
-          
+
           {/* Bottom Section - Logout and Contact Info */}
           <div className="absolute bottom-6 left-6 right-6 space-y-4">
             {/* Logout Button - For USER or AGENT (based on route) */}
@@ -308,7 +333,7 @@ const DefaultHeader = () => {
                 Logout
               </button>
             )}
-          {/* Contact Info */}
+            {/* Contact Info */}
             {siteConfig.phoneNumber && (
               <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
                 <Phone size={20} className="text-gray-600" />
@@ -324,11 +349,12 @@ const DefaultHeader = () => {
 
       {/* Close dropdown when clicking outside */}
       {userDropdownOpen && (
-        <div 
-          className="fixed inset-0 z-30" 
+        <div
+          className="fixed inset-0 z-30"
           onClick={() => setUserDropdownOpen(false)}
         />
       )}
+
     </header>
   );
 };

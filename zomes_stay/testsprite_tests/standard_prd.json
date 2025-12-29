@@ -1,0 +1,497 @@
+{
+  "meta": {
+    "project": "ZomesStay Frontend Application",
+    "date": "2025-11-19",
+    "prepared_by": "Software Development Manager"
+  },
+  "product_overview": "ZomesStay is a comprehensive travel and property booking frontend application that facilitates seamless property search, booking, and management experiences for users, travel agents, property hosts, and administrators. It integrates modern web technologies and third-party services to handle user authentication, property discovery, booking flows, payment processing, and role-specific dashboards and operations.",
+  "core_goals": [
+    "Enable secure and robust multi-role user authentication for users, agents, hosts, and admins.",
+    "Provide intuitive property search, detail viewing, and robust booking flows with online payment integration.",
+    "Support travel agents and hosts with dedicated dashboards and property management capabilities.",
+    "Empower administrators with full control over properties, bookings, users, agents, inventory, and site configurations.",
+    "Ensure data consistency and good user experience through state management with Redux and smooth UI components.",
+    "Implement protected routing and role-based access control for secure resource management."
+  ],
+  "key_features": [
+    "User Authentication: OTP-based for users, email/password with document verification for agents, and secure login for hosts and admins.",
+    "Property Search and Discovery: Comprehensive filtering, date and guest selectors, and detailed property listings.",
+    "Property Details and Booking Flow: Room and rate plan selection, pricing calculations, calendar integrations, and booking confirmation.",
+    "Razorpay Payment Integration: Order creation, checkout, payment status monitoring, and handling of success and failure scenarios.",
+    "User Profile and Booking Management: Viewing and editing profile data and managing user bookings and booking history.",
+    "Agent and Host Dashboards: Dedicated interfaces for travel agents and property hosts with management tools for properties, bookings, payments, promotions, and inventory.",
+    "Admin Dashboard and Management: Full CRUD for properties, bookings, users, agents; inventory, rate plans, cancellation policies; front desk operations; site configuration; and callback request management.",
+    "Reusable UI Components: Modular and consistent UI elements like cards, modals, calendars, loaders, notifications, and lists.",
+    "API Service Layer and Redux State Management: Centralized API calls with Axios and global state persistence for authentication and property data.",
+    "Static Informational Pages: Including About Us, Contact, FAQ, Legal, and agent guides.",
+    "Wishlist and Review System: Users can save favorite properties and submit ratings and reviews."
+  ],
+  "user_flow_summary": [
+    "User Registration and Authentication: Users sign up or log in using phone OTP; agents, hosts, and admins authenticate via email/password with respective workflows.",
+    "Property Search to Booking: Users search properties with filters, select date ranges and guests, view details, select rooms and rate plans, make payments, and receive booking confirmation.",
+    "Agent and Host Management: Agents sign up with IATA certificate upload and await admin approval; hosts log in to manage properties, bookings, and inventory.",
+    "Admin Operations: Admins manage properties, bookings, users, agents, inventory, rate plans, cancellations, front desk functions, and site-wide configurations via the dashboard interface.",
+    "Payment Handling: Razorpay integration handles order creation, payment processing, and status polling, routing users to success or failure pages accordingly.",
+    "Protected Routes: Role-based protected routes ensure only authorized users can access specific functionalities."
+  ],
+  "validation_criteria": [
+    "Successful OTP-based login and signup flows for users with correct phone verification.",
+    "Email/password authentication with validation and approval workflows for agents, hosts, and admins.",
+    "Accurate and responsive property search results based on user filters and date/guest inputs.",
+    "Correct and reliable booking flow including room selection, pricing, and payment processing through Razorpay.",
+    "Successful creation of payment orders, payment execution, and confirmation or failure handling with appropriate user feedback.",
+    "Proper data management and consistency in user profiles, bookings, properties, agents, and site configurations.",
+    "Role-based access control and route protection functioning as expected for all user types.",
+    "Performance of Redux state management including persistence across sessions for critical state slices.",
+    "Functional and intuitive UI components rendering and interaction across major user flows.",
+    "Admin and host dashboards accurately reflect real-time statistics, booking info, inventory, and configuration management."
+  ],
+  "code_summary": {
+    "tech_stack": [
+      "JavaScript",
+      "React 18.2.0",
+      "React Router DOM 7.7.1",
+      "Redux Toolkit",
+      "Redux Persist",
+      "Vite",
+      "TailwindCSS",
+      "Axios",
+      "Razorpay Payment Gateway",
+      "React Toastify",
+      "Ant Design",
+      "Material-UI",
+      "Lucide React Icons"
+    ],
+    "features": [
+      {
+        "name": "User Authentication",
+        "description": "Phone OTP-based authentication for regular users. Includes OTP sending, verification, and user signup flow.",
+        "files": [
+          "src/pages/LoginPage.jsx",
+          "src/pages/OtpVerification.jsx",
+          "src/pages/OtpVerified.jsx",
+          "src/pages/SignUp.jsx",
+          "src/components/UserSignupModal.jsx",
+          "src/services/auth/user_authService.js",
+          "src/store/userAuthSlice.js"
+        ]
+      },
+      {
+        "name": "Agent Authentication",
+        "description": "Email/password authentication for travel agents with IATA certificate upload and admin approval workflow.",
+        "files": [
+          "src/pages/SignAgent.jsx",
+          "src/pages/signUpAgent.jsx",
+          "src/pages/Agent/AgentLoginPage.jsx",
+          "src/pages/Agent/AgentDashboard.jsx",
+          "src/components/AgentLoginModal.jsx",
+          "src/components/AgentSignupModal.jsx",
+          "src/services/auth/agent_authService.js",
+          "src/services/property/agent/authService.js",
+          "src/store/agentAuthSlice.js"
+        ]
+      },
+      {
+        "name": "Admin Authentication",
+        "description": "Email/password authentication for admin users with protected routes.",
+        "files": [
+          "src/pages/Admin/AdminLogin.jsx",
+          "src/services/auth/authService.js",
+          "src/store/adminAuthSlice.js",
+          "src/routes/AdminProtectedRoute.jsx"
+        ]
+      },
+      {
+        "name": "Host Authentication",
+        "description": "Email/password authentication for property hosts with protected routes.",
+        "files": [
+          "src/pages/Host/HostLogin.jsx",
+          "src/services/auth/host_authService.js",
+          "src/store/hostAuthSlice.js",
+          "src/routes/HostProtectedRoute.jsx"
+        ]
+      },
+      {
+        "name": "Razorpay Payment Integration",
+        "description": "Payment processing using Razorpay gateway. Includes order creation, payment handling, booking status polling, and success/failure handling.",
+        "files": [
+          "src/services/paymentService.js",
+          "src/services/payments/paymentsService.js",
+          "src/components/RoomSection.jsx",
+          "src/pages/BookingSuccess.jsx",
+          "src/pages/BookingFailure.jsx"
+        ]
+      },
+      {
+        "name": "Property Search and Discovery",
+        "description": "Property search functionality with filters, date selection, guest selection, and property listing.",
+        "files": [
+          "src/pages/FindProperty.jsx",
+          "src/components/HomePage.jsx",
+          "src/components/Header.jsx",
+          "src/components/MobileSearchModal.jsx",
+          "src/components/GuestSelectorPopup.jsx",
+          "src/components/DateRangePicker.jsx",
+          "src/services/search/propertySearchService.js",
+          "src/context/SearchContext.jsx"
+        ]
+      },
+      {
+        "name": "Property Details and Booking",
+        "description": "Property detail page with room selection, pricing calculation, date selection, and booking flow.",
+        "files": [
+          "src/pages/DetialsPage.jsx",
+          "src/components/DetailsPage.jsx",
+          "src/components/RoomSection.jsx",
+          "src/components/RoomCard.jsx",
+          "src/components/Calendar/DoubleMonthCalendar.jsx",
+          "src/components/ReservationWidget.jsx",
+          "src/components/ReservationCalendarPanel.jsx",
+          "src/services/property/user/propertyDetials.js",
+          "src/services/property/user/bookingData.js",
+          "src/utils/bookingCapacityPricing.js",
+          "src/utils/calendarDataProcessor.js"
+        ]
+      },
+      {
+        "name": "User Profile Management",
+        "description": "User profile viewing and editing functionality.",
+        "files": [
+          "src/pages/UserProfile.jsx",
+          "src/services/User/userService.js"
+        ]
+      },
+      {
+        "name": "Booking Management",
+        "description": "View and manage user bookings, booking history, and booking details.",
+        "files": [
+          "src/pages/UserBookings.jsx",
+          "src/components/shared/bookingList/bookingList.jsx"
+        ]
+      },
+      {
+        "name": "Admin Dashboard",
+        "description": "Admin dashboard with statistics, property management, booking management, and user management.",
+        "files": [
+          "src/pages/Admin/DashBoard.jsx",
+          "src/pages/Admin/BaseLayout.jsx",
+          "src/components/Admin/Header.jsx",
+          "src/components/Admin/Footer.jsx",
+          "src/components/Admin/StatCard.jsx",
+          "src/components/Admin/EarningRevenueCard.jsx"
+        ]
+      },
+      {
+        "name": "Admin Property Management",
+        "description": "Admin can add, edit, view, and manage properties with full CRUD operations.",
+        "files": [
+          "src/pages/Admin/Properties.jsx",
+          "src/pages/Admin/AddProperty.jsx",
+          "src/pages/Admin/EditProperty.jsx",
+          "src/components/Admin/PropertyCard.jsx",
+          "src/components/Admin/PropertyCardRow.jsx",
+          "src/services/property/admin/propertyService.js",
+          "src/services/property/admin/propertyUpdationService.js"
+        ]
+      },
+      {
+        "name": "Admin Booking Management",
+        "description": "Admin can view all bookings, manage booking status, and handle cancellations.",
+        "files": [
+          "src/pages/Admin/AllBookings.jsx",
+          "src/services/property/admin/booking/bookingService.js"
+        ]
+      },
+      {
+        "name": "Admin User Management",
+        "description": "Admin can view registered users, manage user accounts, and view user details.",
+        "files": [
+          "src/pages/Admin/RegisteredUsers.jsx"
+        ]
+      },
+      {
+        "name": "Admin Travel Agent Management",
+        "description": "Admin can manage travel agents, approve/reject agents, set discounts, and manage agent access.",
+        "files": [
+          "src/pages/Admin/Agents.jsx",
+          "src/pages/Admin/Agent_list.jsx",
+          "src/services/property/agent/agentOperationsService.js"
+        ]
+      },
+      {
+        "name": "Admin Front Desk",
+        "description": "Front desk operations for admins including room management, holds, blocks, and maintenance.",
+        "files": [
+          "src/pages/Admin/FrontDesk/AdminFrontDesk.jsx",
+          "src/components/shared/FrontDesk/FrontDeskBoard.jsx",
+          "src/services/property/frontdesk/adminFrontDeskService.js",
+          "src/services/property/frontdesk/frontdeskcommon.js"
+        ]
+      },
+      {
+        "name": "Admin Inventory Management",
+        "description": "Inventory management for properties including availability, rates, and room management.",
+        "files": [
+          "src/pages/Admin/Admin_inventory.jsx",
+          "src/components/shared/Inventory/Inventory.jsx"
+        ]
+      },
+      {
+        "name": "Admin Property Configuration",
+        "description": "Configuration management for amenities, facilities, safety features, property types, and room types.",
+        "files": [
+          "src/pages/Admin/Property_configurations/Amenities.jsx",
+          "src/pages/Admin/Property_configurations/Facilities.jsx",
+          "src/pages/Admin/Property_configurations/SafetyFeatures.jsx",
+          "src/pages/Admin/Property_configurations/PropertyTypes.jsx",
+          "src/pages/Admin/Property_configurations/RoomTypes.jsx",
+          "src/components/shared/PropertyConfigurations/AmenitiesManager.jsx",
+          "src/components/shared/PropertyConfigurations/FacilitiesManager.jsx",
+          "src/components/shared/PropertyConfigurations/SafetyFeaturesManager.jsx",
+          "src/components/shared/PropertyConfigurations/PropertyTypesManager.jsx",
+          "src/components/shared/PropertyConfigurations/RoomTypesManager.jsx"
+        ]
+      },
+      {
+        "name": "Admin Rate Plans",
+        "description": "Rate plan management including adding, editing, and managing rate plans for properties.",
+        "files": [
+          "src/pages/Admin/AddRatePlan.jsx",
+          "src/components/shared/RatePlans/RatePlans.jsx",
+          "src/components/shared/AddRatePlan/AddRatePlan.jsx"
+        ]
+      },
+      {
+        "name": "Admin Cancellation Management",
+        "description": "Cancellation policy and cancellation request management.",
+        "files": [
+          "src/pages/Admin/cancellation_policy/cancellation_policy.jsx",
+          "src/pages/Admin/CancellationRequests.jsx",
+          "src/services/property/admin/cancellationPolicy/cancellationPolicy.js",
+          "src/services/cancellationRequest/cancellationRequestService.js"
+        ]
+      },
+      {
+        "name": "Admin Site Configuration",
+        "description": "Site-wide configuration including logo, banner images, contact information, and site settings.",
+        "files": [
+          "src/pages/Admin/Siteconfiguration.jsx",
+          "src/services/siteConfig/siteConfigService.js"
+        ]
+      },
+      {
+        "name": "Admin Callback Requests",
+        "description": "Manage callback requests from users.",
+        "files": [
+          "src/pages/Admin/CallbackRequests.jsx",
+          "src/services/callbackRequest/callbackRequestService.js"
+        ]
+      },
+      {
+        "name": "Host Dashboard",
+        "description": "Host dashboard with property statistics, booking overview, and revenue information.",
+        "files": [
+          "src/pages/Host/HostDashBoard.jsx",
+          "src/pages/Host/BaseLayout.jsx"
+        ]
+      },
+      {
+        "name": "Host Property Management",
+        "description": "Host can view, edit, and manage their own properties.",
+        "files": [
+          "src/pages/Host/HostProperties.jsx",
+          "src/pages/Host/EditProperty.jsx",
+          "src/services/property/host/updateProperty.js"
+        ]
+      },
+      {
+        "name": "Host Booking Management",
+        "description": "Host can view and manage bookings for their properties.",
+        "files": [
+          "src/pages/Host/HostAllBookings.jsx",
+          "src/pages/Host/Host_allbookings.jsx"
+        ]
+      },
+      {
+        "name": "Host Front Desk",
+        "description": "Front desk operations for hosts including room management and availability.",
+        "files": [
+          "src/pages/Host/HostFrontDesk.jsx",
+          "src/pages/Host/host-frontdesk/HostFrontDeskWrapper.jsx",
+          "src/services/property/frontdesk/hostFrontDeskService.js"
+        ]
+      },
+      {
+        "name": "Host Inventory Management",
+        "description": "Host inventory management including availability, rates, and room configurations.",
+        "files": [
+          "src/pages/Host/HostInventoryWrapper.jsx",
+          "src/services/property/host/inventoryService.js",
+          "src/services/property/host/dailyRate.js"
+        ]
+      },
+      {
+        "name": "Host Rate Plans",
+        "description": "Host can create and manage rate plans for their properties.",
+        "files": [
+          "src/pages/Host/HostAddRatePlanWrapper.jsx",
+          "src/services/property/host/roomtypeMealPlan.js"
+        ]
+      },
+      {
+        "name": "Host Meal Plans",
+        "description": "Meal plan management for hosts.",
+        "files": [
+          "src/pages/Host/MealPlan.jsx",
+          "src/services/property/host/mealPlan.js"
+        ]
+      },
+      {
+        "name": "Host Special Rates",
+        "description": "Special rate management and applications for hosts.",
+        "files": [
+          "src/pages/Host/Best_rates.jsx",
+          "src/services/property/host/specialRateService.js",
+          "src/services/property/host/specialRateApplicationService.js"
+        ]
+      },
+      {
+        "name": "Host Property Configuration",
+        "description": "Host can configure amenities, facilities, safety features, property types, and room types.",
+        "files": [
+          "src/pages/Host/Property_configurations/HostAmenities.jsx",
+          "src/pages/Host/Property_configurations/HostFacilities.jsx",
+          "src/pages/Host/Property_configurations/HostSafetyFeatures.jsx",
+          "src/pages/Host/Property_configurations/HostPropertyTypes.jsx",
+          "src/pages/Host/Property_configurations/HostRoomTypes.jsx"
+        ]
+      },
+      {
+        "name": "Host Payments",
+        "description": "Payment transactions and revenue management for hosts.",
+        "files": [
+          "src/pages/Host/HostPayment.jsx"
+        ]
+      },
+      {
+        "name": "Host Promotions",
+        "description": "Promotion and discount management for hosts.",
+        "files": [
+          "src/pages/Host/HostPromotionsDiscounts.jsx"
+        ]
+      },
+      {
+        "name": "Protected Routes",
+        "description": "Route protection based on authentication status and user roles (user, agent, admin, host).",
+        "files": [
+          "src/routes/ProtectedRoute.jsx",
+          "src/routes/AdminProtectedRoute.jsx",
+          "src/routes/HostProtectedRoute.jsx"
+        ]
+      },
+      {
+        "name": "API Service Layer",
+        "description": "Centralized API service layer with axios configuration, endpoints, and request/response handling.",
+        "files": [
+          "src/services/api/apiService.js",
+          "src/services/api/apiEndpoints.js",
+          "src/services/api/axiosConfig.js",
+          "src/services/api/axiosConfig2.js"
+        ]
+      },
+      {
+        "name": "Redux State Management",
+        "description": "Global state management using Redux Toolkit with persistence for authentication and property data.",
+        "files": [
+          "src/store/store.js",
+          "src/store/userAuthSlice.js",
+          "src/store/agentAuthSlice.js",
+          "src/store/adminAuthSlice.js",
+          "src/store/hostAuthSlice.js",
+          "src/store/propertySlice.js"
+        ]
+      },
+      {
+        "name": "UI Components",
+        "description": "Reusable UI components including cards, modals, loaders, headers, footers, and form components.",
+        "files": [
+          "src/components/Card.jsx",
+          "src/components/CardRow.jsx",
+          "src/components/FeatureCard.jsx",
+          "src/components/FeatureCardRow.jsx",
+          "src/components/FacilityCard.jsx",
+          "src/components/FacilityCardRow.jsx",
+          "src/components/AmenitiesList.jsx",
+          "src/components/SafetyHygieneList.jsx",
+          "src/components/Loader.jsx",
+          "src/components/NotificationModal.jsx",
+          "src/components/ErrorDialog.jsx",
+          "src/components/Footer.jsx",
+          "src/components/Header.jsx",
+          "src/components/Banner.jsx"
+        ]
+      },
+      {
+        "name": "Static Pages",
+        "description": "Static informational pages including about, contact, FAQ, legal info, and how-to guides.",
+        "files": [
+          "src/pages/AboutUs.jsx",
+          "src/pages/ContactUs.jsx",
+          "src/pages/Faq.jsx",
+          "src/pages/LegalInfo.jsx",
+          "src/pages/HowToAgent.jsx"
+        ]
+      },
+      {
+        "name": "Wishlist",
+        "description": "User wishlist functionality for saving favorite properties.",
+        "files": [
+          "src/pages/WhishList.jsx"
+        ]
+      },
+      {
+        "name": "Callback Requests",
+        "description": "Callback request functionality for users to request callbacks.",
+        "files": [
+          "src/components/CallbackRequestModal.jsx",
+          "src/components/RequestCallbackModal.jsx",
+          "src/components/CallbackRequests/AllCallbackRequests.jsx"
+        ]
+      },
+      {
+        "name": "Reviews",
+        "description": "Review and rating functionality for properties.",
+        "files": [
+          "src/components/shared/ReviewModal.jsx",
+          "src/services/review/reviewService.js"
+        ]
+      },
+      {
+        "name": "Media Management",
+        "description": "Media upload and management for properties, profiles, and certificates.",
+        "files": [
+          "src/services/media/mediaService.js",
+          "src/services/media/agentMediaService.js"
+        ]
+      },
+      {
+        "name": "Utility Functions",
+        "description": "Helper utilities for authentication, booking calculations, calendar processing, and role detection.",
+        "files": [
+          "src/utils/authHelpers.js",
+          "src/utils/bookingCapacityPricing.js",
+          "src/utils/calendarDataProcessor.js",
+          "src/utils/findrole.js"
+        ]
+      },
+      {
+        "name": "App Routing",
+        "description": "Main application routing configuration with public, protected, and role-based routes.",
+        "files": [
+          "src/App.jsx",
+          "src/main.jsx"
+        ]
+      }
+    ]
+  }
+}

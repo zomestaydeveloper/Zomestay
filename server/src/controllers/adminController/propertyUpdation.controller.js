@@ -301,6 +301,9 @@ const getPropertyForEdit = async (req, res) => {
       propertyTypeId: property.propertyTypeId,
       ownerHostId: property.ownerHost.email,
       cancellationPolicyId: property.cancellationPolicyId,
+      commissionPercentage: property.commissionPercentage,
+      taxSlabs: property.taxSlabs || null,
+      cessRate: property.cessRate || null,
       location: property.location || null,
       checkInTime: property.checkInTime,
       checkOutTime: property.checkOutTime,
@@ -397,6 +400,7 @@ const updatePropertyBasics = async (req, res) => {
       ownerHostId,
       checkInTime,
       checkOutTime,
+      commissionPercentage,
     } = req.body;
 
     if (!title || !title.trim()) {
@@ -543,6 +547,21 @@ const updatePropertyBasics = async (req, res) => {
 
     if (resolvedOwnerHostId !== undefined) {
       updateData.ownerHostId = resolvedOwnerHostId;
+    }
+
+    // Handle commission percentage (only admins can set this)
+    if (commissionPercentage !== undefined && commissionPercentage !== null && commissionPercentage !== '') {
+      if (req.user?.role !== 'admin') {
+        return sendError(res, 'Only admins can set commission percentage', 403);
+      }
+      const commissionNum = parseFloat(commissionPercentage);
+      if (isNaN(commissionNum) || commissionNum < 0 || commissionNum > 100) {
+        return sendError(res, 'Commission percentage must be a number between 0 and 100', 400);
+      }
+      updateData.commissionPercentage = commissionNum;
+    } else if (commissionPercentage === null || commissionPercentage === '') {
+      // Allow clearing commission percentage (set to null)
+      updateData.commissionPercentage = null;
     }
 
     await prisma.property.update({
@@ -2068,6 +2087,133 @@ const deletePropertyRoomType = async (req, res) => {
   }
 };
 
+const updatePropertyTax = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Security: Verify property access (host can only modify their own properties)
+    const accessResult = await verifyPropertyAccess({
+      prisma,
+      propertyId: id,
+      user: req.user,
+    });
+
+    if (!accessResult.ok) {
+      return sendError(res, accessResult.error.message, accessResult.error.status);
+    }
+
+    const guard = await ensureNotDeleted(prisma.property, id, 'Property');
+    if (guard.error) {
+      return sendError(res, guard.error, 404);
+    }
+
+    const { taxSlabs, cessRate } = req.body;
+
+    // Validate and parse tax slabs if provided
+    let taxSlabsValue = null;
+    if (taxSlabs !== undefined && taxSlabs !== null && taxSlabs !== '') {
+      let parsedTaxSlabs;
+      try {
+        parsedTaxSlabs = typeof taxSlabs === 'string' ? JSON.parse(taxSlabs) : taxSlabs;
+      } catch (err) {
+        return sendError(res, 'Invalid taxSlabs format. Expected a valid JSON array.', 400);
+      }
+
+      if (!Array.isArray(parsedTaxSlabs)) {
+        return sendError(res, 'taxSlabs must be an array', 400);
+      }
+
+      if (parsedTaxSlabs.length === 0) {
+        return sendError(res, 'taxSlabs array cannot be empty. At least one tax slab is required if taxSlabs is provided.', 400);
+      }
+
+      // Validate each tax slab
+      for (let i = 0; i < parsedTaxSlabs.length; i++) {
+        const slab = parsedTaxSlabs[i];
+        
+        if (!slab || typeof slab !== 'object') {
+          return sendError(res, `Tax slab at index ${i} must be an object`, 400);
+        }
+
+        // Validate min
+        if (typeof slab.min !== 'number' || slab.min < 0 || !Number.isInteger(slab.min)) {
+          return sendError(res, `Tax slab at index ${i}: min must be a non-negative integer`, 400);
+        }
+
+        // Validate max (can be null or number)
+        if (slab.max !== null && (typeof slab.max !== 'number' || slab.max < slab.min || !Number.isInteger(slab.max))) {
+          return sendError(res, `Tax slab at index ${i}: max must be null or an integer >= min`, 400);
+        }
+
+        // Validate rate
+        if (typeof slab.rate !== 'number' || slab.rate < 0 || slab.rate > 100) {
+          return sendError(res, `Tax slab at index ${i}: rate must be a number between 0 and 100`, 400);
+        }
+
+        // Check for gaps or overlaps with previous slab
+        if (i > 0) {
+          const prevSlab = parsedTaxSlabs[i - 1];
+          const prevMax = prevSlab.max === null ? Infinity : prevSlab.max;
+          
+          if (slab.min > prevMax + 1) {
+            return sendError(res, `Tax slab at index ${i}: gap detected. min (${slab.min}) should be <= ${prevMax + 1}`, 400);
+          }
+          
+          if (slab.min <= prevMax && prevSlab.max !== null) {
+            return sendError(res, `Tax slab at index ${i}: overlap detected with previous slab. min (${slab.min}) should be > ${prevMax}`, 400);
+          }
+        }
+      }
+
+      taxSlabsValue = parsedTaxSlabs;
+    }
+
+    // Validate CESS rate if provided
+    let cessRateValue = null;
+    if (cessRate !== undefined && cessRate !== null && cessRate !== '') {
+      const cessNum = parseFloat(cessRate);
+      if (isNaN(cessNum) || cessNum < 0 || cessNum > 100) {
+        return sendError(res, 'CESS rate must be a number between 0 and 100', 400);
+      }
+      cessRateValue = cessNum;
+    }
+    // If cessRate is null or empty string, allow clearing (cessRateValue stays null)
+
+    const updateData = {};
+    
+    // Only include taxSlabs if provided and not null
+    if (taxSlabsValue !== null) {
+      updateData.taxSlabs = taxSlabsValue;
+    }
+    
+    // Include cessRate in update if explicitly provided (even if null to clear it)
+    // If cessRate is undefined, don't include it (no change)
+    if (cessRate !== undefined) {
+      updateData.cessRate = cessRateValue;
+    }
+
+    // Only update if there's data to update
+    // Note: If taxSlabs is explicitly provided as empty array, we allow clearing it by not including it
+    // But if taxSlabs is provided and not empty, we require at least one valid slab
+    if (Object.keys(updateData).length === 0) {
+      return sendError(res, 'No tax configuration data provided for update', 400);
+    }
+
+    // Use transaction for consistency (even though single update is atomic)
+    await prisma.$transaction(async (tx) => {
+      await tx.property.update({
+        where: { id },
+        data: updateData,
+      });
+    });
+
+    return sendSuccess(res, null, 'Tax configuration updated successfully');
+  } catch (error) {
+    console.error('updatePropertyTax error:', error);
+    return sendError(res, 'Failed to update tax configuration', 500);
+  }
+};
+
 module.exports = {
   getPropertyForEdit,
   updateProperty,
@@ -2079,6 +2225,7 @@ module.exports = {
   updatePropertyFeatures,
   updatePropertyRoomTypes,
   updatePropertyMedia,
+  updatePropertyTax,
   deletePropertyRoomType,
 };
 

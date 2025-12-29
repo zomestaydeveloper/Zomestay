@@ -1,0 +1,16 @@
+{
+  "status": "commited",
+  "type": "frontend",
+  "scope": "codebase",
+  "localEndpoint": "http://localhost:5173",
+  "executionArgs": {
+    "projectName": "zomes_stay",
+    "projectPath": "C:\\works\\zomes_stay\\zomes_stay",
+    "testIds": [],
+    "additionalInstruction": "",
+    "envs": {
+      "API_KEY": "sk-user--fmi7uo_8yJuyW5Dr6dPuSCpMG_0OZCWg0q9u75oImyu_sGWsLtJewQo_YbTPD7OdBqkJC-LQsX8m5pt_hx0dDjQTVYlJyqEU1g6p_9HerpkS3vnmprqwQ3Tprr944hInjk"
+    }
+  },
+  "proxy": "http://4a47ffc4-5181-4e58-aa7b-b547c8618236:yYpjIxCC1cM4QUFL9zLrsS8kGJcMqaHd@tun.testsprite.com:8080"
+}

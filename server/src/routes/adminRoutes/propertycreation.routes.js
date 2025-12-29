@@ -8,8 +8,8 @@ const { extractRole } = require('../../middleware/extractRole.middleware');
 
 // Property creation routes
 // POST /properties: Admin-only - Create new property
-// uploadPropertyMedia.any() accepts all file fields (limits: 2MB per file, 60 files max)
-// Maximum: 12 property images + 12 images per room type × 4 room types = 60 files
+// Note: Room types and property images are added via edit page, not during creation
+// uploadPropertyMedia.any() is optional - only needed for city icon upload
 PropertycreateRoute.post('/properties', extractRole, uploadPropertyMedia.any(), propertyCreation.createProperty);
 
 // GET /properties_utils: Admin and Host can access - Get form dropdown data

@@ -497,6 +497,26 @@ const FrontDeskBoard = ({ mode = "admin", propertyId, propertyName: propertyName
     data: null,
     error: null,
   });
+  const [showCashPaymentForm, setShowCashPaymentForm] = useState(false);
+  const [cashPaymentForm, setCashPaymentForm] = useState({
+    guest: {
+      fullName: "",
+      email: "",
+      phone: "",
+      address: "",
+    },
+    payment: {
+      receivedBy: "",
+      receiptNumber: "",
+      paymentDate: new Date().toISOString().slice(0, 16),
+    },
+  });
+  const [cashPaymentError, setCashPaymentError] = useState(null);
+  const [cashPaymentRequest, setCashPaymentRequest] = useState({
+    status: "idle",
+    data: null,
+    error: null,
+  });
   const [roomStatusForm, setRoomStatusForm] = useState({
     reason: "",
     releaseAfterHours: String(DEFAULT_BLOCK_RELEASE_HOURS),
@@ -522,10 +542,35 @@ const FrontDeskBoard = ({ mode = "admin", propertyId, propertyName: propertyName
       error: null,
     });
   }, []);
+
+  const resetCashPaymentState = useCallback(() => {
+    setShowCashPaymentForm(false);
+    setCashPaymentForm({
+      guest: {
+        fullName: "",
+        email: "",
+        phone: "",
+        address: "",
+      },
+      payment: {
+        receivedBy: "",
+        receiptNumber: "",
+        paymentDate: new Date().toISOString().slice(0, 16),
+      },
+    });
+    setCashPaymentError(null);
+    setCashPaymentRequest({
+      status: "idle",
+      data: null,
+      error: null,
+    });
+  }, []);
+
   const resetHoldState = useCallback(() => {
     setHoldState({ status: "idle", data: null, message: null });
     resetPaymentLinkState();
-  }, [resetPaymentLinkState]);
+    resetCashPaymentState();
+  }, [resetPaymentLinkState, resetCashPaymentState]);
 
   const resetRoomStatusState = useCallback(() => {
     setRoomStatusForm({
@@ -538,6 +583,46 @@ const FrontDeskBoard = ({ mode = "admin", propertyId, propertyName: propertyName
       message: null,
     });
   }, []);
+
+  const frontdeskActor = useMemo(() => {
+    const buildActor = (auth, roleLabel) => {
+      if (!auth) return null;
+      const identifier = auth.id || auth.email || auth.phone;
+      if (!identifier) return null;
+      const nameParts = [auth.first_name, auth.last_name].filter(Boolean);
+      const name =
+        nameParts.join(" ").trim() ||
+        auth.email ||
+        auth.phone ||
+        auth.id ||
+        roleLabel;
+      const contact = auth.email || auth.phone || "";
+      const label =
+        contact && contact !== name
+          ? `${roleLabel}: ${name} (${contact})`
+          : `${roleLabel}: ${name}`;
+      return {
+        role: roleLabel.toLowerCase(),
+        id: identifier,
+        name,
+        contact,
+        label,
+        reason: `${roleLabel} hold`,
+      };
+    };
+
+    const path = (location?.pathname || "").toLowerCase();
+
+    if (path.startsWith("/host") || path.includes("/host/")) {
+      return buildActor(hostAuth, "Host") || buildActor(adminAuth, "Admin") || null;
+    }
+
+    if (path.startsWith("/admin") || path.includes("/admin/")) {
+      return buildActor(adminAuth, "Admin") || buildActor(hostAuth, "Host") || null;
+    }
+
+    return buildActor(adminAuth, "Admin") || buildActor(hostAuth, "Host") || null;
+  }, [location?.pathname, adminAuth, hostAuth]);
 
   const openRoomStatusModal = useCallback(
     ({ statusType, mode = "create", context = {} }) => {
@@ -643,45 +728,364 @@ const FrontDeskBoard = ({ mode = "admin", propertyId, propertyName: propertyName
     setShowPaymentLinkForm(false);
   }, [paymentLinkData]);
 
-  const frontdeskActor = useMemo(() => {
-    const buildActor = (auth, roleLabel) => {
-      if (!auth) return null;
-      const identifier = auth.id || auth.email || auth.phone;
-      if (!identifier) return null;
-      const nameParts = [auth.first_name, auth.last_name].filter(Boolean);
-      const name =
-        nameParts.join(" ").trim() ||
-        auth.email ||
-        auth.phone ||
-        auth.id ||
-        roleLabel;
-      const contact = auth.email || auth.phone || "";
-      const label =
-        contact && contact !== name
-          ? `${roleLabel}: ${name} (${contact})`
-          : `${roleLabel}: ${name}`;
+  const handleOpenCashPaymentForm = useCallback(() => {
+    setCashPaymentError(null);
+    setShowCashPaymentForm(true);
+    setCashPaymentForm((prev) => ({
+      ...prev,
+      payment: {
+        ...prev.payment,
+        receivedBy: frontdeskActor?.label || frontdeskActor?.name || "Front desk",
+      },
+    }));
+  }, [frontdeskActor]);
+
+  const handleCashPaymentFieldChange = useCallback(
+    (section, field) => (event) => {
+      const value = event?.target?.value ?? "";
+      setCashPaymentForm((prev) => ({
+        ...prev,
+        [section]: {
+          ...prev[section],
+          [field]: value,
+        },
+      }));
+    },
+    []
+  );
+
+  const handleCancelCashPaymentForm = useCallback(() => {
+    setCashPaymentError(null);
+    setShowCashPaymentForm(false);
+  }, []);
+
+  // Calculate pricing summary - must be defined before handlers that use it
+  const pricingSummary = useMemo(() => {
+    if (!bookingContext || !bookingDraft) return null;
+    // PRODUCTION: Match by MealPlan.id (not PropertyRoomTypeMealPlan.id)
+    // bookingDraft.mealPlanId contains MealPlan.id, but plan.id is PropertyRoomTypeMealPlan.id
+    const mealPlan = (bookingContext.mealPlans || []).find(
+      (plan) => plan.mealPlan?.id === bookingDraft.mealPlanId
+    );
+    if (!mealPlan) return null;
+
+    const roomsSelected = bookingDraft.selectedRoomIds?.length || 0;
+    if (roomsSelected === 0) {
+      return null;
+    }
+
+    const occupancy = getOccupancyValue(bookingContext);
+    const extraCapacity = getExtraCapacityValue(bookingContext);
+
+    const nights = Math.max(
+      bookingContext?.stay?.nights ?? calculateNights(bookingDraft.from, bookingDraft.to),
+      1
+    );
+
+    const singleRate = numberFrom(mealPlan.pricing?.singleOccupancy);
+    const doubleRate = numberFrom(mealPlan.pricing?.doubleOccupancy);
+    const groupRate = numberFrom(mealPlan.pricing?.groupOccupancy);
+    const extraAdultRate = numberFrom(mealPlan.pricing?.extraBedAdult);
+    const extraChildRate = numberFrom(mealPlan.pricing?.extraBedChild);
+    const extraInfantRate = numberFrom(mealPlan.pricing?.extraBedInfant);
+
+    const adults = Math.max(0, bookingDraft.adults ?? 0);
+    const children = Math.max(0, bookingDraft.children ?? 0);
+    const infants = Math.max(0, bookingDraft.infants ?? 0);
+
+    if (occupancy <= 0) {
       return {
-        role: roleLabel.toLowerCase(),
-        id: identifier,
-        name,
-        contact,
-        label,
-        reason: `${roleLabel} hold`,
+        error: "Room occupancy details are unavailable for pricing.",
+        total: 0,
+        perRoomBreakdown: [],
+        nights,
       };
+    }
+
+    const baseCapacity = occupancy * roomsSelected;
+    let remainingBase = baseCapacity;
+
+    const baseAdults = Math.min(adults, remainingBase);
+    remainingBase -= baseAdults;
+    const remainingAdults = adults - baseAdults;
+
+    const baseChildren = Math.min(children, remainingBase);
+    remainingBase -= baseChildren;
+    const remainingChildren = children - baseChildren;
+
+    const baseInfants = Math.min(infants, remainingBase);
+    remainingBase -= baseInfants;
+    const remainingInfants = infants - baseInfants;
+
+    const extrasAdults = remainingAdults;
+    const extrasChildren = remainingChildren;
+    const extrasInfants = remainingInfants;
+    const totalExtrasCount = extrasAdults + extrasChildren + extrasInfants;
+
+    const maxExtraCapacity = roomsSelected * extraCapacity;
+    if (totalExtrasCount > maxExtraCapacity) {
+      return {
+        error: `Not enough extra bed capacity for ${totalExtrasCount} additional guest(s).`,
+        total: 0,
+        perRoomBreakdown: [],
+        nights,
+      };
+    }
+
+    let basePerRoomPerNight = 0;
+    if (occupancy > 2 && groupRate > 0) {
+      basePerRoomPerNight = groupRate;
+    } else if (occupancy >= 2 && doubleRate > 0) {
+      basePerRoomPerNight = doubleRate;
+    } else {
+      basePerRoomPerNight = singleRate || doubleRate || groupRate;
+    }
+
+    if (!basePerRoomPerNight) {
+      return {
+        error: "Base pricing information is unavailable for the selected meal plan.",
+        total: 0,
+        perRoomBreakdown: [],
+        nights,
+      };
+    }
+
+    const extrasPerNight =
+      extrasAdults * extraAdultRate +
+      extrasChildren * extraChildRate +
+      extrasInfants * extraInfantRate;
+
+    const basePerNightTotal = basePerRoomPerNight * roomsSelected;
+    const totalPerNight = basePerNightTotal + extrasPerNight;
+    const totalBasePrice = totalPerNight * nights;
+    
+    // Build extra breakdown array first (before using it)
+    const extraBreakdown = [];
+    if (extrasAdults > 0) {
+      extraBreakdown.push({
+        type: "adult",
+        count: extrasAdults,
+        perNight: extraAdultRate,
+      });
+    }
+    if (extrasChildren > 0) {
+      extraBreakdown.push({
+        type: "child",
+        count: extrasChildren,
+        perNight: extraChildRate,
+      });
+    }
+    if (extrasInfants > 0) {
+      extraBreakdown.push({
+        type: "infant",
+        count: extrasInfants,
+        perNight: extraInfantRate,
+      });
+    }
+    
+    // Calculate tax per room (5% for <= 7500, 18% for > 7500)
+    const calculateTaxForRoom = (roomBasePrice) => {
+      return roomBasePrice <= 7500 ? roomBasePrice * 0.05 : roomBasePrice * 0.18;
     };
+    
+    // Calculate tax for each room and sum them
+    let totalTax = 0;
+    const perRoomBreakdownWithTax = Array.from({ length: roomsSelected }, (_, index) => {
+      const isFirstRoom = index === 0;
+      const perNight =
+        basePerRoomPerNight + (isFirstRoom ? extrasPerNight : 0);
+      const roomBasePrice = perNight * nights;
+      const roomTax = calculateTaxForRoom(roomBasePrice);
+      totalTax += roomTax;
+      
+      return {
+        roomIndex: index + 1,
+        baseGuests: occupancy,
+        baseCount: occupancy,
+        basePerNight: basePerRoomPerNight,
+        extras: isFirstRoom ? extraBreakdown : [],
+        perNight,
+        total: roomBasePrice,
+        tax: roomTax,
+        totalWithTax: roomBasePrice + roomTax,
+      };
+    });
+    
+    const total = totalBasePrice + totalTax;
 
-    const path = (location?.pathname || "").toLowerCase();
+    return {
+      total,
+      perRoomBreakdown: perRoomBreakdownWithTax,
+      nights,
+      extras: {
+        adults: extrasAdults,
+        children: extrasChildren,
+        infants: extrasInfants,
+      },
+      basePerNightTotal,
+      extrasPerNight,
+      totalPerNight,
+      totalBasePrice,
+      totalTax,
+    };
+  }, [bookingContext, bookingDraft]);
 
-    if (path.startsWith("/host") || path.includes("/host/")) {
-      return buildActor(hostAuth, "Host") || buildActor(adminAuth, "Admin") || null;
+  const handleRecordCashPayment = useCallback(async () => {
+    if (!propertyId || !bookingDraft || holdState.status !== "success") {
+      setCashPaymentError("Please complete the booking hold first.");
+      return;
     }
 
-    if (path.startsWith("/admin") || path.includes("/admin/")) {
-      return buildActor(adminAuth, "Admin") || buildActor(hostAuth, "Host") || null;
+    const guest = cashPaymentForm.guest;
+    const payment = cashPaymentForm.payment;
+
+    // Validation
+    if (!guest.fullName || guest.fullName.trim().length < 2) {
+      setCashPaymentError("Guest full name is required (minimum 2 characters).");
+      return;
     }
 
-    return buildActor(adminAuth, "Admin") || buildActor(hostAuth, "Host") || null;
-  }, [location?.pathname, adminAuth, hostAuth]);
+    if (!guest.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guest.email)) {
+      setCashPaymentError("Valid guest email is required.");
+      return;
+    }
+
+    if (!guest.phone || !/^\d{10}$/.test(guest.phone)) {
+      setCashPaymentError("Valid guest phone number is required (10 digits).");
+      return;
+    }
+
+    if (!payment.receivedBy || payment.receivedBy.trim().length < 2) {
+      setCashPaymentError("Payment received by information is required.");
+      return;
+    }
+
+    if (!payment.paymentDate) {
+      setCashPaymentError("Payment date is required.");
+      return;
+    }
+
+    const paymentDate = new Date(payment.paymentDate);
+    if (paymentDate > new Date()) {
+      setCashPaymentError("Payment date cannot be in the future.");
+      return;
+    }
+
+    if (!pricingSummary || pricingSummary.total <= 0) {
+      setCashPaymentError("Invalid pricing. Please recalculate the booking.");
+      return;
+    }
+
+    setCashPaymentRequest({ status: "loading", data: null, error: null });
+    setCashPaymentError(null);
+
+    try {
+      const propertyRoomTypeId =
+        bookingContext?.roomType?.propertyRoomTypeId || activeContext?.roomType?.id;
+
+      if (!propertyRoomTypeId) {
+        throw new Error("Property room type identifier is missing.");
+      }
+
+      const payload = {
+        propertyRoomTypeId,
+        booking: {
+          from: bookingDraft.from,
+          to: bookingDraft.to,
+          adults: bookingDraft.adults || 0,
+          children: bookingDraft.children || 0,
+          infants: bookingDraft.infants || 0,
+          totalGuests:
+            (bookingDraft.adults || 0) +
+            (bookingDraft.children || 0) +
+            (bookingDraft.infants || 0),
+          selectedRoomIds: bookingDraft.selectedRoomIds || [],
+          notes: bookingDraft.notes || "",
+          mealPlanId: bookingDraft.mealPlanId || null,
+        },
+        pricing: {
+          total: pricingSummary.total,
+          nights: pricingSummary.nights,
+          basePerNightTotal: pricingSummary.totalBasePrice || 0,
+          extrasPerNight: 0,
+          totalPerNight: pricingSummary.total / (pricingSummary.nights || 1),
+          perRoomBreakdown: pricingSummary.perRoomBreakdown || [],
+        },
+        hold: {
+          recordIds: (holdState.status === "success" && holdState.data?.records?.map((r) => r.id)) || [],
+          holdUntil: (holdState.status === "success" && holdState.data?.holdUntil) || null,
+        },
+        guest: {
+          fullName: guest.fullName.trim(),
+          email: guest.email.trim().toLowerCase(),
+          phone: guest.phone.trim(),
+          address: guest.address?.trim() || null,
+        },
+        payment: {
+          amount: pricingSummary.total,
+          receivedBy: payment.receivedBy.trim(),
+          paymentDate: paymentDate.toISOString(),
+          receiptNumber: payment.receiptNumber?.trim() || null,
+        },
+        createdBy: {
+          type: frontdeskActor?.role || "admin",
+          id: frontdeskActor?.id || null,
+          label: frontdeskActor?.label || payment.receivedBy.trim(),
+        },
+      };
+
+      const response = await paymentService.createCashBooking({
+        propertyId,
+        payload,
+      });
+
+      if (response?.data?.success && response?.data?.data) {
+        const result = response.data.data;
+        setCashPaymentRequest({
+          status: "success",
+          data: {
+            bookingNumber: result.booking?.bookingNumber,
+            transactionID: result.payment?.transactionID,
+            amount: result.payment?.amount,
+          },
+          error: null,
+        });
+
+        // Refresh the front desk board
+        setTimeout(() => {
+          setRefreshCounter((prev) => prev + 1);
+          resetHoldState();
+          resetCashPaymentState();
+          setActiveContext(null);
+        }, 2000);
+      } else {
+        throw new Error(response?.data?.message || "Failed to create cash booking");
+      }
+    } catch (error) {
+      console.error("Error creating cash booking:", error);
+      const errorMessage =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Failed to create booking with cash payment. Please try again.";
+      setCashPaymentError(errorMessage);
+      setCashPaymentRequest({
+        status: "error",
+        data: null,
+        error: errorMessage,
+      });
+    }
+  }, [
+    propertyId,
+    bookingDraft,
+    holdState,
+    cashPaymentForm,
+    pricingSummary,
+    bookingContext,
+    activeContext,
+    frontdeskActor,
+    resetHoldState,
+    resetCashPaymentState,
+  ]);
 
   const handleSubmitRoomStatus = useCallback(async () => {
     if (!activeContext || activeContext.type !== "roomStatus") {
@@ -1108,175 +1512,6 @@ const FrontDeskBoard = ({ mode = "admin", propertyId, propertyName: propertyName
     : paymentLinkResult?.expireBy
     ? formatDateTime(paymentLinkResult.expireBy)
     : null;
-  const pricingSummary = useMemo(() => {
-    if (!bookingContext || !bookingDraft) return null;
-    // PRODUCTION: Match by MealPlan.id (not PropertyRoomTypeMealPlan.id)
-    // bookingDraft.mealPlanId contains MealPlan.id, but plan.id is PropertyRoomTypeMealPlan.id
-    const mealPlan = (bookingContext.mealPlans || []).find(
-      (plan) => plan.mealPlan?.id === bookingDraft.mealPlanId
-    );
-    if (!mealPlan) return null;
-
-    const roomsSelected = bookingDraft.selectedRoomIds?.length || 0;
-    if (roomsSelected === 0) {
-      return null;
-    }
-
-    const occupancy = getOccupancyValue(bookingContext);
-    const extraCapacity = getExtraCapacityValue(bookingContext);
-
-    const nights = Math.max(
-      bookingContext?.stay?.nights ?? calculateNights(bookingDraft.from, bookingDraft.to),
-      1
-    );
-
-    const singleRate = numberFrom(mealPlan.pricing?.singleOccupancy);
-    const doubleRate = numberFrom(mealPlan.pricing?.doubleOccupancy);
-    const groupRate = numberFrom(mealPlan.pricing?.groupOccupancy);
-    const extraAdultRate = numberFrom(mealPlan.pricing?.extraBedAdult);
-    const extraChildRate = numberFrom(mealPlan.pricing?.extraBedChild);
-    const extraInfantRate = numberFrom(mealPlan.pricing?.extraBedInfant);
-
-    const adults = Math.max(0, bookingDraft.adults ?? 0);
-    const children = Math.max(0, bookingDraft.children ?? 0);
-    const infants = Math.max(0, bookingDraft.infants ?? 0);
-
-    if (occupancy <= 0) {
-      return {
-        error: "Room occupancy details are unavailable for pricing.",
-        total: 0,
-        perRoomBreakdown: [],
-        nights,
-      };
-    }
-
-    const baseCapacity = occupancy * roomsSelected;
-    let remainingBase = baseCapacity;
-
-    const baseAdults = Math.min(adults, remainingBase);
-    remainingBase -= baseAdults;
-    const remainingAdults = adults - baseAdults;
-
-    const baseChildren = Math.min(children, remainingBase);
-    remainingBase -= baseChildren;
-    const remainingChildren = children - baseChildren;
-
-    const baseInfants = Math.min(infants, remainingBase);
-    remainingBase -= baseInfants;
-    const remainingInfants = infants - baseInfants;
-
-    const extrasAdults = remainingAdults;
-    const extrasChildren = remainingChildren;
-    const extrasInfants = remainingInfants;
-    const totalExtrasCount = extrasAdults + extrasChildren + extrasInfants;
-
-    const maxExtraCapacity = roomsSelected * extraCapacity;
-    if (totalExtrasCount > maxExtraCapacity) {
-      return {
-        error: `Not enough extra bed capacity for ${totalExtrasCount} additional guest(s).`,
-        total: 0,
-        perRoomBreakdown: [],
-        nights,
-      };
-    }
-
-    let basePerRoomPerNight = 0;
-    if (occupancy > 2 && groupRate > 0) {
-      basePerRoomPerNight = groupRate;
-    } else if (occupancy >= 2 && doubleRate > 0) {
-      basePerRoomPerNight = doubleRate;
-    } else {
-      basePerRoomPerNight = singleRate || doubleRate || groupRate;
-    }
-
-    if (!basePerRoomPerNight) {
-      return {
-        error: "Base pricing information is unavailable for the selected meal plan.",
-        total: 0,
-        perRoomBreakdown: [],
-        nights,
-      };
-    }
-
-    const extrasPerNight =
-      extrasAdults * extraAdultRate +
-      extrasChildren * extraChildRate +
-      extrasInfants * extraInfantRate;
-
-    const basePerNightTotal = basePerRoomPerNight * roomsSelected;
-    const totalPerNight = basePerNightTotal + extrasPerNight;
-    const totalBasePrice = totalPerNight * nights;
-    
-    // Build extra breakdown array first (before using it)
-    const extraBreakdown = [];
-    if (extrasAdults > 0) {
-      extraBreakdown.push({
-        type: "adult",
-        count: extrasAdults,
-        perNight: extraAdultRate,
-      });
-    }
-    if (extrasChildren > 0) {
-      extraBreakdown.push({
-        type: "child",
-        count: extrasChildren,
-        perNight: extraChildRate,
-      });
-    }
-    if (extrasInfants > 0) {
-      extraBreakdown.push({
-        type: "infant",
-        count: extrasInfants,
-        perNight: extraInfantRate,
-      });
-    }
-    
-    // Calculate tax per room (5% for <= 7500, 18% for > 7500)
-    const calculateTaxForRoom = (roomBasePrice) => {
-      return roomBasePrice <= 7500 ? roomBasePrice * 0.05 : roomBasePrice * 0.18;
-    };
-    
-    // Calculate tax for each room and sum them
-    let totalTax = 0;
-    const perRoomBreakdownWithTax = Array.from({ length: roomsSelected }, (_, index) => {
-      const isFirstRoom = index === 0;
-      const perNight =
-        basePerRoomPerNight + (isFirstRoom ? extrasPerNight : 0);
-      const roomBasePrice = perNight * nights;
-      const roomTax = calculateTaxForRoom(roomBasePrice);
-      totalTax += roomTax;
-      
-      return {
-        roomIndex: index + 1,
-        baseGuests: occupancy,
-        baseCount: occupancy,
-        basePerNight: basePerRoomPerNight,
-        extras: isFirstRoom ? extraBreakdown : [],
-        perNight,
-        total: roomBasePrice,
-        tax: roomTax,
-        totalWithTax: roomBasePrice + roomTax,
-      };
-    });
-    
-    const total = totalBasePrice + totalTax;
-
-    return {
-      total,
-      perRoomBreakdown: perRoomBreakdownWithTax,
-      nights,
-      extras: {
-        adults: extrasAdults,
-        children: extrasChildren,
-        infants: extrasInfants,
-      },
-      basePerNightTotal,
-      extrasPerNight,
-      totalPerNight,
-      totalBasePrice,
-      totalTax,
-    };
-  }, [bookingContext, bookingDraft]);
 
   const handleCreatePaymentLink = useCallback(async () => {
     if (paymentLinkRequest.status === "loading") {
@@ -2833,6 +3068,154 @@ const FrontDeskBoard = ({ mode = "admin", propertyId, propertyName: propertyName
                   </div>
                 )}
 
+                {showCashPaymentForm && (
+                  <div className="space-y-3 rounded-md border border-gray-200 bg-white px-3 py-3 text-gray-700 shadow-sm">
+                    <div className="text-sm font-semibold text-gray-900">Cash Payment Details</div>
+                    {cashPaymentError && (
+                      <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-600">
+                        {cashPaymentError}
+                      </div>
+                    )}
+                    {cashPaymentRequest.status === "success" && cashPaymentRequest.data && (
+                      <div className="space-y-1 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                        <div className="text-[11px] font-semibold uppercase tracking-wide text-emerald-800">
+                          Booking Created Successfully
+                        </div>
+                        <div>Booking Number: <span className="font-semibold">{cashPaymentRequest.data.bookingNumber}</span></div>
+                        <div>Transaction ID: <span className="font-semibold">{cashPaymentRequest.data.transactionID}</span></div>
+                        <div>Amount: <span className="font-semibold">₹{cashPaymentRequest.data.amount?.toLocaleString("en-IN")}</span></div>
+                        <div className="mt-2 pt-2 border-t border-emerald-200">
+                          <div className="text-[10px] text-emerald-600">The booking has been confirmed. Rooms are now marked as booked.</div>
+                        </div>
+                      </div>
+                    )}
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className="flex flex-col gap-1">
+                        <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                          Guest Full Name*
+                        </span>
+                        <input
+                          value={cashPaymentForm?.guest?.fullName || ""}
+                          onChange={handleCashPaymentFieldChange("guest", "fullName")}
+                          type="text"
+                          placeholder="Guest name"
+                          className="rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          required
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1">
+                        <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                          Guest Email*
+                        </span>
+                        <input
+                          value={cashPaymentForm?.guest?.email || ""}
+                          onChange={handleCashPaymentFieldChange("guest", "email")}
+                          type="email"
+                          placeholder="guest@email.com"
+                          className="rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          required
+                        />
+                      </label>
+                    </div>
+                    <label className="flex flex-col gap-1 sm:w-1/2">
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                        Mobile Number*
+                      </span>
+                      <div className="flex items-center rounded-md border border-gray-200 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
+                        <span className="px-3 text-sm text-gray-500">+91</span>
+                        <input
+                          value={cashPaymentForm?.guest?.phone || ""}
+                          onChange={handleCashPaymentFieldChange("guest", "phone")}
+                          type="tel"
+                          inputMode="numeric"
+                          maxLength={10}
+                          placeholder="10 digit number"
+                          className="flex-1 rounded-r-md border-l border-gray-200 px-3 py-2 text-sm text-gray-700 focus:outline-none"
+                          required
+                        />
+                      </div>
+                    </label>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className="flex flex-col gap-1">
+                        <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                          Payment Received By*
+                        </span>
+                        <input
+                          value={cashPaymentForm?.payment?.receivedBy || ""}
+                          onChange={handleCashPaymentFieldChange("payment", "receivedBy")}
+                          type="text"
+                          placeholder="Staff name"
+                          className="rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          required
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1">
+                        <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                          Receipt Number (optional)
+                        </span>
+                        <input
+                          value={cashPaymentForm?.payment?.receiptNumber || ""}
+                          onChange={handleCashPaymentFieldChange("payment", "receiptNumber")}
+                          type="text"
+                          placeholder="Receipt number"
+                          className="rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                      </label>
+                    </div>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                        Payment Date*
+                      </span>
+                      <input
+                        type="datetime-local"
+                        value={cashPaymentForm?.payment?.paymentDate || ""}
+                        onChange={handleCashPaymentFieldChange("payment", "paymentDate")}
+                        max={new Date().toISOString().slice(0, 16)}
+                        className="rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        required
+                      />
+                    </label>
+                    {pricingSummary && (
+                      <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                        <div className="flex items-center justify-between font-semibold">
+                          <span>Total Amount:</span>
+                          <span>₹{pricingSummary.total.toLocaleString("en-IN")}</span>
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={handleCancelCashPaymentForm}
+                        className="rounded-md border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:border-gray-300 hover:text-gray-800"
+                        disabled={cashPaymentRequest.status === "loading"}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleRecordCashPayment}
+                        className="rounded-md bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={
+                          cashPaymentRequest.status === "loading" ||
+                          cashPaymentRequest.status === "success" ||
+                          !cashPaymentForm?.guest?.fullName ||
+                          !cashPaymentForm?.guest?.email ||
+                          !cashPaymentForm?.guest?.phone ||
+                          !cashPaymentForm?.payment?.receivedBy ||
+                          !cashPaymentForm?.payment?.paymentDate
+                        }
+                      >
+                        {cashPaymentRequest.status === "loading"
+                          ? "Processing..."
+                          : cashPaymentRequest.status === "success"
+                          ? "Booking Created"
+                          : "Record Cash Payment"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex flex-wrap items-center justify-end gap-2">
                   <button
                     type="button"
@@ -2843,10 +3226,15 @@ const FrontDeskBoard = ({ mode = "admin", propertyId, propertyName: propertyName
                   </button>
                   <button
                     type="button"
+                    onClick={handleOpenCashPaymentForm}
                     className="rounded-md bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled
+                    disabled={
+                      cashPaymentRequest.status === "loading" ||
+                      cashPaymentRequest.status === "success" ||
+                      holdState.status !== "success"
+                    }
                   >
-                    Record cash payment (coming soon)
+                    {cashPaymentRequest.status === "success" ? "Booking Created" : "Record cash payment"}
                   </button>
                   <button
                     type="button"

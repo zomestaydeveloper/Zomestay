@@ -6,14 +6,14 @@ import MobileSearchModal from "./MobileSearchModal";
 import { useNavigate, useLocation } from "react-router-dom";
 import ErrorDialog from './ErrorDialog';
 import { useSearch } from '../context/SearchContext';
-import { Phone, Calendar, LogOut, ChevronDown, User, BookOpen } from 'lucide-react';
+import { Phone, Calendar, LogOut, ChevronDown, User, BookOpen, MapPin } from 'lucide-react';
 import { useSelector, useDispatch } from 'react-redux';
 import { logoutUser } from '../store/userAuthSlice';
 import { logoutAgent } from '../store/agentAuthSlice';
 import { persistor } from '../store/store';
 import userAuthService from '../services/auth/user_authService';
 import agentAuthService from '../services/auth/agent_authService';
-import { siteConfigService, mediaService } from '../services';
+import { siteConfigService, mediaService, propertySearchService } from '../services';
 import { findRoleFromPathname } from '../utils/findrole';
 
 const customStyles = {
@@ -53,18 +53,24 @@ const Header = () => {
   const [error, setError] = useState(null);
   const userAuth = useSelector((state) => state.userAuth);
   const agentAuth = useSelector((state) => state.agentAuth);
-  
+
+  const toLocalISOString = (date) => {
+    if (!date) return "";
+    const offset = date.getTimezoneOffset();
+    const adjustedDate = new Date(date.getTime() - (offset * 60 * 1000));
+    return adjustedDate.toISOString().split('T')[0];
+  };
+
   /**
    * Detect role from current route/pathname using utility function
    * This ensures correct role detection even when multiple roles are logged in
    * Priority: /app/agent/* → agent, /app/* → user
    */
   const currentRole = findRoleFromPathname(location.pathname) || 'user';
-  
+
   // Determine if current role is logged in based on route context
   const isUserLoggedIn = currentRole === 'user' && Boolean(userAuth?.userAccessToken);
   const isAgentLoggedIn = currentRole === 'agent' && Boolean(agentAuth?.agentAccessToken);
-  const isLoggedIn = isUserLoggedIn || isAgentLoggedIn;
   // Search Parameters State
   const [searchParams, setSearchParams] = useState({
     checkIn: "",
@@ -73,7 +79,8 @@ const Header = () => {
     children: 0,
     infants: 0,
     rooms: 1,
-    infantsUseBed: 0
+    infantsUseBed: 0,
+    city: ""
   });
 
   // console.log(searchParams); // Removed to prevent infinite re-rendering
@@ -86,7 +93,29 @@ const Header = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
-  
+  // Location Search State
+  const [cities, setCities] = useState([]);
+  const [locationQuery, setLocationQuery] = useState("");
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // Filter cities based on query.
+  // If query is empty, allow all cities (for focus event).
+  // If query has text, filter by text.
+  const filteredCities = cities.filter(city => {
+    if (!locationQuery) return true;
+    const cityName = typeof city === 'string' ? city : (city.name || city.city);
+    if (!cityName) return false;
+    return cityName.toLowerCase().includes(locationQuery.toLowerCase());
+  }).slice(0, 10); // Show max 10 suggestions
+  console.log(filteredCities);
+  // Update searchParams when location changes
+  useEffect(() => {
+    setSearchParams(prev => ({
+      ...prev,
+      city: locationQuery
+    }));
+  }, [locationQuery]);
+
   // Site Configuration State
   const [siteConfig, setSiteConfig] = useState({
     logo: null,
@@ -95,7 +124,7 @@ const Header = () => {
     heroTitle: null,
     heroSubtitle: null
   });
-  
+
   // Slider State - use dynamic banner images
   const slides = siteConfig.bannerImages || [];
   const [idx, setIdx] = useState(0);
@@ -113,8 +142,8 @@ const Header = () => {
       const [start, end] = arg1 || [null, null];
       setSearchParams(prev => ({
         ...prev,
-        checkIn: start instanceof Date ? start.toISOString().split('T')[0] : "",
-        checkOut: end instanceof Date ? end.toISOString().split('T')[0] : ""
+        checkIn: start instanceof Date ? toLocalISOString(start) : "",
+        checkOut: end instanceof Date ? toLocalISOString(end) : ""
       }));
     } else if (typeof arg1 === 'string' && typeof arg2 === 'string') {
       // arg1 is 'checkIn' or 'checkOut', arg2 is value (yyyy-mm-dd)
@@ -169,8 +198,8 @@ const Header = () => {
   const handleDateRangeSelect = ({ checkIn, checkOut }) => {
     setSearchParams(prev => ({
       ...prev,
-      checkIn: checkIn ? checkIn.toISOString().split('T')[0] : "",
-      checkOut: checkOut ? checkOut.toISOString().split('T')[0] : ""
+      checkIn: checkIn ? toLocalISOString(checkIn) : "",
+      checkOut: checkOut ? toLocalISOString(checkOut) : ""
     }));
     setDateRange([checkIn, checkOut]);
   };
@@ -193,12 +222,12 @@ const Header = () => {
         const response = await siteConfigService.getSiteConfig();
         if (response?.data?.success && response?.data?.data) {
           const config = response.data.data;
-          
+
           // Convert banner images URLs to full URLs if needed using mediaService
           const bannerImages = config.bannerImages && config.bannerImages.length > 0
             ? config.bannerImages.map(path => mediaService.getMedia(path))
             : [];
-          
+
           setSiteConfig({
             logo: config.logo ? mediaService.getMedia(config.logo) : null,
             phoneNumber: config.phoneNumber || null,
@@ -222,6 +251,22 @@ const Header = () => {
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    const fetchCities = async () => {
+      try {
+        const response = await propertySearchService.getUniqueCities();
+        if (response?.data?.success && response?.data?.data) {
+          const cities = response.data.data;
+          setCities(cities);
+        }
+      } catch (error) {
+        console.error('Failed to fetch cities:', error);
+      }
+    };
+
+    fetchCities();
   }, []);
 
   // Handle logout based on current role from route
@@ -250,10 +295,14 @@ const Header = () => {
       // Clear appropriate Redux state based on role
       if (currentRole === 'agent') {
         dispatch(logoutAgent());
+        // Clear localStorage persist key (aligned with Admin/Host pattern)
+        localStorage.removeItem("persist:agentAuth");
         // Navigate to agent login or home
         navigate('/', { replace: true });
       } else {
         dispatch(logoutUser());
+        // Clear localStorage persist key (aligned with Admin/Host pattern)
+        localStorage.removeItem("persist:userAuth");
         // Navigate to login page
         navigate('/', { replace: true });
       }
@@ -266,7 +315,7 @@ const Header = () => {
   };
 
   return (
-      <header className=" relative text-white">
+    <header className=" relative text-white">
       {/* Slider area */}
       <div className="relative h-[260px] sm:h-[260px] md:h-[360px] lg:h-[460px]">
         {/* Slides */}
@@ -276,9 +325,8 @@ const Header = () => {
               key={i}
               src={src}
               alt={`Banner ${i + 1}`}
-              className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${
-                i === idx ? "opacity-100" : "opacity-0"
-              }`}
+              className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${i === idx ? "opacity-100" : "opacity-0"
+                }`}
             />
           ))
         ) : (
@@ -318,7 +366,7 @@ const Header = () => {
             {isUserLoggedIn && (
               <>
                 <div className="relative">
-                  <button 
+                  <button
                     className="bg-white border border-gray-200 shadow-lg px-4 h-10 flex items-center gap-2 rounded-full hover:bg-gray-50 transition-colors"
                     onClick={() => setUserDropdownOpen(!userDropdownOpen)}
                     title="Menu"
@@ -330,7 +378,7 @@ const Header = () => {
                     <ChevronDown size={16} className={`text-gray-600 transition-transform ${userDropdownOpen ? 'rotate-180' : ''}`} />
                   </button>
                   {userDropdownOpen && (
-                    <div 
+                    <div
                       className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50"
                       onClick={(e) => e.stopPropagation()}
                     >
@@ -373,7 +421,7 @@ const Header = () => {
             {isAgentLoggedIn && (
 
               <>
-              <button 
+                <button
                   className="bg-white border border-gray-200 shadow-lg w-20 h-10 flex items-center justify-center rounded-full hover:bg-gray-50 transition-colors"
                   onClick={() => navigate('/agent/dashboard')}
                   title="Profile"
@@ -388,17 +436,32 @@ const Header = () => {
                     <path d="M12 14c-4 0-6 2-6 4v2h12v-2c0-2-2-4-6-4z" />
                   </svg>
                 </button>
-              <button
-                onClick={handleLogout}
-                className="bg-red-600 text-white text-xs px-4 py-2 rounded-full font-semibold hover:bg-red-700 transition-colors flex items-center gap-2"
-                title="Logout"
-              >
-                <LogOut size={14} />
-                Logout
-              </button>
+                <button
+                  onClick={handleLogout}
+                  className="bg-red-600 text-white text-xs px-4 py-2 rounded-full font-semibold hover:bg-red-700 transition-colors flex items-center gap-2"
+                  title="Logout"
+                >
+                  <LogOut size={14} />
+                  Logout
+                </button>
               </>
             )}
-            
+
+            {/* Login Button for Not Logged In */}
+            {!isUserLoggedIn && !isAgentLoggedIn && (
+              <button
+                onClick={() => navigate("/login")}
+                className={`text-xs px-6 py-2.5 rounded-full font-bold transition-all duration-300 shadow-md flex items-center gap-2
+                 ${scrolled
+                    ? "bg-[#004AAD] text-white hover:bg-[#00398a]"
+                    : "bg-white text-[#004AAD] hover:bg-gray-100"
+                  }`}
+              >
+                <User size={16} />
+                Login
+              </button>
+            )}
+
           </div>
 
           {/* Mobile menu button */}
@@ -439,62 +502,115 @@ const Header = () => {
           <div className="hidden sm:flex bg-white w-full max-w-4xl mx-auto flex-col rounded-lg shadow-lg">
             {/* Main search row */}
             <div className="flex flex-row items-center gap-3 p-3">
-            {/* Date Range Selector */}
-            <div className="flex-1 min-w-0">
-              <div className="flex flex-col flex-1 min-w-[200px]">
-                <label className="block text-xs text-gray-500 mb-1">Check In & Out</label>
+              {/* Location Selector */}
+              <div className="flex-1 min-w-0">
+                <div className="flex flex-col flex-1 min-w-[200px]">
+                  <label className="block text-xs text-gray-500 mb-1">Location</label>
+                  <div className="relative w-full h-11">
+                    <input
+                      type="text"
+                      value={locationQuery}
+                      onChange={(e) => {
+                        setLocationQuery(e.target.value);
+                        setShowSuggestions(true);
+                      }}
+                      onFocus={() => setShowSuggestions(true)}
+                      onBlur={() => setTimeout(() => setShowSuggestions(false), 200)} // Delay to allow selection
+                      placeholder="Where are you going?"
+                      className="w-full h-full pl-3 pr-10 py-2 rounded-md border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-700 text-sm md:text-base bg-gray-50"
+                    />
+                    <MapPin size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
+
+
+                    {/* Suggestions Dropdown */}
+                    {showSuggestions && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-50 max-h-60 overflow-y-auto">
+                        {filteredCities.length > 0 ? (
+                          filteredCities.map((city, index) => {
+                            const cityName = typeof city === 'string' ? city : city.name;
+                            console.log(cityName);
+                            return (
+                              <button
+                                key={index}
+                                className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors flex items-center gap-3 border-b border-gray-100 last:border-0"
+                                onClick={() => {
+                                  setLocationQuery(cityName);
+                                  setShowSuggestions(false);
+                                }}
+                              >
+                                <div className="p-2 bg-blue-100 rounded-full text-blue-600">
+                                  <MapPin size={16} />
+                                </div>
+                                <span className="font-medium text-gray-700 lowercase">{cityName}</span>
+                              </button>
+                            );
+                          })
+                        ) : (
+                          <div className="px-4 py-3 text-sm text-gray-500 text-center">
+                            No results found
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Date Range Selector */}
+              <div className="flex-1 min-w-0">
+                <div className="flex flex-col flex-1 min-w-[200px]">
+                  <label className="block text-xs text-gray-500 mb-1">Check In & Out</label>
+                  <button
+                    type="button"
+                    onClick={() => setShowDatePicker(true)}
+                    className="w-full h-11 px-3 py-2 rounded-md border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-700 text-sm md:text-base bg-gray-50 text-left flex items-center justify-between"
+                  >
+                    <span>
+                      {searchParams.checkIn && searchParams.checkOut
+                        ? `${new Date(searchParams.checkIn).toLocaleDateString()} - ${new Date(searchParams.checkOut).toLocaleDateString()}`
+                        : "Select dates"
+                      }
+                    </span>
+                    <Calendar size={16} className="text-gray-400" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Guests */}
+              <div className="flex flex-col flex-1 min-w-[220px] relative">
+                <label className="block text-xs text-gray-500 mb-1">Guests</label>
                 <button
                   type="button"
-                  onClick={() => setShowDatePicker(true)}
-                  className="w-full h-11 px-3 py-2 rounded-md border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-700 text-sm md:text-base bg-gray-50 text-left flex items-center justify-between"
+                  className="w-full h-11 px-4 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-700 text-sm md:text-base text-left bg-gray-50"
+                  onClick={() => setShowGuestSelector(true)}
                 >
-                  <span>
-                    {searchParams.checkIn && searchParams.checkOut 
-                      ? `${new Date(searchParams.checkIn).toLocaleDateString()} - ${new Date(searchParams.checkOut).toLocaleDateString()}`
-                      : "Select dates"
-                    }
-                  </span>
-                  <Calendar size={16} className="text-gray-400" />
+                  {`${searchParams.adults + searchParams.children} Guests${searchParams.infants > 0 ? `, ${searchParams.infants} Infant` : ''
+                    }, ${searchParams.rooms}+ Rooms`}
                 </button>
+                {showGuestSelector && (
+                  <GuestSelectorPopup
+                    adults={searchParams.adults}
+                    children={searchParams.children}
+                    infants={searchParams.infants}
+                    rooms={searchParams.rooms}
+                    setAdults={(val) => updateGuestCounts(val, searchParams.children, searchParams.infants, searchParams.rooms)}
+                    setChildren={(val) => updateGuestCounts(searchParams.adults, val, searchParams.infants, searchParams.rooms)}
+                    setInfants={(val) => updateGuestCounts(searchParams.adults, searchParams.children, val, searchParams.rooms)}
+                    setRooms={(val) => updateGuestCounts(searchParams.adults, searchParams.children, searchParams.infants, val)}
+                    onClose={() => setShowGuestSelector(false)}
+                    onClear={() => updateGuestCounts(2, 0, 0, 1)}
+                  />
+                )}
               </div>
-            </div>
 
-            {/* Guests */}
-            <div className="flex flex-col flex-1 min-w-[220px] relative">
-              <label className="block text-xs text-gray-500 mb-1">Guests</label>
+              {/* Search Button */}
               <button
-                type="button"
-                className="w-full h-11 px-4 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-700 text-sm md:text-base text-left bg-gray-50"
-                onClick={() => setShowGuestSelector(true)}
+                onClick={handleSearchClick}
+                className="h-11 bg-[#004AAD] text-white px-8 mt-4 rounded-md font-semibold hover:bg-[#003080] transition text-sm md:text-base whitespace-nowrap flex items-center justify-center"
+                style={{ minWidth: '120px' }}
               >
-                {`${searchParams.adults + searchParams.children} Guests${
-                  searchParams.infants > 0 ? `, ${searchParams.infants} Infant` : ''
-                }, ${searchParams.rooms}+ Rooms`}
+                SEARCH
               </button>
-              {showGuestSelector && (
-                <GuestSelectorPopup
-                  adults={searchParams.adults}
-                  children={searchParams.children}
-                  infants={searchParams.infants}
-                  rooms={searchParams.rooms}
-                  setAdults={(val) => updateGuestCounts(val, searchParams.children, searchParams.infants, searchParams.rooms)}
-                  setChildren={(val) => updateGuestCounts(searchParams.adults, val, searchParams.infants, searchParams.rooms)}
-                  setInfants={(val) => updateGuestCounts(searchParams.adults, searchParams.children, val, searchParams.rooms)}
-                  setRooms={(val) => updateGuestCounts(searchParams.adults, searchParams.children, searchParams.infants, val)}
-                  onClose={() => setShowGuestSelector(false)}
-                  onClear={() => updateGuestCounts(2, 0, 0, 1)}
-                />
-              )}
-            </div>
-
-            {/* Search Button */}
-            <button
-              onClick={handleSearchClick}
-              className="h-11 bg-[#004AAD] text-white px-8 mt-4 rounded-md font-semibold hover:bg-[#003080] transition text-sm md:text-base whitespace-nowrap flex items-center justify-center"
-              style={{minWidth:'120px'}}
-            >
-              SEARCH
-            </button>
             </div>
 
             {/* Request Callback Section */}
@@ -520,7 +636,7 @@ const Header = () => {
               onClick={() => setShowMobileSearch(true)}
               className="flex-1 px-4 py-2 rounded-full border-none focus:outline-none text-gray-500 text-base bg-transparent text-left flex items-center justify-between"
             >
-              <span>Search for a property</span>
+              <span className="text-sm px-2">Find your Property</span>
               <Calendar size={16} className="text-gray-400" />
             </button>
           </div>
@@ -560,11 +676,11 @@ const Header = () => {
       {/* Mobile Navigation Drawer */}
       <div className={`fixed inset-0 z-50 md:hidden transition-opacity duration-300 ${menuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
         {/* Backdrop */}
-        <div 
+        <div
           className="absolute inset-0 bg-black/50"
           onClick={() => setMenuOpen(false)}
         />
-        
+
         {/* Side Menu */}
         <div className={`absolute left-0 top-0 h-full w-80 max-w-[85vw] bg-white shadow-2xl transform transition-transform duration-300 ${menuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
           {/* Header */}
@@ -581,7 +697,7 @@ const Header = () => {
               </svg>
             </button>
           </div>
-          
+
           {/* Navigation Items */}
           <div className="p-6 space-y-4 pb-24">
             {/* Show Agent Mode indicator when agent is logged in (mobile) */}
@@ -593,7 +709,7 @@ const Header = () => {
             {/* Only show Profile and Bookings for USER (based on route) */}
             {isUserLoggedIn && (
               <>
-                <button 
+                <button
                   onClick={() => {
                     navigate('/app/user_profile');
                     setMenuOpen(false);
@@ -603,7 +719,7 @@ const Header = () => {
                   <User size={18} />
                   Profile
                 </button>
-                <button 
+                <button
                   onClick={() => {
                     navigate('/app/bookings');
                     setMenuOpen(false);
@@ -616,7 +732,7 @@ const Header = () => {
               </>
             )}
             {isAgentLoggedIn && (
-              <button 
+              <button
                 onClick={() => {
                   navigate('/agent/dashboard');
                   setMenuOpen(false);
@@ -626,8 +742,21 @@ const Header = () => {
                 Profile
               </button>
             )}
+            {/* Login Option for Mobile */}
+            {!isUserLoggedIn && !isAgentLoggedIn && (
+              <button
+                onClick={() => {
+                  navigate("/login");
+                  setMenuOpen(false);
+                }}
+                className="w-full bg-[#004AAD] text-white text-sm h-12 rounded-lg hover:bg-[#00398a] transition-colors font-semibold flex items-center justify-center gap-2"
+              >
+                <User size={18} />
+                Login / Signup
+              </button>
+            )}
           </div>
-          
+
           {/* Bottom Section - Logout and Contact Info */}
           <div className="absolute bottom-6 left-6 right-6 space-y-4">
             {/* Logout Button - For USER or AGENT (based on route) */}
@@ -691,11 +820,12 @@ const Header = () => {
 
       {/* Close dropdown when clicking outside */}
       {userDropdownOpen && (
-        <div 
-          className="fixed inset-0 z-30" 
+        <div
+          className="fixed inset-0 z-30"
           onClick={() => setUserDropdownOpen(false)}
         />
       )}
+
     </header>
   );
 };
