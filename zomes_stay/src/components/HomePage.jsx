@@ -18,11 +18,10 @@ const CityButton = ({ city, isSelected, onClick }) => {
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-1 px-2 py-1 md:px-4 md:py-2 rounded-2xl transition-colors whitespace-nowrap shadow-sm border ${
-        isSelected
+      className={`flex items-center gap-1 px-2 py-1 md:px-4 md:py-2 rounded-2xl transition-colors whitespace-nowrap shadow-sm border ${isSelected
           ? "bg-blue-50 border-blue-500 text-blue-700"
           : "bg-white border-gray-200 hover:bg-blue-50 hover:border-blue-300 text-gray-700"
-      }`}
+        }`}
     >
       {city.icon && !iconError ? (
         <img
@@ -44,11 +43,10 @@ const PropertyTypeButton = ({ type, isSelected, onClick }) => {
   return (
     <button
       onClick={onClick}
-      className={`px-4 py-2 rounded-2xl transition-colors whitespace-nowrap shadow-sm border ${
-        isSelected
+      className={`px-4 py-2 rounded-2xl transition-colors whitespace-nowrap shadow-sm border ${isSelected
           ? "bg-green-50 border-green-500 text-green-700"
           : "bg-white border-gray-200 hover:bg-green-50 hover:border-green-300 text-gray-700"
-      }`}
+        }`}
     >
       <span className="text-sm font-medium">{type.name}</span>
     </button>
@@ -75,11 +73,10 @@ const Pagination = ({ currentPage, totalPages, hasNext, hasPrev, onPageChange })
       <button
         onClick={() => onPageChange(currentPage - 1)}
         disabled={!hasPrev}
-        className={`px-3 py-2 rounded-lg border transition-colors ${
-          hasPrev
+        className={`px-3 py-2 rounded-lg border transition-colors ${hasPrev
             ? "bg-white border-gray-300 hover:bg-gray-50 text-gray-700"
             : "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
-        }`}
+          }`}
       >
         <ChevronLeft className="w-5 h-5" />
       </button>
@@ -100,11 +97,10 @@ const Pagination = ({ currentPage, totalPages, hasNext, hasPrev, onPageChange })
         <button
           key={page}
           onClick={() => onPageChange(page)}
-          className={`px-4 py-2 rounded-lg border transition-colors ${
-            page === currentPage
+          className={`px-4 py-2 rounded-lg border transition-colors ${page === currentPage
               ? "bg-blue-500 border-blue-500 text-white"
               : "bg-white border-gray-300 hover:bg-gray-50 text-gray-700"
-          }`}
+            }`}
         >
           {page}
         </button>
@@ -125,11 +121,10 @@ const Pagination = ({ currentPage, totalPages, hasNext, hasPrev, onPageChange })
       <button
         onClick={() => onPageChange(currentPage + 1)}
         disabled={!hasNext}
-        className={`px-3 py-2 rounded-lg border transition-colors ${
-          hasNext
+        className={`px-3 py-2 rounded-lg border transition-colors ${hasNext
             ? "bg-white border-gray-300 hover:bg-gray-50 text-gray-700"
             : "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
-        }`}
+          }`}
       >
         <ChevronRight className="w-5 h-5" />
       </button>
@@ -148,7 +143,7 @@ const HomePage = () => {
   const [propertyTypes, setPropertyTypes] = useState([]);
   const [citiesLoading, setCitiesLoading] = useState(false);
   const [propertyTypesLoading, setPropertyTypesLoading] = useState(false);
-  
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -156,10 +151,10 @@ const HomePage = () => {
   const [hasPrev, setHasPrev] = useState(false);
   const [total, setTotal] = useState(0);
   const itemsPerPage = 12; // Number of properties per page
-  
+
   // Mobile filter modal state
   const [showMobileFilter, setShowMobileFilter] = useState(false);
-  
+
   // Use search params from context (set by Header search) if available
   const activeSearchParams = contextSearchParams || null;
 
@@ -213,7 +208,7 @@ const HomePage = () => {
       setLoading(true);
       try {
         let response;
-        
+
         // If user has searched with dates (checkIn/checkOut), use searchProperties API
         // This filters by availability and occupancy
         if (activeSearchParams && activeSearchParams.checkIn && activeSearchParams.checkOut) {
@@ -225,12 +220,11 @@ const HomePage = () => {
             children: activeSearchParams.children || 0,
             infants: activeSearchParams.infants || 0,
             rooms: activeSearchParams.rooms || 1,
-            infantsUseBed: activeSearchParams.infantsUseBed || 0,
+            city: activeSearchParams.city || "",
           };
-          
-          console.log('HomePage - Search params:', searchParams);
+
           response = await propertyService.searchProperties(searchParams);
-          
+
           if (response?.data?.success && response?.data?.data) {
             // searchProperties returns array of objects with structure:
             // [{ property: {...}, totalCapacity, availableRooms, nights }, ...]
@@ -238,7 +232,7 @@ const HomePage = () => {
             const propertyData = response.data.data.map(item => {
               // If item has a 'property' field, use it; otherwise use item itself
               const prop = item.property || item;
-              
+
               // Ensure property structure matches what CardRow expects
               // Add any missing fields from the search result
               return {
@@ -251,9 +245,9 @@ const HomePage = () => {
                 }
               };
             });
-            
+
             console.log('HomePage - Search results from API:', propertyData.length, 'properties');
-            
+
             // Apply city filter on frontend if selected
             let filteredProperties = propertyData;
             if (selectedCity) {
@@ -264,7 +258,7 @@ const HomePage = () => {
               });
               console.log('HomePage - Applied city filter:', filteredProperties.length, 'of', propertyData.length);
             }
-            
+
             // Apply property type filter on frontend if selected
             if (selectedPropertyType) {
               filteredProperties = filteredProperties.filter(p => {
@@ -273,19 +267,19 @@ const HomePage = () => {
               });
               console.log('HomePage - Applied property type filter:', filteredProperties.length);
             }
-            
+
             // For search results, we don't have pagination from backend
             // So we implement client-side pagination
             const startIndex = (currentPage - 1) * itemsPerPage;
             const endIndex = startIndex + itemsPerPage;
             const paginatedProperties = filteredProperties.slice(startIndex, endIndex);
-            
+
             setProperties(paginatedProperties);
             setTotal(filteredProperties.length);
             setTotalPages(Math.ceil(filteredProperties.length / itemsPerPage));
             setHasNext(endIndex < filteredProperties.length);
             setHasPrev(currentPage > 1);
-            
+
             console.log('HomePage - Search results paginated:', {
               total: filteredProperties.length,
               page: currentPage,
@@ -304,7 +298,7 @@ const HomePage = () => {
         } else {
           // No search params - use regular getProperties API
           console.log('HomePage - Using getProperties API (all properties)');
-          
+
           // Build query parameters
           const params = {
             page: currentPage,
@@ -326,9 +320,9 @@ const HomePage = () => {
 
           console.log('HomePage - Fetching properties with params:', params);
           response = await propertyService.getProperties(params);
-          
+
           console.log('HomePage - API Response:', response?.data);
-          
+
           if (response?.data?.success) {
             // Update properties
             if (response?.data?.data) {
@@ -363,7 +357,7 @@ const HomePage = () => {
         setLoading(false);
       }
     };
-    
+
     getProperties();
   }, [currentPage, selectedCity, selectedPropertyType, activeSearchParams]);
 
@@ -398,7 +392,7 @@ const HomePage = () => {
       <div className="w-full pt-16 md:pt-20 pb-4 px-4 md:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           {/* Mobile View - Filter & Sort Icons (Right Side) */}
-          <div className="md:hidden flex items-center justify-end gap-2.5 pb-4 px-4">
+          <div className="md:hidden flex items-center justify-start gap-2.5 pb-4 px-4">
             <button
               onClick={() => setShowMobileFilter(true)}
               className="relative flex items-center gap-1.5 px-3.5 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 active:bg-gray-100 transition-colors shadow-sm"
@@ -409,12 +403,7 @@ const HomePage = () => {
                 <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-600 rounded-full border-2 border-white"></span>
               )}
             </button>
-            <button
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 active:bg-gray-100 transition-colors shadow-sm"
-            >
-              <ArrowUpDown size={18} className="text-gray-600" />
-              <span className="text-sm font-medium">Sort</span>
-            </button>
+           
           </div>
 
           {/* Desktop/Tablet View - Two Halves Side by Side */}
@@ -427,11 +416,10 @@ const HomePage = () => {
               <div className="flex overflow-x-auto gap-2 pb-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
                 <button
                   onClick={() => handleCityClick("all")}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
-                    selectedCity === null
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${selectedCity === null
                       ? "bg-blue-600 text-white"
                       : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                  }`}
+                    }`}
                 >
                   All
                 </button>
@@ -448,11 +436,10 @@ const HomePage = () => {
                       <button
                         key={index}
                         onClick={() => handleCityClick(city.name)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
-                          isSelected
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${isSelected
                             ? "bg-blue-600 text-white"
                             : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                        }`}
+                          }`}
                       >
                         {city.icon && (
                           <img
@@ -481,11 +468,10 @@ const HomePage = () => {
               <div className="flex overflow-x-auto gap-2 pb-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
                 <button
                   onClick={() => handlePropertyTypeClick(null)}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
-                    selectedPropertyType === null
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${selectedPropertyType === null
                       ? "bg-emerald-600 text-white"
                       : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                  }`}
+                    }`}
                 >
                   All
                 </button>
@@ -502,11 +488,10 @@ const HomePage = () => {
                       <button
                         key={type.id}
                         onClick={() => handlePropertyTypeClick(type.id)}
-                        className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
-                          isSelected
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${isSelected
                             ? "bg-emerald-600 text-white"
                             : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                        }`}
+                          }`}
                       >
                         {type.name}
                       </button>
@@ -523,11 +508,11 @@ const HomePage = () => {
       {showMobileFilter && (
         <div className="fixed inset-0 z-50 md:hidden">
           {/* Backdrop */}
-          <div 
+          <div
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
             onClick={() => setShowMobileFilter(false)}
           />
-          
+
           {/* Filter Drawer */}
           <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl max-h-[85vh] overflow-y-auto">
             {/* Header */}
@@ -554,11 +539,10 @@ const HomePage = () => {
                       handleCityClick("all");
                       setShowMobileFilter(false);
                     }}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      selectedCity === null
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${selectedCity === null
                         ? "bg-blue-600 text-white"
                         : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                    }`}
+                      }`}
                   >
                     All
                   </button>
@@ -578,11 +562,10 @@ const HomePage = () => {
                             handleCityClick(city.name);
                             setShowMobileFilter(false);
                           }}
-                          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                            isSelected
+                          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${isSelected
                               ? "bg-blue-600 text-white"
                               : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                          }`}
+                            }`}
                         >
                           {city.icon && (
                             <img
@@ -614,11 +597,10 @@ const HomePage = () => {
                       handlePropertyTypeClick(null);
                       setShowMobileFilter(false);
                     }}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      selectedPropertyType === null
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${selectedPropertyType === null
                         ? "bg-emerald-600 text-white"
                         : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                    }`}
+                      }`}
                   >
                     All
                   </button>
@@ -638,11 +620,10 @@ const HomePage = () => {
                             handlePropertyTypeClick(type.id);
                             setShowMobileFilter(false);
                           }}
-                          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                            isSelected
+                          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${isSelected
                               ? "bg-emerald-600 text-white"
                               : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                          }`}
+                            }`}
                         >
                           {type.name}
                         </button>

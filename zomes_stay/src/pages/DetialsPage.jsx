@@ -1,62 +1,22 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
-import AmenitiesList from "../components/AmenitiesList";
-import SafetyHygieneList from "../components/SafetyHygieneList";
-import ReservationBookingWidget from "../components/ReservationWidget";
-import RoomSection from "../components/RoomSection";
-import { PageLoader, WidgetLoader } from "../components/Loader";
-import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
-import { Star, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { useParams, useLocation } from "react-router-dom";
 import { propertyDetailsService, mediaService } from "../services";
-import {
-  Wifi,
-  Waves,
-  Snowflake,
-  Utensils,
-  Dumbbell,
-  Car,
-  Tv,
-  Coffee,
-  ShowerHead,
-  Fan,
-  BedDouble,
-  Key,
-  Clock,
-} from "lucide-react";
-import {
-  ShieldCheck,
-  SprayCan,
-  Thermometer,
-  AlertTriangle,
-  HandPlatter,
-  Hand,
-  Shield,
-  FireExtinguisher,
-  Camera,
-  Users,
-  Droplets,
-  Eye,
-} from "lucide-react";
+import { PropertyHeader, PropertyGallery, PropertyReviews, PropertyLocation, RoomSection, ReservationBookingWidget, PageLoader, WidgetLoader } from "../components/PropertyDetails";
 
 const DetailsPage = () => {
   const { id } = useParams();
   const { state } = useLocation();
 
-  const [modal, setModal] = useState(false);
-  const [currentIndex, setCurrentIndex] = useState(0);
   const [range, setRange] = useState({ start: null, end: null });
   const [media, setMedia] = useState([]);
-  const mainImage = media[0];
-  const sideImages = media.slice(1, 5);
   const [loading, setLoading] = useState(false);
   const [pricingLoading, setPricingLoading] = useState(false);
   const [error, setError] = useState("");
-  const [requiredRooms, setRequiredRooms] = useState(1); // Track how many rooms user needs
+  const [requiredRooms, setRequiredRooms] = useState(1);
   const [retryCount, setRetryCount] = useState(0);
   const [lastDataFetch, setLastDataFetch] = useState(null);
   const [refreshInterval, setRefreshInterval] = useState(null);
   const [isAutoRefreshEnabled, setIsAutoRefreshEnabled] = useState(true);
-  const remaining = Math.max(0, media.length - 5);
 
   const [reviews] = useState([
     {
@@ -99,11 +59,6 @@ const DetailsPage = () => {
   const [propertyDetails, setPropertyDetails] = useState(null);
   const [showRoomSelection, setShowRoomSelection] = useState(false);
   const roomSectionRef = useRef(null);
-  const [mobileImageIndex, setMobileImageIndex] = useState(0);
-
-  // Add touch handling for swipe gestures
-  const [touchStart, setTouchStart] = useState(null);
-  const [touchEnd, setTouchEnd] = useState(null);
 
   // Party and nights derived from Reservation widget on Book Now
   const [party, setParty] = useState({
@@ -117,20 +72,6 @@ const DetailsPage = () => {
     const total = reviews.reduce((acc, r) => acc + r.rating, 0);
     return (total / reviews.length).toFixed(1);
   }, [reviews]);
-
-  const renderStars = (count) => {
-    return (
-      <div className="flex">
-        {[...Array(5)].map((_, i) => (
-          <Star
-            key={i}
-            size={18}
-            className={i < count ? "text-yellow-500 fill-yellow-500" : "text-gray-300"}
-          />
-        ))}
-      </div>
-    );
-  };
 
   const formatTimeString = (timeString) => {
     if (!timeString || typeof timeString !== "string") return "";
@@ -155,22 +96,12 @@ const DetailsPage = () => {
   const displayCheckInTime = formatTimeString(defaultCheckInTime);
   const displayCheckOutTime = formatTimeString(defaultCheckOutTime);
 
-  const goPrev = () => {
-    setCurrentIndex((i) => (i - 1 + media.length) % media.length);
-  };
-
-  const goNext = () => {
-    setCurrentIndex((i) => (i + 1) % media.length);
-  };
-
   // Phase 1: Load basic property details (fast)
   const handleFetchBasicDetails = async (id) => {
     setLoading(true);
     setError("");
     try {
       const response = await propertyDetailsService.getPropertyDetails(id);
-      console.log('Basic details response:', response);
-      
       const raw = response?.data?.data || null;
       if (raw) {
         // Set basic property details
@@ -193,25 +124,19 @@ const DetailsPage = () => {
       // Load current month + next month (2-month window)
       const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
       const nextMonthEnd = new Date(now.getFullYear(), now.getMonth() + 2, 0); // Last day of next month
-      
+
       const startDate = currentMonthStart.toISOString().split('T')[0];
       const endDate = nextMonthEnd.toISOString().split('T')[0];
-      
-      console.log('🔄 Loading initial 2-month window:', { startDate, endDate });
-      console.log(`📅 Window: ${now.getMonth() + 1}/${now.getFullYear()} to ${now.getMonth() + 2}/${now.getFullYear()}`);
-      
+
       // Add timeout for network requests
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-      
+
       const response = await propertyDetailsService.getPropertyPricing(id, { startDate, endDate });
       clearTimeout(timeoutId);
-      
-      console.log('📥 Initial pricing data response:', response);
-      
+
       const pricingData = response?.data?.data;
       if (pricingData) {
-        console.log(`📊 Loaded ${Object.keys(pricingData).length} dates for initial window`);
         // Store the simplified pricing data directly
         setPropertyDetails(prev => ({
           ...prev,
@@ -222,7 +147,7 @@ const DetailsPage = () => {
       }
     } catch (error) {
       console.error("❌ Error fetching initial pricing data:", error);
-      
+
       // Handle different types of errors
       if (error.name === 'AbortError') {
         setError("Request timed out. Please check your connection and try again.");
@@ -235,7 +160,7 @@ const DetailsPage = () => {
       } else {
         setError("Failed to load pricing data. Please try again.");
       }
-      
+
       // Implement retry mechanism
       if (retryCount < 3) {
         setTimeout(() => {
@@ -251,33 +176,21 @@ const DetailsPage = () => {
   // Phase 3: Load additional month data (progressive loading)
   const handleFetchAdditionalMonth = async (id, month, year) => {
     try {
-      console.log(`🔄 Loading additional month: ${month}/${year}`);
-      console.log(`📊 Current pricingData keys:`, Object.keys(propertyDetails?.pricingData || {}));
-      
       const response = await propertyDetailsService.getPropertyPricing(id, { month, year });
-      console.log(`📥 Additional month data for ${month}/${year}:`, response);
-      
       const pricingData = response?.data?.data;
       if (pricingData) {
-        console.log(`📈 New pricing data keys:`, Object.keys(pricingData));
-        
         // Merge the simplified pricing data with existing data
         setPropertyDetails(prev => {
           const mergedData = {
             ...(prev.pricingData || {}),
             ...pricingData // Merge new pricing data with existing
           };
-          
-          console.log(`🔗 Merged pricing data keys:`, Object.keys(mergedData));
-          console.log(`📊 Total dates now available:`, Object.keys(mergedData).length);
-          
+
           return {
             ...prev,
             pricingData: mergedData
           };
         });
-      } else {
-        console.warn(`⚠️ No pricing data received for ${month}/${year}`);
       }
     } catch (error) {
       console.error(`❌ Error fetching month ${month}/${year}:`, error);
@@ -288,22 +201,20 @@ const DetailsPage = () => {
   // Periodic refresh function
   const handlePeriodicRefresh = async () => {
     if (!id || !isAutoRefreshEnabled) return;
-    
-    console.log('🔄 Periodic refresh triggered');
+
     try {
       // Refresh current 2-month window
       const now = new Date();
       const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
       const nextMonthEnd = new Date(now.getFullYear(), now.getMonth() + 2, 0);
-      
+
       const startDate = currentMonthStart.toISOString().split('T')[0];
       const endDate = nextMonthEnd.toISOString().split('T')[0];
-      
+
       const response = await propertyDetailsService.getPropertyPricing(id, { startDate, endDate });
       const newPricingData = response?.data?.data;
-      
+
       if (newPricingData) {
-        console.log(`🔄 Periodic refresh: Updated ${Object.keys(newPricingData).length} dates`);
         setPropertyDetails(prev => ({
           ...prev,
           pricingData: {
@@ -323,13 +234,12 @@ const DetailsPage = () => {
     if (refreshInterval) {
       clearInterval(refreshInterval);
     }
-    
+
     const interval = setInterval(() => {
       handlePeriodicRefresh();
-    }, 300000); // Refresh every 30 seconds
-    
+    }, 300000); // Refresh every 5 minutes
+
     setRefreshInterval(interval);
-    console.log('🔄 Periodic refresh started (30s interval)');
   };
 
   // Stop periodic refresh
@@ -337,7 +247,6 @@ const DetailsPage = () => {
     if (refreshInterval) {
       clearInterval(refreshInterval);
       setRefreshInterval(null);
-      console.log('⏹️ Periodic refresh stopped');
     }
   };
 
@@ -353,21 +262,18 @@ const DetailsPage = () => {
 
 
   const handleBookNowClick = (payload) => {
-    console.log('🎯 Book Now clicked with payload:', payload);
     setShowRoomSelection(true);
     if (payload) {
       const { guests, nights, rooms } = payload;
-      
+
       // Calculate required rooms based on party size
       // Assuming 2 adults per room as standard, but this can be adjusted
       const totalGuests = (guests?.adults ?? 0) + (guests?.children ?? 0);
       const calculatedRooms = Math.ceil(totalGuests / 2); // 2 guests per room
       const requestedRooms = rooms || calculatedRooms;
-      
-      console.log('📊 Booking parameters:', { totalGuests, requestedRooms, nights });
-      
+
       setRequiredRooms(requestedRooms);
-      
+
       setParty({
         adults: guests?.adults ?? 0,
         children: guests?.children ?? 0,
@@ -375,7 +281,7 @@ const DetailsPage = () => {
 
       });
       setBookingNights(nights ?? 0);
-      
+
       // Re-validate the current date range with the new room requirement
       if (range.start && range.end) {
         const validation = validateDateRange(range.start, range.end, requestedRooms);
@@ -409,7 +315,7 @@ const DetailsPage = () => {
     // Validate date format and create Date objects
     const start = new Date(startDate);
     const end = new Date(endDate);
-    
+
     // Check for invalid dates
     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
       validation.isValid = false;
@@ -462,11 +368,11 @@ const DetailsPage = () => {
     let currentDate = new Date(start);
     let consecutiveUnavailableDays = 0;
     let maxConsecutiveUnavailable = 0;
-    
+
     while (currentDate <= end) {
       const dateStr = currentDate.toISOString().split('T')[0];
       const dateData = propertyDetails?.pricingData?.[dateStr];
-      
+
       if (dateData) {
         if (dateData.totalAvailableRooms === 0) {
           consecutiveUnavailableDays++;
@@ -499,7 +405,7 @@ const DetailsPage = () => {
         // Date not in pricing data - might need to load more data
         validation.warnings.push(`Pricing data not available for ${dateStr}`);
       }
-      
+
       currentDate.setDate(currentDate.getDate() + 1);
     }
 
@@ -512,7 +418,7 @@ const DetailsPage = () => {
     // Check if any dates have insufficient rooms
     if (validation.insufficientRooms.length > 0) {
       validation.isValid = false;
-      const insufficientDates = validation.insufficientRooms.map(d => 
+      const insufficientDates = validation.insufficientRooms.map(d =>
         `${d.date} (only ${d.available} available, need ${d.required})`
       ).join(', ');
       validation.errors.push(`Insufficient rooms on: ${insufficientDates}`);
@@ -531,16 +437,16 @@ const DetailsPage = () => {
     if (!unavailableDates || unavailableDates.length === 0) return null;
 
     const suggestions = [];
-    
+
     // Find the first available date after the last unavailable date
     const lastUnavailableDate = new Date(Math.max(...unavailableDates.map(d => new Date(d.date))));
     const nextAvailableDate = new Date(lastUnavailableDate);
     nextAvailableDate.setDate(nextAvailableDate.getDate() + 1);
-    
+
     // Check if this date is available
     const nextDateStr = nextAvailableDate.toISOString().split('T')[0];
     const nextDateData = propertyDetails?.pricingData?.[nextDateStr];
-    
+
     if (nextDateData && nextDateData.totalAvailableRooms > 0) {
       suggestions.push({
         type: 'alternative_start',
@@ -553,10 +459,10 @@ const DetailsPage = () => {
     const firstUnavailableDate = new Date(Math.min(...unavailableDates.map(d => new Date(d.date))));
     const prevAvailableDate = new Date(firstUnavailableDate);
     prevAvailableDate.setDate(prevAvailableDate.getDate() - 1);
-    
+
     const prevDateStr = prevAvailableDate.toISOString().split('T')[0];
     const prevDateData = propertyDetails?.pricingData?.[prevDateStr];
-    
+
     if (prevDateData && prevDateData.totalAvailableRooms > 0) {
       suggestions.push({
         type: 'alternative_end',
@@ -570,86 +476,69 @@ const DetailsPage = () => {
 
   // Handle month navigation in calendar widget (2-month sliding window)
   const handleMonthNavigation = (month, year) => {
-    console.log(`🗓️ Month navigation triggered: ${month}/${year}`);
-    console.log(`📊 Current pricingData keys:`, Object.keys(propertyDetails?.pricingData || {}));
-    
     if (!id) {
-      console.error('❌ No property ID available');
       return;
     }
-    
+
     // Calculate the 2-month window based on the navigation
     const currentDate = new Date(year, month - 1, 1);
     const nextMonth = new Date(currentDate);
     nextMonth.setMonth(nextMonth.getMonth() + 1);
-    
+
     const startMonth = currentDate.getMonth() + 1;
     const startYear = currentDate.getFullYear();
     const endMonth = nextMonth.getMonth() + 1;
     const endYear = nextMonth.getFullYear();
-    
-    console.log(`📅 Loading 2-month window: ${startMonth}/${startYear} to ${endMonth}/${endYear}`);
-    
+
     // Check if we have data for both months in the window
-    const hasStartMonthData = propertyDetails?.pricingData && 
+    const hasStartMonthData = propertyDetails?.pricingData &&
       Object.keys(propertyDetails.pricingData).some(dateStr => {
         const date = new Date(dateStr);
         return date.getMonth() + 1 === startMonth && date.getFullYear() === startYear;
       });
-    
-    const hasEndMonthData = propertyDetails?.pricingData && 
+
+    const hasEndMonthData = propertyDetails?.pricingData &&
       Object.keys(propertyDetails.pricingData).some(dateStr => {
         const date = new Date(dateStr);
         return date.getMonth() + 1 === endMonth && date.getFullYear() === endYear;
       });
-    
-    console.log(`🔍 Data check - Start month (${startMonth}/${startYear}):`, hasStartMonthData ? 'EXISTS' : 'MISSING');
-    console.log(`🔍 Data check - End month (${endMonth}/${endYear}):`, hasEndMonthData ? 'EXISTS' : 'MISSING');
-    
+
     // Load missing months
     if (!hasStartMonthData) {
-      console.log(`🔄 Loading start month: ${startMonth}/${startYear}`);
       handleFetchAdditionalMonth(id, startMonth, startYear);
     }
-    
+
     if (!hasEndMonthData) {
-      console.log(`🔄 Loading end month: ${endMonth}/${endYear}`);
       handleFetchAdditionalMonth(id, endMonth, endYear);
-    }
-    
-    if (hasStartMonthData && hasEndMonthData) {
-      console.log(`✅ Both months already exist in the window`);
     }
   };
 
   // Load pricing data when date range changes (progressive loading)
   const handleDateRangeChange = (newRange) => {
     setRange(newRange);
-    
+
     // Validate the new range
     if (newRange.start && newRange.end) {
       const validation = validateDateRange(newRange.start, newRange.end, requiredRooms);
-      
+
       if (!validation.isValid) {
-        console.warn('Date range validation failed:', validation.errors);
-        // You can show these errors to the user
         setError(validation.errors.join(', '));
         return;
       } else {
         setError(''); // Clear any previous errors
       }
     }
-    
+
     // If we have both start and end dates, check if we need to load additional months
     if (newRange.start && newRange.end && id) {
       const startDate = new Date(newRange.start);
       const endDate = new Date(newRange.end);
-      
+
       // Calculate which months we need to load
       const monthsToLoad = [];
       let current = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
       const endMonth = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
-      
+
       while (current <= endMonth) {
         monthsToLoad.push({
           month: current.getMonth() + 1,
@@ -657,16 +546,16 @@ const DetailsPage = () => {
         });
         current.setMonth(current.getMonth() + 1);
       }
-      
+
       // Load each month that we don't already have
       monthsToLoad.forEach(({ month, year }) => {
         // Check if we already have this month's data in pricingData
-        const hasData = propertyDetails?.pricingData && 
+        const hasData = propertyDetails?.pricingData &&
           Object.keys(propertyDetails.pricingData).some(dateStr => {
             const date = new Date(dateStr);
             return date.getMonth() + 1 === month && date.getFullYear() === year;
           });
-        
+
         if (!hasData) {
           handleFetchAdditionalMonth(id, month, year);
         }
@@ -688,15 +577,15 @@ const DetailsPage = () => {
     if (!propertyDetails?.pricingData) {
       return {};
     }
-    
+
     // Convert the simplified pricing data to the format expected by ReservationBookingWidget
     const processedData = {};
-    
+
     // Process each date from the simplified pricing data
     Object.entries(propertyDetails.pricingData).forEach(([date, data]) => {
       const isAvailable = data.totalAvailableRooms > 0;
       const hasEnoughRooms = data.totalAvailableRooms >= requiredRooms;
-      
+
       let roomStatus;
       if (data.totalAvailableRooms === 0) {
         roomStatus = "No rooms available";
@@ -707,13 +596,13 @@ const DetailsPage = () => {
       } else {
         roomStatus = `${data.totalAvailableRooms} rooms available`;
       }
-      
+
       // Check if date is in the past
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const dateObj = new Date(date);
       const isPastDate = dateObj < today;
-      
+
       processedData[date] = {
         minRate: data.minimumPrice || null,
         isAvailable: isAvailable && hasEnoughRooms && !isPastDate,
@@ -728,7 +617,7 @@ const DetailsPage = () => {
         hasEnoughRooms: hasEnoughRooms
       };
     });
-    
+
     return processedData;
   }, [propertyDetails, requiredRooms]);
 
@@ -814,7 +703,6 @@ const DetailsPage = () => {
   // Load pricing data when propertyDetails is available but pricingData is not
   useEffect(() => {
     if (propertyDetails && !propertyDetails.pricingData && id) {
-      console.log('Loading pricing data for reservation widget...');
       handleFetchInitialPricingData(id);
     }
   }, [propertyDetails, id]);
@@ -825,9 +713,8 @@ const DetailsPage = () => {
       const now = new Date();
       const timeSinceLastFetch = now - lastDataFetch;
       const maxDataAge = 5 * 60 * 1000; // 5 minutes
-      
+
       if (timeSinceLastFetch > maxDataAge) {
-        console.log('Pricing data is stale, refreshing...');
         handleFetchInitialPricingData(id);
       }
     }
@@ -839,31 +726,29 @@ const DetailsPage = () => {
       const now = new Date();
       const currentMonth = now.getMonth() + 1;
       const currentYear = now.getFullYear();
-      
+
       // Check if we have the next 2-month window
       const nextMonth = currentMonth === 12 ? 1 : currentMonth + 1;
       const nextYear = currentMonth === 12 ? currentYear + 1 : currentYear;
       const monthAfterNext = nextMonth === 12 ? 1 : nextMonth + 1;
       const yearAfterNext = nextMonth === 12 ? nextYear + 1 : nextYear;
-      
+
       const hasNextMonthData = Object.keys(propertyDetails.pricingData).some(dateStr => {
         const date = new Date(dateStr);
         return date.getMonth() + 1 === nextMonth && date.getFullYear() === nextYear;
       });
-      
+
       const hasMonthAfterNextData = Object.keys(propertyDetails.pricingData).some(dateStr => {
         const date = new Date(dateStr);
         return date.getMonth() + 1 === monthAfterNext && date.getFullYear() === yearAfterNext;
       });
-      
+
       // Load missing months in the next 2-month window
       if (!hasNextMonthData) {
-        console.log(`🔄 Auto-loading next month: ${nextMonth}/${nextYear}`);
         handleFetchAdditionalMonth(id, nextMonth, nextYear);
       }
-      
+
       if (!hasMonthAfterNextData) {
-        console.log(`🔄 Auto-loading month after next: ${monthAfterNext}/${yearAfterNext}`);
         handleFetchAdditionalMonth(id, monthAfterNext, yearAfterNext);
       }
     }
@@ -874,7 +759,7 @@ const DetailsPage = () => {
     if (propertyDetails?.pricingData && id && isAutoRefreshEnabled) {
       startPeriodicRefresh();
     }
-    
+
     return () => {
       stopPeriodicRefresh();
     };
@@ -887,245 +772,30 @@ const DetailsPage = () => {
     };
   }, []);
 
-  // Keyboard navigation for photo gallery modal
-  useEffect(() => {
-    if (!modal) return;
-
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') {
-        setModal(false);
-      } else if (e.key === 'ArrowLeft' && media.length > 1) {
-        goPrev();
-      } else if (e.key === 'ArrowRight' && media.length > 1) {
-        goNext();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [modal, media.length, goPrev, goNext]);
-
   // Loading state skeleton
   if (loading) {
     return <PageLoader text="Loading property details..." />;
   }
 
-  // Touch handling for swipe gestures
-  const minSwipeDistance = 50;
-
-  const onTouchStart = (e) => {
-    setTouchEnd(null);
-    setTouchStart(e.targetTouches[0].clientX);
-  };
-
-  const onTouchMove = (e) => {
-    setTouchEnd(e.targetTouches[0].clientX);
-  };
-
-  const onTouchEnd = () => {
-    if (!touchStart || !touchEnd) return;
-    const distance = touchStart - touchEnd;
-    const isLeftSwipe = distance > minSwipeDistance;
-    const isRightSwipe = distance < -minSwipeDistance;
-
-    if (isLeftSwipe) {
-      setMobileImageIndex((prev) => (prev + 1) % (media.length || 1));
-    } else if (isRightSwipe) {
-      setMobileImageIndex((prev) => (prev - 1 + (media.length || 1)) % (media.length || 1));
-    }
-  };
-
   const title = propertyDetails?.title || "Property";
   const description = propertyDetails?.description || "";
 
+
   return (
     <>
-      {/* Desktop View - Keep existing layout with guards */}
-      <div className="hidden md:flex md:flex-row px-4 py-4 md:px-10 pb-4 gap-2">
-        {/* Left: main image */}
-        <div className="w-full md:w-1/2 h-[260px] md:h-[500px]">
-          {mainImage ? (
-            <img
-              src={mediaService.getMedia(mainImage)}
-              alt="Main"
-              className="w-full h-full object-cover rounded-lg"
-            />
-          ) : (
-            <div className="w-full h-full bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-sm">
-              No image available
-            </div>
-          )}
-        </div>
+      <PropertyGallery media={media} />
 
-        {/* Right: 2x2 grid */}
-        <div className="w-full md:w-1/2 grid grid-cols-1 md:grid-cols-2 gap-2">
-          {sideImages.map((img, i) => (
-            <div key={i} className="relative w-full h-[180px] md:h-[245px]">
-              <img
-                src={mediaService.getMedia(img)}
-                alt={`Property ${i + 2}`}
-                className="w-full h-full object-cover rounded-lg"
-              />
-
-              {i === sideImages.length - 1 && remaining > 0 && (
-                <button
-                  onClick={() => setModal(true)}
-                  className="absolute inset-0 rounded-lg bg-black/50 flex items-center justify-center cursor-pointer"
-                  aria-label="Open photo gallery"
-                >
-                  <span className="text-white text-lg font-semibold">+{remaining} Photos</span>
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Mobile View - Carousel */}
-      <div className="md:hidden px-4 py-2 ">
-        {media.length > 0 ? (
-          <div className="relative w-full h-[300px] rounded-lg overflow-hidden">
-            {/* Main carousel image */}
-            <img
-              src={mediaService.getMedia(media[mobileImageIndex])}
-              alt={`Property ${mobileImageIndex + 1}`}
-              className="w-full h-full object-cover"
-              onTouchStart={onTouchStart}
-              onTouchMove={onTouchMove}
-              onTouchEnd={onTouchEnd}
-            />
-
-            {/* Navigation arrows */}
-            {media.length > 1 && (
-              <>
-                <button
-                  onClick={() => setMobileImageIndex((prev) => (prev - 1 + media.length) % media.length)}
-                  className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 transition-colors"
-                  aria-label="Previous image"
-                >
-                  <ChevronLeft size={20} />
-                </button>
-                <button
-                  onClick={() => setMobileImageIndex((prev) => (prev + 1) % media.length)}
-                  className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 transition-colors"
-                  aria-label="Next image"
-                >
-                  <ChevronRight size={20} />
-                </button>
-              </>
-            )}
-
-            {/* Image counter */}
-            <div className="absolute top-3 right-3 bg-black/50 text-white px-2 py-1 rounded-full text-sm">
-              {mobileImageIndex + 1} / {media.length}
-            </div>
-
-            {/* View all photos button - Camera icon */}
-            {media.length > 1 && (
-              <button
-                onClick={() => setModal(true)}
-                className="absolute bottom-3 right-3 bg-white/90 backdrop-blur-sm text-gray-800 p-2.5 rounded-full shadow-lg hover:bg-white transition-all hover:scale-105"
-                aria-label="View all photos"
-              >
-                <Camera size={20} />
-              </button>
-            )}
-
-            {/* Dots indicator */}
-            {media.length > 1 && media.length <= 10 && (
-              <div className="absolute bottom-3 left-1/2 transform -translate-x-1/2 flex space-x-2">
-                {media.map((_, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setMobileImageIndex(index)}
-                    className={`w-2 h-2 rounded-full transition-colors ${index === mobileImageIndex ? "bg-white" : "bg-white/50"}`}
-                    aria-label={`Go to image ${index + 1}`}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="w-full h-[300px] rounded-lg bg-gray-100 flex items-center justify-center text-gray-500">
-            No images available
-          </div>
-        )}
-
-        {/* Mobile thumbnail strip */}
-        {media.length > 1 && (
-          <div className="flex gap-2 mt-3 overflow-x-auto pb-2">
-            {media.slice(0, 8).map((img, index) => (
-              <button
-                key={index}
-                onClick={() => setMobileImageIndex(index)}
-                className={`flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-colors ${
-                  index === mobileImageIndex ? "border-blue-500" : "border-gray-200"
-                }`}
-              >
-                <img
-                  src={mediaService.getMedia(img)}
-                  alt={`Thumbnail ${index + 1}`}
-                  className="w-full h-full object-cover"
-                />
-              </button>
-            ))}
-            {media.length > 8 && (
-              <button
-                onClick={() => setModal(true)}
-                className="flex-shrink-0 w-16 h-16 rounded-lg bg-gray-100 border-2 border-gray-200 flex items-center justify-center text-gray-600 text-xs font-medium"
-              >
-                +{media.length - 8}
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Content Section */}
       <div className="flex flex-col p-1 gap-6 md:flex-row md:px-10 py-2 md:gap-0">
-        <div className="w-full border rounded-lg shadow-lg px-4 py-4 border-gray-200 md:w-[60%] md:border-none md:shadow-none flex flex-col gap-2">
-          <h1 className="text-[18px] lg:text-[36px] font-bold text-[#484848]">{title}</h1>
-          {description && (
-            <p className="text-gray-600 text-[12px] md:text-[16px] leading-relaxed">{description}</p>
-          )}
-          <div className="flex flex-wrap gap-6 text-sm text-gray-600 mt-2">
-            <div className="flex items-center gap-2">
-              <Clock size={16} className="text-gray-500" />
-              <span>
-                Check-in: <span className="font-medium text-gray-800">{displayCheckInTime}</span>
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Clock size={16} className="text-gray-500" />
-              <span>
-                Check-out: <span className="font-medium text-gray-800">{displayCheckOutTime}</span>
-              </span>
-            </div>
-          </div>
-          <h2 className="text-[18px] lg:text-[22px] font-bold text-[#484848] mt-2">Amenities</h2>
-          <AmenitiesList items={amenities} />
-          <h2 className="text-[18px] lg:text-[22px] font-bold text-[#484848] mt-2">Safety and Hygiene</h2>
-          <SafetyHygieneList items={safetyAndHygiene} />
-          {error && (
-            <div className="mt-2 p-3 rounded bg-red-50 text-red-700 text-sm border border-red-200">
-              <div className="font-semibold mb-1">Booking Not Available</div>
-              <div>{error}</div>
-              {error.includes('unavailable dates') && (
-                <div className="mt-2 text-xs text-red-600">
-                  💡 Try selecting different dates or check availability for individual dates
-                </div>
-              )}
-              {error.includes('Insufficient rooms') && (
-                <div className="mt-2 text-xs text-red-600">
-                  💡 Try selecting fewer rooms or different dates. You need {requiredRooms} room{requiredRooms > 1 ? 's' : ''} for your party.
-                </div>
-              )}
-            </div>
-          )}
-                    
-        </div>
+        <PropertyHeader
+          title={title}
+          description={description}
+          checkIn={displayCheckInTime}
+          checkOut={displayCheckOutTime}
+          amenities={amenities}
+          safetyAndHygiene={safetyAndHygiene}
+          error={error}
+          requiredRooms={requiredRooms}
+        />
 
         <div className="w-full md:w-[40%] flex justify-center">
           {pricingLoading ? (
@@ -1143,7 +813,6 @@ const DetailsPage = () => {
         </div>
       </div>
 
-      {/* Room Selection Section */}
       <div ref={roomSectionRef}>
         {showRoomSelection && (
           <RoomSection
@@ -1154,174 +823,15 @@ const DetailsPage = () => {
         )}
       </div>
 
-      {/* Location Section */}
-      <div className="p-[20px] md:p-[40px]">
-        <h2 className="text-lg font-bold mb-3">Location</h2>
-        <p className="text-gray-600 mb-4">{locationDisplay}</p>
-        <div className="w-full h-[300px] rounded-xl overflow-hidden shadow">
-          <iframe
-            title="Property Location"
-            width="100%"
-            height="100%"
-            frameBorder="0"
-            style={{ border: 0 }}
-            src={`https://www.google.com/maps?q=${encodeURIComponent(mapQuery)}&output=embed`}
-            allowFullScreen
-          ></iframe>
-        </div>
-      </div>
+      <PropertyLocation
+        locationDisplay={locationDisplay}
+        mapQuery={mapQuery}
+      />
 
-      {/* Reviews Section */}
-      <div className="flex justify-end gap-2 px-8">
-        <h1 className="text-sm md:text-lg font-bold">Write Your Review</h1>
-      </div>
-
-      <div className="p-[20px] md:p-[40px]">
-        <div className="flex justify-between items-center mb-3">
-          <h2 className="text-lg font-bold">Reviews & Ratings</h2>
-          <div className="flex items-center gap-2">
-            {renderStars(Math.round(avgRating))}
-            <span className="text-sm font-medium text-gray-700">
-              {avgRating} / 5 ({reviews.length} reviews)
-            </span>
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          {reviews.map((r) => (
-            <div key={r.id} className="p-4 border border-gray-200 rounded-xl shadow-sm bg-white flex gap-4">
-              <img src={r.avatar} alt={r.name} className="w-12 h-12 rounded-full object-cover" />
-              <div>
-                <h3 className="font-semibold">{r.name}</h3>
-                {renderStars(r.rating)}
-                <p className="text-gray-600 mt-2">{r.review}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Photo Gallery Modal - Standard Design */}
-      {modal && (
-        <div 
-          className="fixed inset-0 z-50 bg-black/95 backdrop-blur-sm flex items-center justify-center"
-          onClick={() => setModal(false)}
-        >
-          <div 
-            className="relative w-full h-full flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Close Button */}
-            <button 
-              className="absolute top-4 right-4 z-50 bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white rounded-full p-2 transition-all hover:scale-110"
-              onClick={() => setModal(false)}
-              aria-label="Close gallery"
-            >
-              <X size={24} />
-            </button>
-
-            {/* Image Counter */}
-            <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50 bg-black/50 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm font-medium">
-              {currentIndex + 1} / {media.length}
-            </div>
-
-            {/* Main Image Container */}
-            <div className="flex-1 flex items-center justify-center p-4 md:p-8">
-              <div className="relative w-full h-full max-w-7xl mx-auto flex items-center justify-center">
-                {/* Previous Button */}
-                {media.length > 1 && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      goPrev();
-                    }}
-                    className="absolute left-2 md:left-4 z-40 bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white rounded-full p-3 md:p-4 transition-all hover:scale-110"
-                    aria-label="Previous image"
-                  >
-                    <ChevronLeft size={28} />
-                  </button>
-                )}
-
-                {/* Image with Zoom */}
-                <div className="w-full h-full flex items-center justify-center">
-                  <TransformWrapper
-                    initialScale={1}
-                    minScale={0.5}
-                    maxScale={3}
-                    wheel={{ step: 0.1 }}
-                    doubleClick={{ disabled: false, step: 0.5 }}
-                  >
-                    <TransformComponent>
-                      {media[currentIndex] ? (
-                        <img
-                          src={mediaService.getMedia(media[currentIndex])}
-                          alt={`Gallery ${currentIndex + 1}`}
-                          className="max-w-full max-h-[85vh] object-contain rounded-lg"
-                        />
-                      ) : (
-                        <div className="w-full h-[500px] rounded-lg bg-gray-800 flex items-center justify-center text-gray-400">
-                          No image
-                        </div>
-                      )}
-                    </TransformComponent>
-                  </TransformWrapper>
-                </div>
-
-                {/* Next Button */}
-                {media.length > 1 && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      goNext();
-                    }}
-                    className="absolute right-2 md:right-4 z-40 bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white rounded-full p-3 md:p-4 transition-all hover:scale-110"
-                    aria-label="Next image"
-                  >
-                    <ChevronRight size={28} />
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Thumbnail Strip */}
-            {media.length > 1 && (
-              <div className="bg-black/50 backdrop-blur-sm border-t border-white/10 p-4">
-                <style>{`
-                  .scrollbar-hide {
-                    -ms-overflow-style: none;
-                    scrollbar-width: none;
-                  }
-                  .scrollbar-hide::-webkit-scrollbar {
-                    display: none;
-                  }
-                `}</style>
-                <div className="flex gap-2 overflow-x-auto max-w-7xl mx-auto scrollbar-hide">
-                  {media.map((img, index) => (
-                    <button
-                      key={index}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setCurrentIndex(index);
-                      }}
-                      className={`flex-shrink-0 w-20 h-20 md:w-24 md:h-24 rounded-lg overflow-hidden border-2 transition-all ${
-                        index === currentIndex
-                          ? "border-white scale-110"
-                          : "border-white/30 hover:border-white/60 opacity-70 hover:opacity-100"
-                      }`}
-                    >
-                      <img
-                        src={mediaService.getMedia(img)}
-                        alt={`Thumbnail ${index + 1}`}
-                        className="w-full h-full object-cover"
-                      />
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      <PropertyReviews
+        reviews={reviews}
+        avgRating={avgRating}
+      />
     </>
   );
 };

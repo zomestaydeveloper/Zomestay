@@ -2,6 +2,7 @@ const express = require('express');
 const FrontDeskController = require('../../controllers/frontdeskController/frontdesk.controller');
 const FrontDeskBookingController = require('../../controllers/frontdeskController/frontdeskBooking.controller');
 const PaymentLinkController = require('../../controllers/frontdeskController/paymentLink.controller');
+const CashPaymentController = require('../../controllers/frontdeskController/cashPayment.controller');
 const FrontDeskRoomStatusController = require('../../controllers/frontdeskController/frontdeskRoomstatus.controller');
 const { extractRole } = require('../../middleware/extractRole.middleware');
 const FrontDeskRoute = express.Router();
@@ -28,6 +29,12 @@ FrontDeskRoute.post(
   '/properties/:propertyId/front-desk/payment-links',
   extractRole,
   PaymentLinkController.createPaymentLink
+);
+
+FrontDeskRoute.post(
+  '/properties/:propertyId/front-desk/bookings/cash',
+  extractRole,
+  CashPaymentController.createCashBooking
 );
 
 FrontDeskRoute.post(

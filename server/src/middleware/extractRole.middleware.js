@@ -15,7 +15,7 @@ const { verifyToken } = require('../utils/jwt.utils');
  *   // req.user.role = 'admin', 'host', 'user', or 'agent'
  *   // req.user.id = user id based on role
  * });
- */
+ */ 
 const extractRole = async (req, res, next) => {
   try {
     // Get token from Authorization header

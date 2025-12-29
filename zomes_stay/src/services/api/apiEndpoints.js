@@ -1,5 +1,6 @@
 // Base API URL
 // export const API_BASE_URL = 'https://api.techiconnect.shop';
+
  export const API_BASE_URL = 'http://localhost:5000';
 
 // Base API paths
@@ -89,6 +90,7 @@ export const FRONT_DESK = {
   BOOKING_CONTEXT: '/properties/:propertyId/front-desk/room-types/:propertyRoomTypeId/booking-context',
   HOLDS: '/properties/:propertyId/front-desk/holds',
   PAYMENT_LINKS: '/properties/:propertyId/front-desk/payment-links',
+  CASH_BOOKING: '/properties/:propertyId/front-desk/bookings/cash',
   BLOCKS: '/properties/:propertyId/front-desk/blocks',
   BLOCK_DETAIL: '/properties/:propertyId/front-desk/blocks/:availabilityId',
   MAINTENANCE: '/properties/:propertyId/front-desk/maintenance',
@@ -208,4 +210,3 @@ export const SITE_CONFIG = {
 }
 
 // Add more endpoint categories as needed
-

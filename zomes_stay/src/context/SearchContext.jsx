@@ -4,6 +4,8 @@ const SearchContext = createContext();
 
 export const SearchProvider = ({ children }) => {
   const [searchParams, setSearchParams] = useState(null);
+
+  console.log(searchParams);
   
   const handleSearch = (params) => {
     setSearchParams(params);

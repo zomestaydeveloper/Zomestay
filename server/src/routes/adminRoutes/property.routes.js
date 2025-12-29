@@ -80,6 +80,7 @@ PropertyRoute.patch('/properties/:id/basics', extractRole, PropertyUpdateControl
 PropertyRoute.patch('/properties/:id/location', extractRole, uploadPropertyMedia.any(), PropertyUpdateController.updatePropertyLocation);
 PropertyRoute.patch('/properties/:id/policy', extractRole, PropertyUpdateController.updatePropertyPolicy);
 PropertyRoute.patch('/properties/:id/features', extractRole, PropertyUpdateController.updatePropertyFeatures);
+PropertyRoute.patch('/properties/:id/tax', extractRole, PropertyUpdateController.updatePropertyTax);
 PropertyRoute.patch(
   '/properties/:id/room-types',
   extractRole,

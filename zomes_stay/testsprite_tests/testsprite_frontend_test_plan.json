@@ -1,0 +1,805 @@
+[
+  {
+    "id": "TC001",
+    "title": "User OTP-based Authentication Success",
+    "description": "Verify that users can successfully sign up and log in using correct phone number OTP verification.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to user login page"
+      },
+      {
+        "type": "action",
+        "description": "Enter valid phone number and request OTP"
+      },
+      {
+        "type": "action",
+        "description": "Input received OTP correctly"
+      },
+      {
+        "type": "action",
+        "description": "Submit OTP for verification"
+      },
+      {
+        "type": "assertion",
+        "description": "User successfully authenticated and redirected to homepage/dashboard"
+      }
+    ]
+  },
+  {
+    "id": "TC002",
+    "title": "User OTP Authentication - Incorrect OTP Handling",
+    "description": "Verify system behavior when an incorrect OTP is entered by the user during login/signup.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to user login page"
+      },
+      {
+        "type": "action",
+        "description": "Enter valid phone number and request OTP"
+      },
+      {
+        "type": "action",
+        "description": "Input incorrect OTP"
+      },
+      {
+        "type": "action",
+        "description": "Submit OTP for verification"
+      },
+      {
+        "type": "assertion",
+        "description": "Display error message indicating OTP is invalid and prompt to retry"
+      }
+    ]
+  },
+  {
+    "id": "TC003",
+    "title": "Agent Email/Password Authentication with IATA Document Upload and Admin Approval",
+    "description": "Test agent signup with email/password, with IATA certificate upload, and ensure admin approval is required for access.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to agent signup page"
+      },
+      {
+        "type": "action",
+        "description": "Fill in valid email, password, and other required information"
+      },
+      {
+        "type": "action",
+        "description": "Upload valid IATA certificate document"
+      },
+      {
+        "type": "action",
+        "description": "Submit signup form"
+      },
+      {
+        "type": "assertion",
+        "description": "Agent receives notification that approval is pending"
+      },
+      {
+        "type": "action",
+        "description": "Admin logs into admin dashboard and reviews pending agent approvals"
+      },
+      {
+        "type": "action",
+        "description": "Admin approves the agent account"
+      },
+      {
+        "type": "action",
+        "description": "Agent attempts login with email/password after approval"
+      },
+      {
+        "type": "assertion",
+        "description": "Agent successfully logged in and redirected to agent dashboard"
+      }
+    ]
+  },
+  {
+    "id": "TC004",
+    "title": "Agent Email/Password Authentication Failure Due to Missing IATA Document",
+    "description": "Ensure agent signup is rejected or requires document upload if IATA certificate is missing or invalid.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to agent signup page"
+      },
+      {
+        "type": "action",
+        "description": "Fill in valid email and password but do not upload IATA certificate"
+      },
+      {
+        "type": "action",
+        "description": "Submit signup form"
+      },
+      {
+        "type": "assertion",
+        "description": "Signup rejected with clear validation message about mandatory IATA document"
+      }
+    ]
+  },
+  {
+    "id": "TC005",
+    "title": "Host and Admin Email/Password Authentication Success",
+    "description": "Validate host and admin user authentication with valid credentials and protected routing after login.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to Host login page"
+      },
+      {
+        "type": "action",
+        "description": "Enter valid host email and password"
+      },
+      {
+        "type": "action",
+        "description": "Submit login"
+      },
+      {
+        "type": "assertion",
+        "description": "Host is authenticated and redirected to host dashboard"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to Admin login page"
+      },
+      {
+        "type": "action",
+        "description": "Enter valid admin email and password"
+      },
+      {
+        "type": "action",
+        "description": "Submit login"
+      },
+      {
+        "type": "assertion",
+        "description": "Admin is authenticated and redirected to admin dashboard"
+      },
+      {
+        "type": "action",
+        "description": "Attempt to access role-protected routes without login"
+      },
+      {
+        "type": "assertion",
+        "description": "Access denied and redirected to login page"
+      }
+    ]
+  },
+  {
+    "id": "TC006",
+    "title": "Property Search with Filters and Date/Guest Selection",
+    "description": "Test property search functionality with various filter combinations, date ranges, and guest numbers to verify correct filtering and results.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to property search page"
+      },
+      {
+        "type": "action",
+        "description": "Select filters like location, amenities, property type, and price range"
+      },
+      {
+        "type": "action",
+        "description": "Select valid date range using calendar component"
+      },
+      {
+        "type": "action",
+        "description": "Select number of guests"
+      },
+      {
+        "type": "action",
+        "description": "Initiate search"
+      },
+      {
+        "type": "assertion",
+        "description": "Search results update accurately reflecting all selected filters, date availability, and guest capacity"
+      },
+      {
+        "type": "action",
+        "description": "Clear all filters and search again"
+      },
+      {
+        "type": "assertion",
+        "description": "All properties in database are returned or default listing is shown"
+      }
+    ]
+  },
+  {
+    "id": "TC007",
+    "title": "Property Detail Viewing and Room/Rate Plan Selection",
+    "description": "Verify property details page displays accurate information and allows room and rate plan selection with pricing calculations.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "From search results, select a property to view details"
+      },
+      {
+        "type": "assertion",
+        "description": "Property details display including images, description, amenities, reviews, and availability calendar"
+      },
+      {
+        "type": "action",
+        "description": "Select check-in and check-out dates"
+      },
+      {
+        "type": "action",
+        "description": "Select guests"
+      },
+      {
+        "type": "action",
+        "description": "Choose available rooms and rate plans"
+      },
+      {
+        "type": "assertion",
+        "description": "Prices are calculated correctly based on selection, discounts, and date ranges"
+      }
+    ]
+  },
+  {
+    "id": "TC008",
+    "title": "Booking Flow with Razorpay Payment Success",
+    "description": "Test end-to-end booking flow including order creation, payment via Razorpay, payment success handling, and booking confirmation display.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Complete property selection, date, room, and rate plan choices"
+      },
+      {
+        "type": "action",
+        "description": "Proceed to booking payment page"
+      },
+      {
+        "type": "action",
+        "description": "Initiate Razorpay payment and provide valid payment details"
+      },
+      {
+        "type": "assertion",
+        "description": "Razorpay order is created successfully and payment is processed"
+      },
+      {
+        "type": "assertion",
+        "description": "Payment success callback triggers and booking is confirmed"
+      },
+      {
+        "type": "assertion",
+        "description": "Booking confirmation page displays correct booking details and success message"
+      }
+    ]
+  },
+  {
+    "id": "TC009",
+    "title": "Booking Flow with Razorpay Payment Failure Handling",
+    "description": "Validate appropriate handling when Razorpay payment fails or is canceled, with user notified and booking not confirmed.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate through booking flow to payment page"
+      },
+      {
+        "type": "action",
+        "description": "Attempt Razorpay payment but simulate failure or cancellation"
+      },
+      {
+        "type": "assertion",
+        "description": "System detects payment failure or cancellation"
+      },
+      {
+        "type": "assertion",
+        "description": "Booking is not finalized and no confirmation is shown"
+      },
+      {
+        "type": "assertion",
+        "description": "User receives clear failure message and options to retry payment or cancel booking"
+      }
+    ]
+  },
+  {
+    "id": "TC010",
+    "title": "Redux State Management Persistence After Reload",
+    "description": "Ensure critical state slices like authentication and property search persist correctly across page reloads using Redux Persist.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as any user role and perform property search with filters"
+      },
+      {
+        "type": "assertion",
+        "description": "Redux store shows correct auth state and search filter state"
+      },
+      {
+        "type": "action",
+        "description": "Reload the application page"
+      },
+      {
+        "type": "assertion",
+        "description": "User remains authenticated and search filters remain applied"
+      }
+    ]
+  },
+  {
+    "id": "TC011",
+    "title": "Role-based Protected Route Access Control",
+    "description": "Verify that protected routes for users, agents, hosts, and admins are only accessible by authenticated users with correct role.",
+    "category": "security",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Attempt to access protected user dashboard route without login"
+      },
+      {
+        "type": "assertion",
+        "description": "Redirected to login page"
+      },
+      {
+        "type": "action",
+        "description": "Login as user and access user dashboard route"
+      },
+      {
+        "type": "assertion",
+        "description": "Access granted"
+      },
+      {
+        "type": "action",
+        "description": "Login as agent and attempt to access admin dashboard route"
+      },
+      {
+        "type": "assertion",
+        "description": "Access denied or redirected due to role mismatch"
+      },
+      {
+        "type": "action",
+        "description": "Login as admin and access admin dashboard route"
+      },
+      {
+        "type": "assertion",
+        "description": "Access granted"
+      }
+    ]
+  },
+  {
+    "id": "TC012",
+    "title": "User Profile View and Edit Functionality",
+    "description": "Test that users can view their profile data and perform edits which are validated and saved successfully.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as regular user"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to user profile page"
+      },
+      {
+        "type": "assertion",
+        "description": "Profile information is displayed correctly"
+      },
+      {
+        "type": "action",
+        "description": "Edit profile fields with valid data"
+      },
+      {
+        "type": "action",
+        "description": "Save changes"
+      },
+      {
+        "type": "assertion",
+        "description": "Profile updates are saved and reflect in UI"
+      },
+      {
+        "type": "action",
+        "description": "Attempt invalid data input and save"
+      },
+      {
+        "type": "assertion",
+        "description": "Validation errors are shown and changes are not saved"
+      }
+    ]
+  },
+  {
+    "id": "TC013",
+    "title": "User Booking History Viewing and Details",
+    "description": "Verify that users can view their past and upcoming bookings with detailed booking information.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as user with existing bookings"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to user bookings page"
+      },
+      {
+        "type": "assertion",
+        "description": "List of bookings is displayed with summary info"
+      },
+      {
+        "type": "action",
+        "description": "Select a booking to view details"
+      },
+      {
+        "type": "assertion",
+        "description": "Detailed booking information including property name, dates, guests, payment status, and cancellation options are shown"
+      }
+    ]
+  },
+  {
+    "id": "TC014",
+    "title": "Admin CRUD Operations for Properties",
+    "description": "Test admin's ability to create, read, update, and delete properties via the admin dashboard, confirming data persistence and UI updates.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as admin"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to properties management page"
+      },
+      {
+        "type": "action",
+        "description": "Create a new property with valid data"
+      },
+      {
+        "type": "assertion",
+        "description": "New property appears in property list with correct details"
+      },
+      {
+        "type": "action",
+        "description": "Edit existing property details and save"
+      },
+      {
+        "type": "assertion",
+        "description": "Property details updated correctly"
+      },
+      {
+        "type": "action",
+        "description": "Delete a property"
+      },
+      {
+        "type": "assertion",
+        "description": "Property is removed from the list and database"
+      }
+    ]
+  },
+  {
+    "id": "TC015",
+    "title": "Admin Booking Status Management and Cancellation",
+    "description": "Validate admin can view all bookings, update statuses, and manage cancellations properly.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as admin"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to all bookings management page"
+      },
+      {
+        "type": "assertion",
+        "description": "All bookings are visible with status and user/property info"
+      },
+      {
+        "type": "action",
+        "description": "Change booking status (e.g., confirmed to cancelled)"
+      },
+      {
+        "type": "assertion",
+        "description": "Booking status updates successfully and reflects in database"
+      },
+      {
+        "type": "action",
+        "description": "Process cancellation requests and confirm handling"
+      },
+      {
+        "type": "assertion",
+        "description": "Cancellation processed with notifications sent"
+      }
+    ]
+  },
+  {
+    "id": "TC016",
+    "title": "Agent Approval Workflow and Discount Management by Admin",
+    "description": "Check that admin can approve or reject agents and set discount rates, with proper access control and notifications.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as admin"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to agent management page"
+      },
+      {
+        "type": "assertion",
+        "description": "Pending agent signups are listed with uploaded documentation"
+      },
+      {
+        "type": "action",
+        "description": "Approve an agent"
+      },
+      {
+        "type": "assertion",
+        "description": "Agent status updates to approved and agent receives notification"
+      },
+      {
+        "type": "action",
+        "description": "Set a discount rate for an approved agent"
+      },
+      {
+        "type": "assertion",
+        "description": "Discount is applied correctly and reflected in bookings involving the agent"
+      }
+    ]
+  },
+  {
+    "id": "TC017",
+    "title": "Host Dashboard Statistics and Booking Management",
+    "description": "Verify hosts can view real-time property statistics, booking summaries, and manage their property bookings accurately.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as host"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to host dashboard"
+      },
+      {
+        "type": "assertion",
+        "description": "Dashboard shows accurate current statistics such as total bookings, revenue, and occupancy rates"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to host bookings management page"
+      },
+      {
+        "type": "assertion",
+        "description": "List of bookings for host's properties is displayed with booking details"
+      },
+      {
+        "type": "action",
+        "description": "Modify booking statuses where applicable"
+      },
+      {
+        "type": "assertion",
+        "description": "Booking statuses update correctly and notifications are sent if required"
+      }
+    ]
+  },
+  {
+    "id": "TC018",
+    "title": "Wishlist Functionality for Users",
+    "description": "Test that users can add properties to their wishlist, view the wishlist, and remove properties from it.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as a user"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to a property detail page"
+      },
+      {
+        "type": "action",
+        "description": "Add property to wishlist"
+      },
+      {
+        "type": "assertion",
+        "description": "Property is added and visible in user wishlist"
+      },
+      {
+        "type": "action",
+        "description": "Remove property from wishlist"
+      },
+      {
+        "type": "assertion",
+        "description": "Property is removed and no longer displayed in wishlist"
+      }
+    ]
+  },
+  {
+    "id": "TC019",
+    "title": "User Review and Rating Submission for Properties",
+    "description": "Check that logged-in users can submit property reviews and ratings and edits are properly saved and displayed.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as user"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to a booked property detail page"
+      },
+      {
+        "type": "action",
+        "description": "Submit a new review with rating, text feedback, and optional images"
+      },
+      {
+        "type": "assertion",
+        "description": "Review is saved and visible under property reviews"
+      },
+      {
+        "type": "action",
+        "description": "Edit previously submitted review"
+      },
+      {
+        "type": "assertion",
+        "description": "Updated review is saved and updated in UI"
+      }
+    ]
+  },
+  {
+    "id": "TC020",
+    "title": "Static Informational Pages Rendering",
+    "description": "Verify static pages such as About Us, Contact, FAQ, Legal and Agent How-To pages render correct content and are accessible from navigation.",
+    "category": "ui",
+    "priority": "Low",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to About Us page"
+      },
+      {
+        "type": "assertion",
+        "description": "Page content is displayed correctly with no missing elements"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to Contact Us page"
+      },
+      {
+        "type": "assertion",
+        "description": "Contact form and information are visible and interactive"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to FAQ page"
+      },
+      {
+        "type": "assertion",
+        "description": "FAQ entries expand and collapse correctly"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to Legal Info and How-To agent pages"
+      },
+      {
+        "type": "assertion",
+        "description": "Content loads without errors and includes all intended information"
+      }
+    ]
+  },
+  {
+    "id": "TC021",
+    "title": "API Service Layer Axios Call Success and Error Handling",
+    "description": "Validate central API service correctly handles expected responses and gracefully handles server errors for various endpoints.",
+    "category": "error handling",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Trigger successful API request to fetch properties"
+      },
+      {
+        "type": "assertion",
+        "description": "Response data is correctly returned and updated in state"
+      },
+      {
+        "type": "action",
+        "description": "Force an API failure (e.g., by simulating server error)"
+      },
+      {
+        "type": "assertion",
+        "description": "Error response is caught, displayed with user-friendly notifications, and does not crash the app"
+      }
+    ]
+  },
+  {
+    "id": "TC022",
+    "title": "Media Upload and Management for Agents and Hosts",
+    "description": "Test media file uploads (e.g., profile photos, IATA certificates, property images), verifying upload success, preview, and error handling.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as agent and navigate to document upload section"
+      },
+      {
+        "type": "action",
+        "description": "Upload valid IATA certificate file"
+      },
+      {
+        "type": "assertion",
+        "description": "File upload is successful and preview shown"
+      },
+      {
+        "type": "action",
+        "description": "Upload invalid file type or exceeding size limit"
+      },
+      {
+        "type": "assertion",
+        "description": "Appropriate error messages are shown and file rejected"
+      },
+      {
+        "type": "action",
+        "description": "Repeat for host property images"
+      },
+      {
+        "type": "assertion",
+        "description": "Upload and preview function correctly"
+      }
+    ]
+  },
+  {
+    "id": "TC023",
+    "title": "Performance and Responsiveness of Reusable UI Components",
+    "description": "Verify major reusable UI components such as cards, modals, calendars, loaders, and notifications render correctly, respond to interactions, and do not degrade performance.",
+    "category": "ui",
+    "priority": "Low",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Load pages containing cards, modals, and calendar components"
+      },
+      {
+        "type": "assertion",
+        "description": "Components render as per design with correct data displayed"
+      },
+      {
+        "type": "action",
+        "description": "Trigger modal open/close and date selections"
+      },
+      {
+        "type": "assertion",
+        "description": "Interactions behave smoothly with no UI glitches or delays"
+      },
+      {
+        "type": "action",
+        "description": "Trigger notifications and loaders"
+      },
+      {
+        "type": "assertion",
+        "description": "Notifications appear and disappear correctly, loaders show during async operations"
+      }
+    ]
+  }
+]
