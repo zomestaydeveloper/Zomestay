@@ -8,6 +8,9 @@ export const API_BASE = '/api';
 
 export const AUTH = {
   LOGIN: '/login',
+  SEND_OTP: '/send-otp',
+  RESEND_OTP: '/resend-otp',
+  VERIFY_OTP: '/verify-otp',
   REGISTER: '/auth/register',
   LOGOUT: '/auth/logout',
   REFRESH: '/auth/refresh',
@@ -17,6 +20,9 @@ export const AUTH = {
 
 export const HOST_AUTH = {
     LOGIN: '/host-login',
+    SEND_OTP: '/host-otp',
+    RESEND_OTP: '/host-resend-otp',
+    VERIFY_OTP: '/host-verify-otp',
     REGISTER: '/host/register',
     LOGOUT: '/host/logout',
     REFRESH: '/host/refresh',

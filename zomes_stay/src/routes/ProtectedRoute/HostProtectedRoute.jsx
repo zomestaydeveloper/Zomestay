@@ -23,7 +23,6 @@ const HostProtectedRoute = ({ redirectTo = '/host', children }) => {
   const hostAccessToken = hostAuth?.hostAccessToken || '';
   const currentRole = hostAuth?.role || '';
 
-<<<<<<< HEAD:zomes_stay/src/routes/HostProtectedRoute.jsx
   const isAuthed = Boolean(hostAccessToken);
   const roleAllowed = currentRole === 'host';
 
@@ -35,10 +34,9 @@ const HostProtectedRoute = ({ redirectTo = '/host', children }) => {
       currentRole,
       hostAuth
     });
-=======
+  }
   // Check if token exists
   if (!hostAccessToken) {
->>>>>>> 385cf3dc7ca16452b0928d215cd9f369b11c8bbc:zomes_stay/src/routes/ProtectedRoute/HostProtectedRoute.jsx
     return <Navigate to={redirectTo} replace state={{ from: location }} />;
   }
 

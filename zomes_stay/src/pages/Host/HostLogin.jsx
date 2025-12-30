@@ -1,285 +1,298 @@
-
-import React, { useState } from "react";
-import Logo from "../../assets/loginPage/logo.png";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { hostAuthService, inventoryService } from "../../services";
-import { toast } from "react-toastify";
 import { useDispatch } from "react-redux";
+import { Phone, ArrowLeft, ChevronLeft, Shield, CheckCircle2, Loader2 } from "lucide-react";
+import { hostAuthService } from "../../services";
 import { setHostLogin } from "../../store/hostAuthSlice";
-import { setAdminLogin } from "../../store/adminAuthSlice";
-import { setHostProperty } from "../../store/propertySlice";
-import { persistor } from "../../store/store";
+import { COUNTRY_CODES } from "../../data/countryCodes";
+import NotificationModal from "../../components/NotificationModal";
 
-
-const TechIllustration = () => (
-  <svg
-    className="w-[320px] max-w-[90%]"
-    viewBox="0 0 350 250"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-  >
-    <rect x="40" y="40" width="270" height="170" rx="20" fill="#e6e9f7" />
-    <rect x="70" y="70" width="90" height="50" rx="8" fill="#b06ab3" />
-    <rect x="180" y="70" width="90" height="50" rx="8" fill="#6a85e6" />
-    <rect x="70" y="130" width="200" height="30" rx="6" fill="#d7d8ef" />
-    <circle cx="100" cy="145" r="8" fill="#b06ab3" />
-    <circle cx="130" cy="145" r="8" fill="#6a85e6" />
-    <circle cx="160" cy="145" r="8" fill="#b06ab3" />
-    <rect x="220" y="120" width="40" height="15" rx="4" fill="#6a85e6" />
-    <rect x="100" y="180" width="150" height="12" rx="4" fill="#b06ab3" />
-  </svg>
-);
-
-const HostLogin = () => {
-  const [formData, setFormData] = useState({ email: "", password: "" });
-  const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState({});
+const HostLoginPage = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
-  const validateForm = () => {
-    const newErrors = {};
-    if (!formData.email) newErrors.email = "Email is required";
-    if (!formData.password) newErrors.password = "Password is required";
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
+  const [step, setStep] = useState("PHONE");
+  const [loading, setLoading] = useState(false);
+  const [phone, setPhone] = useState("");
+  const [countryCode, setCountryCode] = useState("+91");
+  const [otp, setOtp] = useState(["", "", "", ""]);
+  const [resendTimer, setResendTimer] = useState(60);
+  const [canResend, setCanResend] = useState(false);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: "" }));
+  const inputRefs = useRef([]);
+  const timerRef = useRef(null);
+
+  const [notification, setNotification] = useState({
+    isOpen: false,
+    type: "error",
+    title: "",
+    message: "",
+  });
+
+  /* ---------------- Timer ---------------- */
+  useEffect(() => {
+    if (step === "OTP" && resendTimer > 0 && !canResend) {
+      timerRef.current = setTimeout(() => {
+        setResendTimer((prev) => {
+          if (prev <= 1) {
+            setCanResend(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
     }
+    return () => timerRef.current && clearTimeout(timerRef.current);
+  }, [step, resendTimer, canResend]);
+
+  /* ---------------- Helpers ---------------- */
+  const showNotification = (type, title, message) => {
+    setNotification({ isOpen: true, type, title, message });
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!validateForm()) return;
+  /* ---------------- Send OTP ---------------- */
+  const handleSendOTP = async () => {
+    if (!phone || phone.length < 10) {
+      showNotification("error", "Validation Error", "Enter a valid phone number");
+      return;
+    }
 
     setLoading(true);
     try {
-      const response = await hostAuthService.login({
-        ...formData,
-      });
-      console.log("Host Login Response:", response);
-      let dataHost = response?.data?.data;
-
-      // Fallback: sometimes API returns data directly in response.data
-      if (!dataHost && response?.data?.token) {
-        console.warn("Falling back to response.data for host login info");
-        dataHost = response.data;
-      }
-
-      if (dataHost?.admin || dataHost?.token && JSON.parse(atob(dataHost.token.split('.')[1])).role === 'admin') {
-        // User is actually an Admin
-        console.log("Detailed Admin detection: User logged in as Admin on Host page. Redirecting...");
-
-        // If dataHost doesn't have the admin object but the token says admin, we might need to be careful.
-        // But based on user logs, dataHost.admin exists.
-        const adminData = dataHost?.admin || {};
-
-        dispatch(setAdminLogin({
-          email: adminData.email || formData.email,
-          first_name: adminData.firstName,
-          last_name: adminData.lastName,
-          profileImage: adminData.profileImage,
-          id: adminData.id,
-          adminAccessToken: dataHost.token, // Use the token from response
-        }));
-
-        await persistor.flush();
-        toast.info("Logged in as Admin. Redirecting to Admin Panel...");
-        navigate("/admin/base/dashboard", { replace: true });
-        return;
-      }
-
-      if (!dataHost?.token) {
-        console.error("Login successful but no token found in response:", response);
-        throw new Error("Login failed: No access token received from server");
-      }
-
-      // Ensure we have a host object, even if empty, to avoid crashes
-      const hostData = dataHost?.host || {};
-
-      console.log("Dispatching Host Login:", {
-        email: hostData.email,
-        first_name: hostData.firstName,
-        last_name: hostData.lastName,
-        profileImage: hostData.profileImage,
-        id: hostData.id,
-        hostAccessToken: dataHost.token,
+      const response = await hostAuthService.sendOTP({
+        phone: phone.replace(/\D/g, ""),
+        countryCode,
       });
 
-      dispatch(
-        setHostLogin({
-          email: hostData.email,
-          first_name: hostData.firstName,
-          last_name: hostData.lastName,
-          profileImage: hostData.profileImage,
-          id: hostData.id,
-          hostAccessToken: dataHost.token,
-        })
-      );
-
-      // Only fetch property if we actually have a valid Host ID
-      if (hostData.id && dataHost.token) {
-        try {
-          const propertyResponse = await inventoryService.getPropertyByID(
-            hostData.id,
-            {
-              headers: {
-                Authorization: `Bearer ${dataHost.token}`,
-              },
-              role: "host",
-            }
-          );
-          const propertyData = propertyResponse?.data?.data;
-
-          dispatch(
-            setHostProperty(
-              propertyData
-                ? {
-                  id: propertyData.id,
-                  name: propertyData.title,
-                }
-                : null
-            )
-          );
-        } catch (propertyError) {
-          console.error("Failed to fetch host property:", propertyError);
-          // Don't clear token or login state just because property fetch failed
-          dispatch(setHostProperty(null));
-        }
+      if (response.data.success) {
+        setStep("OTP");
+        setResendTimer(60);
+        setCanResend(false);
       } else {
-        console.warn("Skipping property fetch: No Host ID found");
-        dispatch(setHostProperty(null));
+        showNotification("error", "Failed", response.data.message);
       }
-
-      // Flush Redux Persist to ensure token is saved to localStorage immediately
-      // This ensures the axios interceptor can find the token when making API calls
-      // MUST be AFTER all dispatches and BEFORE navigation
-      await persistor.flush();
-
-      toast.success("Login successful!");
-      console.log("Navigating to dashboard...");
-      navigate("/host/base/dashboard", { replace: true });
     } catch (error) {
-      let errorMessage = "Login failed. Please try again.";
-      if (error.response) {
-        errorMessage = error.response.data?.message || errorMessage;
-        if (error.response.status === 401) {
-          errorMessage = "Invalid email or password";
-        } else if (error.response.status === 403) {
-          errorMessage = "Access denied. Admin privileges required.";
-        }
-      }
-      console.error("Login Error Catch:", error);
-      toast.error(errorMessage);
+      showNotification("error", "Error", "Failed to send OTP");
     } finally {
       setLoading(false);
     }
   };
 
+  /* ---------------- Verify OTP ---------------- */
+  const handleVerifyOTP = async () => {
+    const otpValue = otp.join("");
+
+    if (!/^\d{4}$/.test(otpValue)) {
+      showNotification("error", "Validation Error", "Enter valid 4-digit OTP");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await hostAuthService.verifyOTP({
+        phone: phone.replace(/\D/g, ""),
+        otp: otpValue,
+      });
+
+      if (response.data.success) {
+        console.log(response.data,'hh')
+        const { host, token } = response.data.data;
+
+        dispatch(
+          setHostLogin({
+            id: host.id,
+            email: host.email,
+            phone: host.phone,
+            first_name: host.firstName,
+            last_name: host.lastName,
+            profileImage: host.profileImage,
+            hostAccessToken: token,
+          })
+        );
+
+        navigate("/host/base/dashboard", { replace: true });
+      } else {
+        throw new Error("Invalid OTP");
+      }
+    } catch (error) {
+      showNotification("error", "Verification Failed", "Invalid OTP");
+      setOtp(["", "", "", ""]);
+      inputRefs.current[0]?.focus();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /* ---------------- Resend OTP ---------------- */
+  const handleResendOTP = async () => {
+    if (!canResend) return;
+
+    setLoading(true);
+    try {
+      const response = await hostAuthService.resendOTP({
+        phone: phone.replace(/\D/g, ""),
+        countryCode,
+      });
+
+      if (response.data.success) {
+        setResendTimer(60);
+        setCanResend(false);
+        showNotification("success", "Success", "OTP resent successfully");
+      }
+    } catch {
+      showNotification("error", "Error", "Failed to resend OTP");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /* ---------------- OTP Inputs ---------------- */
+  const handleOtpChange = (index, value) => {
+    if (value && !/^\d+$/.test(value)) return;
+
+    const newOtp = [...otp];
+    newOtp[index] = value.slice(-1);
+    setOtp(newOtp);
+
+    if (value && index < 3) inputRefs.current[index + 1]?.focus();
+  };
+
+  const handleKeyDown = (index, e) => {
+    if (e.key === "Backspace" && !otp[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  /* ---------------- UI ---------------- */
   return (
-    <div className="flex flex-col md:flex-row min-h-screen bg-gradient-to-br from-[#f0f4ff] to-[#e6ebfa]">
-      <div className="md:w-1/2 flex flex-col items-center md:items-start justify-start px-4 md:pl-16 pt-8 md:pt-16 bg-transparent">
-        <div className="flex items-center gap-2 mb-10 md:mb-16 w-full">
-          <img src={Logo} className="w-70" alt="Logo" />
-        </div>
-        <div className="hidden sm:flex w-full flex-1 justify-center items-center">
-          <TechIllustration />
-        </div>
-      </div>
-
-      <div className="md:w-1/2 flex items-center justify-center bg-white/95 shadow-2xl px-2 py-8 md:py-0">
-        <form
-          onSubmit={handleSubmit}
-          className="w-full max-w-[360px] bg-white rounded-2xl shadow-lg px-4 py-8 md:p-10 flex flex-col gap-7"
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center px-4">
+      <div className="w-full max-w-md">
+        {/* Back */}
+        <button
+          onClick={() => navigate("/")}
+          className="mb-6 flex items-center text-gray-600 hover:text-gray-900"
         >
-          <h2 className="text-center text-[#6a85e6] font-bold text-2xl mb-1">
-            Login
-          </h2>
+          <ChevronLeft size={18} />
+          <span className="ml-1 text-sm font-medium">Back</span>
+        </button>
 
-          {/* Email */}
-          <div className="relative mb-2">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#6a85e6]">
-              <svg width="18" height="18" fill="none">
-                <path
-                  d="M9 9a3 3 0 100-6 3 3 0 000 6zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"
-                  fill="#6a85e6"
-                />
-              </svg>
-            </span>
-            <input
-              name="email"
-              className="w-full pl-11 pr-3 py-3 border border-gray-200 rounded-lg bg-[#f7f9fc] focus:border-[#6a85e6] focus:bg-white outline-none text-base transition"
-              type="email"
-              placeholder="Email"
-              value={formData.email}
-              onChange={handleChange}
-              autoComplete="username"
-            />
-            {errors.email && (
-              <p className="text-red-500 text-sm mt-1">{errors.email}</p>
+        <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-[#004AAD] to-[#00398a] px-8 py-8 text-center">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-white/20 rounded-full mb-4">
+              <Shield className="text-white w-8 h-8" />
+            </div>
+            <h1 className="text-3xl font-bold text-white">
+              {step === "PHONE" ? "Host Login" : "Verify OTP"}
+            </h1>
+            <p className="text-blue-100 mt-2 text-sm">
+              {step === "PHONE"
+                ? "Login using your phone number"
+                : `Code sent to ${countryCode} ${phone}`}
+            </p>
+          </div>
+
+          {/* Body */}
+          <div className="px-8 py-8">
+            {step === "OTP" && (
+              <button
+                onClick={() => {
+                  setStep("PHONE");
+                  setOtp(["", "", "", ""]);
+                }}
+                className="mb-6 flex items-center text-sm text-gray-600 hover:text-[#004AAD]"
+              >
+                <ArrowLeft size={16} className="mr-1" />
+                Change phone number
+              </button>
+            )}
+
+            {/* PHONE */}
+            {step === "PHONE" && (
+              <div className="space-y-6">
+                <div className="flex">
+                  <select
+                    value={countryCode}
+                    onChange={(e) => setCountryCode(e.target.value)}
+                    className="px-4 py-3 border border-r-0 rounded-l-lg bg-gray-50"
+                  >
+                    {COUNTRY_CODES.map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {c.flag} {c.code}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+                    placeholder="Enter phone number"
+                    className="w-full px-4 py-3 border rounded-r-lg"
+                  />
+                </div>
+
+                <button
+                  onClick={handleSendOTP}
+                  disabled={loading}
+                  className="w-full bg-[#004AAD] text-white py-3 rounded-lg font-semibold flex justify-center gap-2"
+                >
+                  {loading ? <Loader2 className="animate-spin" /> : <Phone />}
+                  Send OTP
+                </button>
+              </div>
+            )}
+
+            {/* OTP */}
+            {step === "OTP" && (
+              <div className="space-y-6">
+                <div className="flex justify-center gap-3">
+                  {[0, 1, 2, 3].map((i) => (
+                    <input
+                      key={i}
+                      ref={(el) => (inputRefs.current[i] = el)}
+                      maxLength={1}
+                      value={otp[i]}
+                      onChange={(e) => handleOtpChange(i, e.target.value)}
+                      onKeyDown={(e) => handleKeyDown(i, e)}
+                      className="w-16 h-16 border-2 rounded-xl text-center text-3xl font-bold"
+                      autoFocus={i === 0}
+                    />
+                  ))}
+                </div>
+
+                <button
+                  onClick={handleVerifyOTP}
+                  disabled={loading}
+                  className="w-full bg-[#004AAD] text-white py-3 rounded-lg font-semibold flex justify-center gap-2"
+                >
+                  {loading ? <Loader2 className="animate-spin" /> : <CheckCircle2 />}
+                  Verify OTP
+                </button>
+
+                <button
+                  onClick={handleResendOTP}
+                  disabled={!canResend}
+                  className="text-sm text-center w-full"
+                >
+                  {canResend ? "Resend OTP" : `Resend in ${resendTimer}s`}
+                </button>
+              </div>
             )}
           </div>
-
-          {/* Password */}
-          <div className="relative mb-2">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#6a85e6]">
-              <svg width="18" height="18" fill="none">
-                <path
-                  d="M12 8V6a4 4 0 10-8 0v2a2 2 0 00-2 2v6a2 2 0 002 2h8a2 2 0 002-2v-6a2-2 0 00-2-2zm-6-2a2 2 0 114 0v2H6V6zm8 10H2v-6h12v6z"
-                  fill="#6a85e6"
-                />
-              </svg>
-            </span>
-            <input
-              name="password"
-              className="w-full pl-11 pr-3 py-3 border border-gray-200 rounded-lg bg-[#f7f9fc] focus:border-[#6a85e6] focus:bg-white outline-none text-base transition"
-              type="password"
-              placeholder="Password"
-              value={formData.password}
-              onChange={handleChange}
-              autoComplete="current-password"
-            />
-            {errors.password && (
-              <p className="text-red-500 text-sm mt-1">{errors.password}</p>
-            )}
-          </div>
-
-          <div className="text-right mb-2">
-            <a
-              href="#"
-              className="text-[#6a85e6] text-sm hover:text-[#b06ab3] transition"
-            >
-              Forgot password?
-            </a>
-          </div>
-
-          {/* Button */}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-gradient-to-r from-[#6a85e6] to-[#b06ab3] text-white rounded-lg text-lg font-semibold py-3 mt-2 shadow-md hover:from-[#b06ab3] hover:to-[#6a85e6] transition disabled:opacity-50"
-          >
-            {loading ? "Logging in..." : "Login"}
-          </button>
-
-          <div className="text-center mt-4 text-gray-500 text-base">
-            Don&apos;t have an account?
-            <a
-              href="#"
-              className="text-[#6a85e6] underline hover:text-[#b06ab3] ml-1 transition"
-            >
-              Register Here
-            </a>
-          </div>
-        </form>
+        </div>
       </div>
+
+      <NotificationModal
+        isOpen={notification.isOpen}
+        type={notification.type}
+        title={notification.title}
+        message={notification.message}
+        onClose={() =>
+          setNotification((p) => ({ ...p, isOpen: false }))
+        }
+      />
     </div>
   );
 };
 
-export default HostLogin;
+export default HostLoginPage;

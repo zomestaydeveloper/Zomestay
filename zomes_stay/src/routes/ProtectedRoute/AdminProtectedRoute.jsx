@@ -23,7 +23,6 @@ const AdminProtectedRoute = ({ redirectTo = '/admin', children }) => {
   const adminAccessToken = adminAuth?.adminAccessToken || '';
   const currentRole = adminAuth?.role || '';
 
-<<<<<<< HEAD:zomes_stay/src/routes/AdminProtectedRoute.jsx
   const isAuthed = Boolean(adminAccessToken);
   const roleAllowed = currentRole === 'admin';
 
@@ -35,10 +34,9 @@ const AdminProtectedRoute = ({ redirectTo = '/admin', children }) => {
       currentRole,
       adminAuth
     });
-=======
+  }
   // Check if token exists
   if (!adminAccessToken) {
->>>>>>> 385cf3dc7ca16452b0928d215cd9f369b11c8bbc:zomes_stay/src/routes/ProtectedRoute/AdminProtectedRoute.jsx
     return <Navigate to={redirectTo} replace state={{ from: location }} />;
   }
 
@@ -59,4 +57,3 @@ const AdminProtectedRoute = ({ redirectTo = '/admin', children }) => {
 };
 
 export default AdminProtectedRoute;
-

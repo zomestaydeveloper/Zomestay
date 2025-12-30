@@ -6,6 +6,9 @@ const AuthController = require('../../controllers/adminController/auth.controlle
 // Signup route
 adminAuthRouter.post('/signup', uploadImage.single('profileImage'), AuthController.signup);
 adminAuthRouter.post('/login', AuthController.login);
+adminAuthRouter.post('/send-otp', AuthController.sendOTP);
+adminAuthRouter.post('/resend-otp', AuthController.resendOTP);
+adminAuthRouter.post('/verify-otp', AuthController.verifyOTP);
 adminAuthRouter.post('/logout', AuthController.logout);
 adminAuthRouter.get('/test', (req, res) => {
   const authHeader = req.headers['authorization']; // or req.get('authorization')
