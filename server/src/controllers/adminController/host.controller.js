@@ -246,6 +246,7 @@ const fetchHostPropertyDetails = async (propertyId) =>
 
 const HostController = {
   createHost: async (req, res) => {
+    console.log("🔥 createHost called at", new Date().toISOString());
     try {
       const { email, password, firstName, lastName, phone } = req.body;
 
@@ -281,15 +282,19 @@ const HostController = {
         }
       });
 
+      console.log(host,'jd');
+
       return res.status(201).json({
         success: true,
         message: 'Host created successfully',
-        data: host
+        host: host
       });
+
     } catch (err) {
       console.error('Error creating host:', err);
 
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        console.log('here');
         return res.status(409).json({
           success: false,
           message: 'Email already exists'
@@ -418,6 +423,65 @@ const HostController = {
       });
     }
   },
+
+  registerOTP: async (req, res) => {
+    try {
+      const { phone, otp } = req.body;
+
+      if (!phone || !otp) {
+        return res.status(400).json({
+          success: false,
+          message: "Phone and OTP are required"
+        });
+      }
+
+      const cleanPhone = phone.replace(/\s|-/g, "");
+      const storedOTPData = otpStore.get(cleanPhone);
+
+      if (!storedOTPData) {
+        return res.status(400).json({
+          success: false,
+          message: "OTP not found or expired"
+        });
+      }
+
+      if (Date.now() > storedOTPData.expiresAt) {
+        otpStore.delete(cleanPhone);
+        return res.status(400).json({
+          success: false,
+          message: "OTP expired"
+        });
+      }
+
+      if (storedOTPData.otp !== otp) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid OTP"
+        });
+      }
+
+      // OTP verified → delete it
+      otpStore.delete(cleanPhone);
+
+      // 🔐 Mark phone as verified for signup (short-lived)
+      otpStore.set(`verified:${cleanPhone}`, {
+        verified: true,
+        expiresAt: Date.now() + 5 * 60 * 1000 // 5 minutes
+      });
+      return res.json({
+        success: true,
+        message: "OTP verified successfully"
+      });
+
+    } catch (error) {
+      console.error("Register OTP Error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to verify OTP"
+      });
+    }
+  },
+
 
   verifyOTP: async (req, res) => {
     try {
