@@ -21,6 +21,7 @@ import BookingSuccess from "../pages/BookingSuccess";
 import BookingFailure from "../pages/BookingFailure";
 import HostSignup from "../pages/Host/HostRegister";
 
+//
 /**
  * PublicRoutes
  * - All public routes that don't require authentication
