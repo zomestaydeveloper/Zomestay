@@ -95,7 +95,7 @@ const HostLoginPage = () => {
       });
 
       if (response.data.success) {
-        console.log(response.data,'hh')
+        console.log(response.data, 'hh')
         const { host, token } = response.data.data;
 
         dispatch(
@@ -167,16 +167,18 @@ const HostLoginPage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center px-4">
       <div className="w-full max-w-md">
+
         {/* Back */}
         <button
           onClick={() => navigate("/")}
-          className="mb-6 flex items-center text-gray-600 hover:text-gray-900"
+          className="mb-6 flex items-center text-gray-600 hover:text-gray-900 transition"
         >
           <ChevronLeft size={18} />
           <span className="ml-1 text-sm font-medium">Back</span>
         </button>
 
         <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
+
           {/* Header */}
           <div className="bg-gradient-to-r from-[#004AAD] to-[#00398a] px-8 py-8 text-center">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-white/20 rounded-full mb-4">
@@ -194,6 +196,7 @@ const HostLoginPage = () => {
 
           {/* Body */}
           <div className="px-8 py-8">
+
             {step === "OTP" && (
               <button
                 onClick={() => {
@@ -207,34 +210,43 @@ const HostLoginPage = () => {
               </button>
             )}
 
-            {/* PHONE */}
+            {/* PHONE STEP */}
             {step === "PHONE" && (
               <div className="space-y-6">
-                <div className="flex">
-                  <select
-                    value={countryCode}
-                    onChange={(e) => setCountryCode(e.target.value)}
-                    className="px-4 py-3 border border-r-0 rounded-l-lg bg-gray-50"
-                  >
-                    {COUNTRY_CODES.map((c) => (
-                      <option key={c.code} value={c.code}>
-                        {c.flag} {c.code}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
-                    placeholder="Enter phone number"
-                    className="w-full px-4 py-3 border rounded-r-lg"
-                  />
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Phone number
+                  </label>
+                  <div className="flex">
+                    <select
+                      value={countryCode}
+                      onChange={(e) => setCountryCode(e.target.value)}
+                      className="px-4 py-3 border border-r-0 rounded-l-lg bg-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-[#004AAD]/20"
+                    >
+                      {COUNTRY_CODES.map((c) => (
+                        <option key={c.code} value={c.code}>
+                          {c.flag} {c.code}
+                        </option>
+                      ))}
+                    </select>
+
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={(e) =>
+                        setPhone(e.target.value.replace(/\D/g, ""))
+                      }
+                      placeholder="Enter phone number"
+                      className="w-full px-4 py-3 rounded-r-lg border border-gray-300 bg-gray-50 text-gray-900 placeholder-gray-400 outline-none transition-all duration-200 focus:bg-white focus:border-[#004AAD] focus:ring-2 focus:ring-[#004AAD]/20"
+                    />
+                  </div>
                 </div>
 
                 <button
                   onClick={handleSendOTP}
                   disabled={loading}
-                  className="w-full bg-[#004AAD] text-white py-3 rounded-lg font-semibold flex justify-center gap-2"
+                  className="w-full bg-gradient-to-r from-[#004AAD] to-[#00398a] text-white py-3 rounded-lg font-semibold flex justify-center items-center gap-2 transition disabled:opacity-50"
                 >
                   {loading ? <Loader2 className="animate-spin" /> : <Phone />}
                   Send OTP
@@ -242,9 +254,10 @@ const HostLoginPage = () => {
               </div>
             )}
 
-            {/* OTP */}
+            {/* OTP STEP */}
             {step === "OTP" && (
               <div className="space-y-6">
+
                 <div className="flex justify-center gap-3">
                   {[0, 1, 2, 3].map((i) => (
                     <input
@@ -254,7 +267,7 @@ const HostLoginPage = () => {
                       value={otp[i]}
                       onChange={(e) => handleOtpChange(i, e.target.value)}
                       onKeyDown={(e) => handleKeyDown(i, e)}
-                      className="w-16 h-16 border-2 rounded-xl text-center text-3xl font-bold"
+                      className="w-16 h-16 border-2 border-gray-300 rounded-xl text-center text-3xl font-bold outline-none transition focus:border-[#004AAD] focus:ring-2 focus:ring-[#004AAD]/20"
                       autoFocus={i === 0}
                     />
                   ))}
@@ -263,7 +276,7 @@ const HostLoginPage = () => {
                 <button
                   onClick={handleVerifyOTP}
                   disabled={loading}
-                  className="w-full bg-[#004AAD] text-white py-3 rounded-lg font-semibold flex justify-center gap-2"
+                  className="w-full bg-gradient-to-r from-[#004AAD] to-[#00398a] text-white py-3 rounded-lg font-semibold flex justify-center items-center gap-2 transition disabled:opacity-50"
                 >
                   {loading ? <Loader2 className="animate-spin" /> : <CheckCircle2 />}
                   Verify OTP
@@ -272,7 +285,10 @@ const HostLoginPage = () => {
                 <button
                   onClick={handleResendOTP}
                   disabled={!canResend}
-                  className="text-sm text-center w-full"
+                  className={`w-full text-sm font-medium ${canResend
+                      ? "text-[#004AAD] hover:underline"
+                      : "text-gray-400 cursor-not-allowed"
+                    }`}
                 >
                   {canResend ? "Resend OTP" : `Resend in ${resendTimer}s`}
                 </button>
@@ -293,6 +309,7 @@ const HostLoginPage = () => {
       />
     </div>
   );
+
 };
 
 export default HostLoginPage;

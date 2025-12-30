@@ -278,7 +278,7 @@ const HostController = {
           phone: true,
           profileImage: true,
           isVerified: true,
-          createdAt: true
+          createdAt: true,
         }
       });
 

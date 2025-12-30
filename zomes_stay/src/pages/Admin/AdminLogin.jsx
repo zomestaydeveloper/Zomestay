@@ -178,74 +178,115 @@ const AdminLogin = () => {
 
   /* ---------- UI ---------- */
   return (
-    <div className="flex flex-col md:flex-row min-h-screen bg-gradient-to-br from-[#f0f4ff] to-[#e6ebfa]">
-      {/* Left */}
-      <div className="md:w-1/2 flex flex-col items-center md:items-start px-4 md:pl-16 pt-8 md:pt-16">
-        <img src={Logo} className="w-70 mb-12" alt="Logo" />
-        <div className="hidden sm:flex flex-1 justify-center items-center">
-          <TechIllustration />
+    <div className="flex flex-col lg:flex-row min-h-screen bg-gradient-to-br from-[#f0f4ff] to-[#e6ebfa]">
+
+      {/* LEFT – Branding / Illustration */}
+      <div className="hidden lg:flex w-1/2 items-center justify-center relative bg-gradient-to-br from-[#6a85e6] via-[#5b6fe0] to-[#4a5ed0] p-16">
+
+        {/* Decorative blobs */}
+        <div className="absolute -top-24 -left-24 w-96 h-96 bg-white/10 rounded-full blur-3xl"></div>
+        <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-purple-400/20 rounded-full blur-3xl"></div>
+
+        <div className="relative z-10 max-w-md text-white space-y-8">
+          <img src={Logo} className="w-40 mb-6" alt="Logo" />
+
+          <h1 className="text-4xl font-extrabold leading-tight">
+            Admin Portal
+          </h1>
+          <p className="text-blue-100 text-lg leading-relaxed">
+            Securely manage platform operations, users, and system settings from one place.
+          </p>
+
+          <div className="bg-white/10 backdrop-blur-md p-6 rounded-2xl shadow-2xl">
+            <TechIllustration />
+          </div>
         </div>
       </div>
 
-      {/* Right */}
-      <div className="md:w-1/2 flex items-center justify-center bg-white/95 shadow-2xl px-2 py-8">
-        <div className="w-full max-w-[360px] bg-white rounded-2xl shadow-lg px-4 py-8 md:p-10 flex flex-col gap-7">
-          <div className="text-center">
-            <div className="inline-flex w-14 h-14 bg-[#6a85e6]/20 rounded-full items-center justify-center mb-3">
-              <Shield className="text-[#6a85e6]" />
+      {/* RIGHT – LOGIN CARD */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center px-4 py-12">
+        <div
+          className="
+          w-full max-w-lg
+          min-h-[600px]
+          bg-white/95
+          backdrop-blur-sm
+          rounded-2xl
+          shadow-[0_20px_60px_rgba(0,0,0,0.15)]
+          border border-gray-100
+          p-10
+          flex flex-col justify-center
+        "
+        >
+          {/* Header */}
+          <div className="text-center mb-8">
+            <div className="inline-flex w-16 h-16 bg-[#6a85e6]/20 rounded-full items-center justify-center mb-4">
+              <Shield className="text-[#6a85e6] w-7 h-7" />
             </div>
+
             <h2 className="text-[#6a85e6] font-bold text-2xl">
               {step === "PHONE" ? "Admin Login" : "Verify OTP"}
             </h2>
+
+            <p className="text-sm text-gray-500 mt-1">
+              {step === "PHONE"
+                ? "Login using your registered phone number"
+                : `OTP sent to ${countryCode} ${phone}`}
+            </p>
           </div>
 
           {/* PHONE STEP */}
           {step === "PHONE" && (
-            <>
-              <div className="flex">
-                <select
-                  value={countryCode}
-                  onChange={(e) => setCountryCode(e.target.value)}
-                  className="px-4 py-3 border border-r-0 rounded-l-lg bg-gray-50"
-                >
-                  {COUNTRY_CODES.map((c) => (
-                    <option key={c.code} value={c.code}>
-                      {c.flag} {c.code}
-                    </option>
-                  ))}
-                </select>
+            <div className="space-y-6">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Phone number
+                </label>
+                <div className="flex">
+                  <select
+                    value={countryCode}
+                    onChange={(e) => setCountryCode(e.target.value)}
+                    className="px-4 py-3 border border-r-0 rounded-l-lg bg-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-[#6a85e6]/20"
+                  >
+                    {COUNTRY_CODES.map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {c.flag} {c.code}
+                      </option>
+                    ))}
+                  </select>
 
-                <input
-                  type="tel"
-                  placeholder="Enter phone number"
-                  value={phone}
-                  onChange={(e) =>
-                    setPhone(e.target.value.replace(/\D/g, ""))
-                  }
-                  className="w-full px-4 py-3 border rounded-r-lg"
-                />
+                  <input
+                    type="tel"
+                    placeholder="Enter phone number"
+                    value={phone}
+                    onChange={(e) =>
+                      setPhone(e.target.value.replace(/\D/g, ""))
+                    }
+                    className="w-full px-4 py-3 rounded-r-lg border border-gray-300 bg-gray-50 text-gray-900 placeholder-gray-400 outline-none transition-all duration-200 focus:bg-white focus:border-[#6a85e6] focus:ring-2 focus:ring-[#6a85e6]/20"
+                  />
+                </div>
               </div>
 
               <button
                 onClick={handleSendOTP}
                 disabled={loading}
-                className="w-full bg-gradient-to-r from-[#6a85e6] to-[#b06ab3] text-white py-3 rounded-lg font-semibold flex justify-center gap-2"
+                className="w-full bg-gradient-to-r from-[#6a85e6] to-[#b06ab3] text-white py-3 rounded-lg font-semibold flex justify-center items-center gap-2 transition disabled:opacity-50"
               >
                 {loading ? <Loader2 className="animate-spin" /> : <Phone />}
                 Send OTP
               </button>
-            </>
+            </div>
           )}
 
           {/* OTP STEP */}
           {step === "OTP" && (
-            <>
+            <div className="space-y-6">
               <button
                 onClick={() => {
                   setStep("PHONE");
                   setOtp(["", "", "", ""]);
                 }}
-                className="flex items-center text-sm text-gray-500"
+                className="flex items-center text-sm text-gray-500 hover:text-gray-700"
               >
                 <ArrowLeft size={14} className="mr-1" />
                 Change phone number
@@ -262,7 +303,7 @@ const AdminLogin = () => {
                       handleOtpChange(i, e.target.value)
                     }
                     onKeyDown={(e) => handleKeyDown(i, e)}
-                    className="w-14 h-14 border-2 rounded-xl text-center text-2xl font-bold"
+                    className="w-16 h-16 border-2 border-gray-300 rounded-xl text-center text-3xl font-bold outline-none transition focus:border-[#6a85e6] focus:ring-2 focus:ring-[#6a85e6]/20"
                     autoFocus={i === 0}
                   />
                 ))}
@@ -271,26 +312,25 @@ const AdminLogin = () => {
               <button
                 onClick={handleVerifyOTP}
                 disabled={loading}
-                className="w-full bg-gradient-to-r from-[#6a85e6] to-[#b06ab3] text-white py-3 rounded-lg font-semibold flex justify-center gap-2"
+                className="w-full bg-gradient-to-r from-[#6a85e6] to-[#b06ab3] text-white py-3 rounded-lg font-semibold flex justify-center items-center gap-2 transition disabled:opacity-50"
               >
-                {loading ? (
-                  <Loader2 className="animate-spin" />
-                ) : (
-                  <CheckCircle2 />
-                )}
+                {loading ? <Loader2 className="animate-spin" /> : <CheckCircle2 />}
                 Verify OTP
               </button>
 
               <button
                 onClick={handleResendOTP}
                 disabled={!canResend}
-                className="text-sm text-center"
+                className={`w-full text-sm font-medium ${canResend
+                    ? "text-[#6a85e6] hover:underline"
+                    : "text-gray-400 cursor-not-allowed"
+                  }`}
               >
                 {canResend
                   ? "Resend OTP"
                   : `Resend in ${resendTimer}s`}
               </button>
-            </>
+            </div>
           )}
         </div>
       </div>
