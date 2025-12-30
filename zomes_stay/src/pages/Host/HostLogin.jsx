@@ -1,7 +1,14 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
-import { Phone, ArrowLeft, ChevronLeft, Shield, CheckCircle2, Loader2 } from "lucide-react";
+import {
+  Phone,
+  ArrowLeft,
+  ChevronLeft,
+  ShieldCheck,
+  CheckCircle2,
+  Loader2,
+} from "lucide-react";
 import { hostAuthService } from "../../services";
 import { setHostLogin } from "../../store/hostAuthSlice";
 import { COUNTRY_CODES } from "../../data/countryCodes";
@@ -45,7 +52,6 @@ const HostLoginPage = () => {
     return () => timerRef.current && clearTimeout(timerRef.current);
   }, [step, resendTimer, canResend]);
 
-  /* ---------------- Helpers ---------------- */
   const showNotification = (type, title, message) => {
     setNotification({ isOpen: true, type, title, message });
   };
@@ -53,25 +59,25 @@ const HostLoginPage = () => {
   /* ---------------- Send OTP ---------------- */
   const handleSendOTP = async () => {
     if (!phone || phone.length < 10) {
-      showNotification("error", "Validation Error", "Enter a valid phone number");
+      showNotification("error", "Invalid number", "Enter a valid phone number");
       return;
     }
 
     setLoading(true);
     try {
-      const response = await hostAuthService.sendOTP({
+      const res = await hostAuthService.sendOTP({
         phone: phone.replace(/\D/g, ""),
         countryCode,
       });
 
-      if (response.data.success) {
+      if (res.data.success) {
         setStep("OTP");
         setResendTimer(60);
         setCanResend(false);
       } else {
-        showNotification("error", "Failed", response.data.message);
+        showNotification("error", "Failed", res.data.message);
       }
-    } catch (error) {
+    } catch {
       showNotification("error", "Error", "Failed to send OTP");
     } finally {
       setLoading(false);
@@ -81,41 +87,36 @@ const HostLoginPage = () => {
   /* ---------------- Verify OTP ---------------- */
   const handleVerifyOTP = async () => {
     const otpValue = otp.join("");
-
     if (!/^\d{4}$/.test(otpValue)) {
-      showNotification("error", "Validation Error", "Enter valid 4-digit OTP");
+      showNotification("error", "Invalid OTP", "Enter 4-digit OTP");
       return;
     }
 
     setLoading(true);
     try {
-      const response = await hostAuthService.verifyOTP({
+      const res = await hostAuthService.verifyOTP({
         phone: phone.replace(/\D/g, ""),
         otp: otpValue,
       });
 
-      if (response.data.success) {
-        console.log(response.data, 'hh')
-        const { host, token } = response.data.data;
+      if (!res.data.success) throw new Error();
 
-        dispatch(
-          setHostLogin({
-            id: host.id,
-            email: host.email,
-            phone: host.phone,
-            first_name: host.firstName,
-            last_name: host.lastName,
-            profileImage: host.profileImage,
-            hostAccessToken: token,
-          })
-        );
+      const { host, token } = res.data.data;
+      dispatch(
+        setHostLogin({
+          id: host.id,
+          email: host.email,
+          phone: host.phone,
+          first_name: host.firstName,
+          last_name: host.lastName,
+          profileImage: host.profileImage,
+          hostAccessToken: token,
+        })
+      );
 
-        navigate("/host/base/dashboard", { replace: true });
-      } else {
-        throw new Error("Invalid OTP");
-      }
-    } catch (error) {
-      showNotification("error", "Verification Failed", "Invalid OTP");
+      navigate("/host/base/dashboard", { replace: true });
+    } catch {
+      showNotification("error", "Verification failed", "Invalid OTP");
       setOtp(["", "", "", ""]);
       inputRefs.current[0]?.focus();
     } finally {
@@ -126,103 +127,77 @@ const HostLoginPage = () => {
   /* ---------------- Resend OTP ---------------- */
   const handleResendOTP = async () => {
     if (!canResend) return;
-
     setLoading(true);
     try {
-      const response = await hostAuthService.resendOTP({
+      await hostAuthService.resendOTP({
         phone: phone.replace(/\D/g, ""),
         countryCode,
       });
-
-      if (response.data.success) {
-        setResendTimer(60);
-        setCanResend(false);
-        showNotification("success", "Success", "OTP resent successfully");
-      }
+      setResendTimer(60);
+      setCanResend(false);
+      showNotification("success", "OTP sent", "A new OTP has been sent");
     } catch {
-      showNotification("error", "Error", "Failed to resend OTP");
+      showNotification("error", "Error", "Resend failed");
     } finally {
       setLoading(false);
     }
   };
 
-  /* ---------------- OTP Inputs ---------------- */
-  const handleOtpChange = (index, value) => {
-    if (value && !/^\d+$/.test(value)) return;
-
-    const newOtp = [...otp];
-    newOtp[index] = value.slice(-1);
-    setOtp(newOtp);
-
-    if (value && index < 3) inputRefs.current[index + 1]?.focus();
+  /* ---------------- OTP Input ---------------- */
+  const handleOtpChange = (i, v) => {
+    if (v && !/^\d+$/.test(v)) return;
+    const next = [...otp];
+    next[i] = v.slice(-1);
+    setOtp(next);
+    if (v && i < 3) inputRefs.current[i + 1]?.focus();
   };
 
-  const handleKeyDown = (index, e) => {
-    if (e.key === "Backspace" && !otp[index] && index > 0) {
-      inputRefs.current[index - 1]?.focus();
-    }
-  };
-
-  /* ---------------- UI ---------------- */
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#f8fafc] via-[#f1f5f9] to-[#e2e8f0] px-4">
       <div className="w-full max-w-md">
 
         {/* Back */}
         <button
           onClick={() => navigate("/")}
-          className="mb-6 flex items-center text-gray-600 hover:text-gray-900 transition"
+          className="mb-6 flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900"
         >
-          <ChevronLeft size={18} />
-          <span className="ml-1 text-sm font-medium">Back</span>
+          <ChevronLeft size={16} />
+          Back
         </button>
 
-        <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
+        {/* Card */}
+        <div className="relative rounded-2xl bg-white/80 backdrop-blur-xl shadow-[0_20px_60px_-15px_rgba(79,70,229,0.35)] border border-white/60">
 
           {/* Header */}
-          <div className="bg-gradient-to-r from-[#004AAD] to-[#00398a] px-8 py-8 text-center">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-white/20 rounded-full mb-4">
-              <Shield className="text-white w-8 h-8" />
+          <div className="px-8 pt-10 pb-8 text-center">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-indigo-600 to-violet-600 shadow-lg">
+              <ShieldCheck className="text-white" />
             </div>
-            <h1 className="text-3xl font-bold text-white">
+
+            <h1 className="text-2xl font-semibold text-slate-900">
               {step === "PHONE" ? "Host Login" : "Verify OTP"}
             </h1>
-            <p className="text-blue-100 mt-2 text-sm">
+            <p className="mt-2 text-sm text-slate-500">
               {step === "PHONE"
-                ? "Login using your phone number"
+                ? "Secure access for verified hosts"
                 : `Code sent to ${countryCode} ${phone}`}
             </p>
           </div>
 
           {/* Body */}
-          <div className="px-8 py-8">
+          <div className="px-8 pb-10 space-y-6">
 
-            {step === "OTP" && (
-              <button
-                onClick={() => {
-                  setStep("PHONE");
-                  setOtp(["", "", "", ""]);
-                }}
-                className="mb-6 flex items-center text-sm text-gray-600 hover:text-[#004AAD]"
-              >
-                <ArrowLeft size={16} className="mr-1" />
-                Change phone number
-              </button>
-            )}
-
-            {/* PHONE STEP */}
             {step === "PHONE" && (
-              <div className="space-y-6">
-
+              <>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                  <label className="text-xs font-medium text-slate-600">
                     Phone number
                   </label>
-                  <div className="flex">
+                  <div className="mt-1 flex">
                     <select
                       value={countryCode}
                       onChange={(e) => setCountryCode(e.target.value)}
-                      className="px-4 py-3 border border-r-0 rounded-l-lg bg-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-[#004AAD]/20"
+                      className="rounded-l-xl border border-r-0 bg-slate-100 px-3 text-sm focus:outline-none"
                     >
                       {COUNTRY_CODES.map((c) => (
                         <option key={c.code} value={c.code}>
@@ -238,7 +213,7 @@ const HostLoginPage = () => {
                         setPhone(e.target.value.replace(/\D/g, ""))
                       }
                       placeholder="Enter phone number"
-                      className="w-full px-4 py-3 rounded-r-lg border border-gray-300 bg-gray-50 text-gray-900 placeholder-gray-400 outline-none transition-all duration-200 focus:bg-white focus:border-[#004AAD] focus:ring-2 focus:ring-[#004AAD]/20"
+                      className="w-full rounded-r-xl border px-4 py-3 text-sm bg-slate-50 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 transition"
                     />
                   </div>
                 </div>
@@ -246,29 +221,33 @@ const HostLoginPage = () => {
                 <button
                   onClick={handleSendOTP}
                   disabled={loading}
-                  className="w-full bg-gradient-to-r from-[#004AAD] to-[#00398a] text-white py-3 rounded-lg font-semibold flex justify-center items-center gap-2 transition disabled:opacity-50"
+                  className="w-full rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 py-3 text-white font-semibold shadow-lg shadow-indigo-600/30 hover:brightness-110 transition disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {loading ? <Loader2 className="animate-spin" /> : <Phone />}
                   Send OTP
                 </button>
-              </div>
+              </>
             )}
 
-            {/* OTP STEP */}
             {step === "OTP" && (
-              <div className="space-y-6">
+              <>
+                <button
+                  onClick={() => setStep("PHONE")}
+                  className="flex items-center text-sm text-slate-600 hover:text-indigo-600"
+                >
+                  <ArrowLeft size={14} className="mr-1" />
+                  Change number
+                </button>
 
                 <div className="flex justify-center gap-3">
-                  {[0, 1, 2, 3].map((i) => (
+                  {otp.map((v, i) => (
                     <input
                       key={i}
                       ref={(el) => (inputRefs.current[i] = el)}
+                      value={v}
                       maxLength={1}
-                      value={otp[i]}
                       onChange={(e) => handleOtpChange(i, e.target.value)}
-                      onKeyDown={(e) => handleKeyDown(i, e)}
-                      className="w-16 h-16 border-2 border-gray-300 rounded-xl text-center text-3xl font-bold outline-none transition focus:border-[#004AAD] focus:ring-2 focus:ring-[#004AAD]/20"
-                      autoFocus={i === 0}
+                      className="h-14 w-14 rounded-xl border bg-white/70 text-center text-2xl font-semibold focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/30 transition"
                     />
                   ))}
                 </div>
@@ -276,7 +255,7 @@ const HostLoginPage = () => {
                 <button
                   onClick={handleVerifyOTP}
                   disabled={loading}
-                  className="w-full bg-gradient-to-r from-[#004AAD] to-[#00398a] text-white py-3 rounded-lg font-semibold flex justify-center items-center gap-2 transition disabled:opacity-50"
+                  className="w-full rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 py-3 text-white font-semibold shadow-lg shadow-indigo-600/30 hover:brightness-110 transition flex justify-center items-center gap-2"
                 >
                   {loading ? <Loader2 className="animate-spin" /> : <CheckCircle2 />}
                   Verify OTP
@@ -285,14 +264,15 @@ const HostLoginPage = () => {
                 <button
                   onClick={handleResendOTP}
                   disabled={!canResend}
-                  className={`w-full text-sm font-medium ${canResend
-                      ? "text-[#004AAD] hover:underline"
-                      : "text-gray-400 cursor-not-allowed"
-                    }`}
+                  className={`w-full text-sm ${
+                    canResend
+                      ? "text-indigo-600 hover:underline"
+                      : "text-slate-400"
+                  }`}
                 >
                   {canResend ? "Resend OTP" : `Resend in ${resendTimer}s`}
                 </button>
-              </div>
+              </>
             )}
           </div>
         </div>
@@ -309,7 +289,6 @@ const HostLoginPage = () => {
       />
     </div>
   );
-
 };
 
 export default HostLoginPage;
