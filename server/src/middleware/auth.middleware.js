@@ -2,7 +2,7 @@ const jwt = require('jsonwebtoken');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-/**
+/**nnknk
  * Middleware to authenticate travel agents
  * Verifies JWT token and populates req.user with agent data
  */

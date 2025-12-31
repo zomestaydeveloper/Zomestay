@@ -18,11 +18,23 @@ const AdminProtectedRoute = ({ redirectTo = '/admin', children }) => {
 
   // Read admin auth from Redux
   const adminAuth = useSelector((state) => state?.adminAuth || {});
-  
+
   // Get admin token and role
   const adminAccessToken = adminAuth?.adminAccessToken || '';
   const currentRole = adminAuth?.role || '';
 
+  const isAuthed = Boolean(adminAccessToken);
+  const roleAllowed = currentRole === 'admin';
+
+  if (!isAuthed || !roleAllowed) {
+    console.log("AdminProtectedRoute: Redirecting to login", {
+      isAuthed,
+      roleAllowed,
+      adminAccessToken: !!adminAccessToken,
+      currentRole,
+      adminAuth
+    });
+  }
   // Check if token exists
   if (!adminAccessToken) {
     return <Navigate to={redirectTo} replace state={{ from: location }} />;
@@ -45,4 +57,3 @@ const AdminProtectedRoute = ({ redirectTo = '/admin', children }) => {
 };
 
 export default AdminProtectedRoute;
-

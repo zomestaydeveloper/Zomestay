@@ -1,12 +1,16 @@
 // Base API URL
-//export const API_BASE_URL = 'https://api.techiconnect.shop';
- export const API_BASE_URL = 'http://localhost:5000';
+// export const API_BASE_URL = 'https://api.techiconnect.shop';
+
+ export const API_BASE_URL = 'http://localhost:3001';
 
 // Base API paths
 export const API_BASE = '/api';
 
 export const AUTH = {
   LOGIN: '/login',
+  SEND_OTP: '/send-otp',
+  RESEND_OTP: '/resend-otp',
+  VERIFY_OTP: '/verify-otp',
   REGISTER: '/auth/register',
   LOGOUT: '/auth/logout',
   REFRESH: '/auth/refresh',
@@ -16,7 +20,11 @@ export const AUTH = {
 
 export const HOST_AUTH = {
     LOGIN: '/host-login',
-    REGISTER: '/host/register',
+    SEND_OTP: '/host-otp',
+    RESEND_OTP: '/host-resend-otp',
+    VERIFY_OTP: '/host-verify-otp',
+    REGISTER: '/create-host',
+    REGISTER_OTP: '/host/register-otp',
     LOGOUT: '/host/logout',
     REFRESH: '/host/refresh',
     ME: '/host/me',

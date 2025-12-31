@@ -1,12 +1,15 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Logo from "../../assets/loginPage/logo.png";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { useDispatch } from "react-redux";
+import { Shield, Phone, ArrowLeft, Loader2, CheckCircle2 } from "lucide-react";
 import { setAdminLogin } from "../../store/adminAuthSlice";
 import { authService } from "../../services";
 import { persistor } from "../../store/store";
+import { COUNTRY_CODES } from "../../data/countryCodes";
 
+/* ---------- Illustration ---------- */
 const TechIllustration = () => (
   <svg
     className="w-[320px] max-w-[90%]"
@@ -26,171 +29,310 @@ const TechIllustration = () => (
   </svg>
 );
 
+/* ---------- Component ---------- */
 const AdminLogin = () => {
-  const [formData, setFormData] = useState({ email: "", password: "" });
-  const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState({});
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
-  const validateForm = () => {
-    const newErrors = {};
-    if (!formData.email) newErrors.email = "Email is required";
-    if (!formData.password) newErrors.password = "Password is required";
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+  const [step, setStep] = useState("PHONE"); // PHONE | OTP
+  const [phone, setPhone] = useState("");
+  const [countryCode, setCountryCode] = useState("+91");
+  const [otp, setOtp] = useState(["", "", "", ""]);
+  const [loading, setLoading] = useState(false);
+  const [resendTimer, setResendTimer] = useState(60);
+  const [canResend, setCanResend] = useState(false);
+
+  const inputRefs = useRef([]);
+  const timerRef = useRef(null);
+
+  /* ---------- Timer ---------- */
+  useEffect(() => {
+    if (step === "OTP" && resendTimer > 0 && !canResend) {
+      timerRef.current = setTimeout(() => {
+        setResendTimer((prev) => {
+          if (prev <= 1) {
+            setCanResend(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => timerRef.current && clearTimeout(timerRef.current);
+  }, [step, resendTimer, canResend]);
+
+  /* ---------- OTP Inputs ---------- */
+  const handleOtpChange = (index, value) => {
+    if (value && !/^\d+$/.test(value)) return;
+
+    const newOtp = [...otp];
+    newOtp[index] = value.slice(-1);
+    setOtp(newOtp);
+
+    if (value && index < 3) inputRefs.current[index + 1]?.focus();
   };
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: "" }));
+  const handleKeyDown = (index, e) => {
+    if (e.key === "Backspace" && !otp[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!validateForm()) return;
+  /* ---------- Send OTP ---------- */
+  const handleSendOTP = async () => {
+    if (!phone || phone.length < 10) {
+      toast.error("Enter a valid phone number");
+      return;
+    }
 
     setLoading(true);
     try {
-      const response = await authService.login({
-        ...formData    
-        });
-   
-      const data = response?.data?.data;
-      
-      // Store admin login data in Redux
-      dispatch(setAdminLogin({
-        email: data.admin.email,
-        first_name: data.admin.firstName,
-        last_name: data.admin.lastName,
-        profileImage: data.admin.profileImage,
-        id: data.admin.id,
-        adminAccessToken: data.token
-       }));
-      
-      // Flush Redux Persist to ensure token is saved to localStorage immediately
-      // This ensures the axios interceptor can find the token when making API calls
-      await persistor.flush();
-      
-      console.log("✅ Login successful, token saved. Redirecting to dashboard...");
-      navigate("/admin/base/dashboard", { replace: true });
-    } catch (error) {
-      let errorMessage = "Login failed. Please try again.";
-      if (error.response) {
-        errorMessage = error.response.data?.message || errorMessage;
-        if (error.response.status === 401) {
-          errorMessage = "Invalid email or password";
-        } else if (error.response.status === 403) {
-          errorMessage = "Access denied. Admin privileges required.";
-        }
+      const response = await authService.sendOTP({
+        phone: phone.replace(/\D/g, ""),
+        countryCode,
+        role: "admin",
+      });
+
+      if (response.data.success) {
+        setStep("OTP");
+        setResendTimer(60);
+        setCanResend(false);
+        toast.success("OTP sent successfully");
+      } else {
+        toast.error(response.data.message || "Failed to send OTP");
       }
-      toast.error(errorMessage);
+    } catch {
+      toast.error("Failed to send OTP");
     } finally {
       setLoading(false);
     }
   };
 
+  /* ---------- Verify OTP ---------- */
+  const handleVerifyOTP = async () => {
+    const otpValue = otp.join("");
+    if (!/^\d{4}$/.test(otpValue)) {
+      toast.error("Enter valid 4-digit OTP");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await authService.verifyOTP({
+        phone: phone.replace(/\D/g, ""),
+        otp: otpValue,
+        role: "admin",
+      });
+
+      if (response.data.success) {
+        const { admin, token } = response.data.data;
+
+        dispatch(
+          setAdminLogin({
+            id: admin.id,
+            email: admin.email,
+            first_name: admin.firstName,
+            last_name: admin.lastName,
+            profileImage: admin.profileImage,
+            adminAccessToken: token,
+          })
+        );
+
+        await persistor.flush();
+        navigate("/admin/base/dashboard", { replace: true });
+      } else {
+        throw new Error("Invalid OTP");
+      }
+    } catch {
+      toast.error("Invalid OTP");
+      setOtp(["", "", "", ""]);
+      inputRefs.current[0]?.focus();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /* ---------- Resend OTP ---------- */
+  const handleResendOTP = async () => {
+    if (!canResend) return;
+
+    setLoading(true);
+    try {
+      const response = await authService.resendOTP({
+        phone: phone.replace(/\D/g, ""),
+        countryCode,
+        role: "admin",
+      });
+
+      if (response.data.success) {
+        setResendTimer(60);
+        setCanResend(false);
+        toast.success("OTP resent successfully");
+      }
+    } catch {
+      toast.error("Failed to resend OTP");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /* ---------- UI ---------- */
   return (
-    <div className="flex flex-col md:flex-row min-h-screen bg-gradient-to-br from-[#f0f4ff] to-[#e6ebfa]">
-      {/* Left: Logo + Illustration */}
-      <div className="md:w-1/2 flex flex-col items-center md:items-start justify-start px-4 md:pl-16 pt-8 md:pt-16 bg-transparent">
-        <div className="flex items-center gap-2 mb-10 md:mb-16 w-full">
-          <img src={Logo} className="w-70" alt="Logo" />
-        </div>
-        <div className="hidden sm:flex w-full flex-1 justify-center items-center">
-          <TechIllustration />
+    <div className="flex flex-col lg:flex-row min-h-screen bg-gradient-to-br from-[#f0f4ff] to-[#e6ebfa]">
+
+      {/* LEFT – Branding / Illustration */}
+      <div className="hidden lg:flex w-1/2 items-center justify-center relative bg-gradient-to-br from-[#6a85e6] via-[#5b6fe0] to-[#4a5ed0] p-16">
+
+        {/* Decorative blobs */}
+        <div className="absolute -top-24 -left-24 w-96 h-96 bg-white/10 rounded-full blur-3xl"></div>
+        <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-purple-400/20 rounded-full blur-3xl"></div>
+
+        <div className="relative z-10 max-w-md text-white space-y-8">
+          <img src={Logo} className="w-40 mb-6" alt="Logo" />
+
+          <h1 className="text-4xl font-extrabold leading-tight">
+            Admin Portal
+          </h1>
+          <p className="text-blue-100 text-lg leading-relaxed">
+            Securely manage platform operations, users, and system settings from one place.
+          </p>
+
+          <div className="bg-white/10 backdrop-blur-md p-6 rounded-2xl shadow-2xl">
+            <TechIllustration />
+          </div>
         </div>
       </div>
 
-      {/* Right: Login Form */}
-      <div className="md:w-1/2 flex items-center justify-center bg-white/95 shadow-2xl px-2 py-8 md:py-0">
-        <form
-          onSubmit={handleSubmit}
-          className="w-full max-w-[360px] bg-white rounded-2xl shadow-lg px-4 py-8 md:p-10 flex flex-col gap-7"
+      {/* RIGHT – LOGIN CARD */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center px-4 py-12">
+        <div
+          className="
+          w-full max-w-lg
+          min-h-[600px]
+          bg-white/95
+          backdrop-blur-sm
+          rounded-2xl
+          shadow-[0_20px_60px_rgba(0,0,0,0.15)]
+          border border-gray-100
+          p-10
+          flex flex-col justify-center
+        "
         >
-          <h2 className="text-center text-[#6a85e6] font-bold text-2xl mb-1">
-            Login
-          </h2>
+          {/* Header */}
+          <div className="text-center mb-8">
+            <div className="inline-flex w-16 h-16 bg-[#6a85e6]/20 rounded-full items-center justify-center mb-4">
+              <Shield className="text-[#6a85e6] w-7 h-7" />
+            </div>
 
-          {/* Email */}
-          <div className="relative mb-2">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#6a85e6]">
-              <svg width="18" height="18" fill="none">
-                <path
-                  d="M9 9a3 3 0 100-6 3 3 0 000 6zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"
-                  fill="#6a85e6"
-                />
-              </svg>
-            </span>
-            <input
-              name="email"
-              className="w-full pl-11 pr-3 py-3 border border-gray-200 rounded-lg bg-[#f7f9fc] focus:border-[#6a85e6] focus:bg-white outline-none text-base transition"
-              type="email"
-              placeholder="Email"
-              value={formData.email}
-              onChange={handleChange}
-              autoComplete="username"
-            />
-            {errors.email && (
-              <p className="text-red-500 text-sm mt-1">{errors.email}</p>
-            )}
+            <h2 className="text-[#6a85e6] font-bold text-2xl">
+              {step === "PHONE" ? "Admin Login" : "Verify OTP"}
+            </h2>
+
+            <p className="text-sm text-gray-500 mt-1">
+              {step === "PHONE"
+                ? "Login using your registered phone number"
+                : `OTP sent to ${countryCode} ${phone}`}
+            </p>
           </div>
 
-          {/* Password */}
-          <div className="relative mb-2">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#6a85e6]">
-              <svg width="18" height="18" fill="none">
-                <path
-                  d="M12 8V6a4 4 0 10-8 0v2a2 2 0 00-2 2v6a2 2 0 002 2h8a2 2 0 002-2v-6a2-2 0 00-2-2zm-6-2a2 2 0 114 0v2H6V6zm8 10H2v-6h12v6z"
-                  fill="#6a85e6"
-                />
-              </svg>
-            </span>
-            <input
-              name="password"
-              className="w-full pl-11 pr-3 py-3 border border-gray-200 rounded-lg bg-[#f7f9fc] focus:border-[#6a85e6] focus:bg-white outline-none text-base transition"
-              type="password"
-              placeholder="Password"
-              value={formData.password}
-              onChange={handleChange}
-              autoComplete="current-password"
-            />
-            {errors.password && (
-              <p className="text-red-500 text-sm mt-1">{errors.password}</p>
-            )}
-          </div>
+          {/* PHONE STEP */}
+          {step === "PHONE" && (
+            <div className="space-y-6">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Phone number
+                </label>
+                <div className="flex">
+                  <select
+                    value={countryCode}
+                    onChange={(e) => setCountryCode(e.target.value)}
+                    className="px-4 py-3 border border-r-0 rounded-l-lg bg-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-[#6a85e6]/20"
+                  >
+                    {COUNTRY_CODES.map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {c.flag} {c.code}
+                      </option>
+                    ))}
+                  </select>
 
-          <div className="text-right mb-2">
-            <a
-              href="#"
-              className="text-[#6a85e6] text-sm hover:text-[#b06ab3] transition"
-            >
-              Forgot password?
-            </a>
-          </div>
+                  <input
+                    type="tel"
+                    placeholder="Enter phone number"
+                    value={phone}
+                    onChange={(e) =>
+                      setPhone(e.target.value.replace(/\D/g, ""))
+                    }
+                    className="w-full px-4 py-3 rounded-r-lg border border-gray-300 bg-gray-50 text-gray-900 placeholder-gray-400 outline-none transition-all duration-200 focus:bg-white focus:border-[#6a85e6] focus:ring-2 focus:ring-[#6a85e6]/20"
+                  />
+                </div>
+              </div>
 
-          {/* Button */}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-gradient-to-r from-[#6a85e6] to-[#b06ab3] text-white rounded-lg text-lg font-semibold py-3 mt-2 shadow-md hover:from-[#b06ab3] hover:to-[#6a85e6] transition disabled:opacity-50"
-          >
-            {loading ? "Logging in..." : "Login"}
-          </button>
+              <button
+                onClick={handleSendOTP}
+                disabled={loading}
+                className="w-full bg-gradient-to-r from-[#6a85e6] to-[#b06ab3] text-white py-3 rounded-lg font-semibold flex justify-center items-center gap-2 transition disabled:opacity-50"
+              >
+                {loading ? <Loader2 className="animate-spin" /> : <Phone />}
+                Send OTP
+              </button>
+            </div>
+          )}
 
-          <div className="text-center mt-4 text-gray-500 text-base">
-            Don&apos;t have an account?
-            <a
-              href="#"
-              className="text-[#6a85e6] underline hover:text-[#b06ab3] ml-1 transition"
-            >
-              Register Here
-            </a>
-          </div>
-        </form>
+          {/* OTP STEP */}
+          {step === "OTP" && (
+            <div className="space-y-6">
+              <button
+                onClick={() => {
+                  setStep("PHONE");
+                  setOtp(["", "", "", ""]);
+                }}
+                className="flex items-center text-sm text-gray-500 hover:text-gray-700"
+              >
+                <ArrowLeft size={14} className="mr-1" />
+                Change phone number
+              </button>
+
+              <div className="flex justify-center gap-3">
+                {[0, 1, 2, 3].map((i) => (
+                  <input
+                    key={i}
+                    ref={(el) => (inputRefs.current[i] = el)}
+                    maxLength={1}
+                    value={otp[i]}
+                    onChange={(e) =>
+                      handleOtpChange(i, e.target.value)
+                    }
+                    onKeyDown={(e) => handleKeyDown(i, e)}
+                    className="w-16 h-16 border-2 border-gray-300 rounded-xl text-center text-3xl font-bold outline-none transition focus:border-[#6a85e6] focus:ring-2 focus:ring-[#6a85e6]/20"
+                    autoFocus={i === 0}
+                  />
+                ))}
+              </div>
+
+              <button
+                onClick={handleVerifyOTP}
+                disabled={loading}
+                className="w-full bg-gradient-to-r from-[#6a85e6] to-[#b06ab3] text-white py-3 rounded-lg font-semibold flex justify-center items-center gap-2 transition disabled:opacity-50"
+              >
+                {loading ? <Loader2 className="animate-spin" /> : <CheckCircle2 />}
+                Verify OTP
+              </button>
+
+              <button
+                onClick={handleResendOTP}
+                disabled={!canResend}
+                className={`w-full text-sm font-medium ${canResend
+                    ? "text-[#6a85e6] hover:underline"
+                    : "text-gray-400 cursor-not-allowed"
+                  }`}
+              >
+                {canResend
+                  ? "Resend OTP"
+                  : `Resend in ${resendTimer}s`}
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

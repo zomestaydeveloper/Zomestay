@@ -1,5 +1,6 @@
+require('./src/config/env');
+require('./src/server')()
 // Load environment variables FIRST - before any other code
-require('dotenv').config();
 
 process.env.TZ = 'Asia/Kolkata';
 

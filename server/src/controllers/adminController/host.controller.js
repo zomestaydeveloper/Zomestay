@@ -6,6 +6,7 @@ const { logout } = require('./auth.controller');
 const jwt = require('jsonwebtoken');
 const { signToken } = require('../../utils/jwt.utils');
 const ALLOWED_FIELDS_HOST = ['email', 'password']; // don't accept role from client
+const { smsService, emailService, smsTemplates, emailTemplates } = require('../../services/communication');
 
 const isValidRequest = (req, allowed) =>
   Object.keys(req.body || {}).every((k) => allowed.includes(k));
@@ -17,6 +18,24 @@ const safeJSON = (value, fallback) => {
     return JSON.parse(value);
   } catch (err) {
     return fallback;
+  }
+};
+
+const otpStore = new Map();
+
+const generateOTP = () => {
+  return Math.floor(1000 + Math.random() * 9000).toString();
+};
+
+/**
+ * Clean expired OTPs from store
+ */
+const cleanExpiredOTPs = () => {
+  const now = Date.now();
+  for (const [phone, data] of otpStore.entries()) {
+    if (data.expiresAt < now) {
+      otpStore.delete(phone);
+    }
   }
 };
 
@@ -227,6 +246,7 @@ const fetchHostPropertyDetails = async (propertyId) =>
 
 const HostController = {
   createHost: async (req, res) => {
+    console.log("🔥 createHost called at", new Date().toISOString());
     try {
       const { email, password, firstName, lastName, phone } = req.body;
 
@@ -239,7 +259,7 @@ const HostController = {
 
       const hashed = await bcrypt.hash(String(password), 10);
 
-      const profileImage = req.file ? req.file.filename : null; 
+      const profileImage = req.file ? req.file.filename : null;
 
       const host = await prisma.host.create({
         data: {
@@ -258,19 +278,23 @@ const HostController = {
           phone: true,
           profileImage: true,
           isVerified: true,
-          createdAt: true
+          createdAt: true,
         }
       });
+
+      console.log(host,'jd');
 
       return res.status(201).json({
         success: true,
         message: 'Host created successfully',
-        data: host
+        host: host
       });
+
     } catch (err) {
       console.error('Error creating host:', err);
 
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        console.log('here');
         return res.status(409).json({
           success: false,
           message: 'Email already exists'
@@ -284,107 +308,516 @@ const HostController = {
     }
   },
 
-  hostLogin :async (req, res) => {
+  sendOTP: async (req, res) => {
+    try {
+      const { phone, countryCode = '+91' } = req.body;
 
-  try {
+      // Validation
+      if (!phone) {
+        return res.status(400).json({
+          success: false,
+          message: 'Phone number is required'
+        });
+      }
 
-    if (!isValidRequest(req, ALLOWED_FIELDS_HOST)) {
-      return res.status(400).json({ success: false, message: 'unauthorised request' });
+      // Clean phone number (remove spaces, dashes)
+      const cleanPhone = phone.replace(/\s|-/g, '');
+
+      // Construct full phone number with country code
+      const fullPhoneNumber = `${countryCode}${cleanPhone}`;
+
+      // Generate 4-digit OTP
+      const otp = generateOTP();
+      const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes expiry (increased from 60 seconds)
+
+      // Store OTP (in-memory for development)
+      otpStore.set(cleanPhone, { otp, expiresAt, countryCode });
+
+      // Clean expired OTPs periodically
+      cleanExpiredOTPs();
+
+      // Check if user exists and has email (optional: send email OTP if available)
+      let userEmail = null;
+      let userName = 'Host';
+      try {
+        const existingUser = await prisma.user.findFirst({
+          where: { phone: cleanPhone, isDeleted: false },
+          select: { email: true, firstname: true, lastname: true }
+        });
+        if (existingUser) {
+          userEmail = existingUser.email;
+          if (existingUser.firstname) {
+            userName = `${existingUser.firstname}${existingUser.lastname ? ' ' + existingUser.lastname : ''}`;
+          }
+        }
+      } catch (error) {
+        // If user lookup fails, continue with SMS only
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('Could not fetch user email for OTP:', error.message);
+        }
+      }
+
+      console.log(otp, 'hh')
+
+      // Send OTP via SMS using template
+      const smsMessage = smsTemplates.otp({ otp, expiresIn: 5 });
+
+      // For Twilio trial accounts, use TWILIO_PHONE_NUMBER instead of alphanumeric sender ID
+      const smsProvider = process.env.SMS_PROVIDER || 'mock';
+      const smsFrom = (smsProvider === 'twilio' && process.env.TWILIO_PHONE_NUMBER)
+        ? process.env.TWILIO_PHONE_NUMBER
+        : 'ZOMESSTAY';
+
+      const smsResult = await smsService.send({
+        to: fullPhoneNumber,
+        message: smsMessage,
+        from: smsFrom
+      });
+
+      // Log SMS failure only
+      if (!smsResult.success) {
+        console.error('SMS sending failed:', smsResult.error);
+      }
+
+      // Send OTP via Email if user has email (optional enhancement)
+      let emailResult = null;
+      if (userEmail) {
+        try {
+          const emailContent = emailTemplates.otp({ otp, userName, expiresIn: 5 });
+          emailResult = await emailService.send({
+            to: userEmail,
+            subject: 'OTP Verification - ZomesStay',
+            content: emailContent
+          });
+
+          if (!emailResult.success) {
+            console.error('Email sending failed:', emailResult.error);
+          }
+        } catch (error) {
+          console.error('Error sending OTP email:', error.message);
+        }
+      }
+
+      // Log OTP in development mode only
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`OTP for ${fullPhoneNumber}: ${otp}`);
+      }
+
+      // Return success response (OTP is NOT included in response for security)
+      res.json({
+        success: true,
+        message: 'OTP sent successfully to your phone number',
+        data: {
+          phone: cleanPhone, // Return clean phone without country code
+          expiresIn: 300, // 5 minutes in seconds
+          message: 'OTP sent to your phone number. Please check your SMS.'
+        }
+      });
+
+    } catch (error) {
+      console.error('Send OTP Error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to send OTP. Please try again.',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
     }
+  },
 
-    const email = String(req.body.email || '').toLowerCase().trim();
-    const password = String(req.body.password || '');
+  registerOTP: async (req, res) => {
+    try {
+      const { phone, otp } = req.body;
 
-    if (!email || !password) {
-      return res.status(400).json({ success: false, message: 'email and password are required' });
+      if (!phone || !otp) {
+        return res.status(400).json({
+          success: false,
+          message: "Phone and OTP are required"
+        });
+      }
+
+      const cleanPhone = phone.replace(/\s|-/g, "");
+      const storedOTPData = otpStore.get(cleanPhone);
+
+      if (!storedOTPData) {
+        return res.status(400).json({
+          success: false,
+          message: "OTP not found or expired"
+        });
+      }
+
+      if (Date.now() > storedOTPData.expiresAt) {
+        otpStore.delete(cleanPhone);
+        return res.status(400).json({
+          success: false,
+          message: "OTP expired"
+        });
+      }
+
+      if (storedOTPData.otp !== otp) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid OTP"
+        });
+      }
+
+      // OTP verified → delete it
+      otpStore.delete(cleanPhone);
+
+      // 🔐 Mark phone as verified for signup (short-lived)
+      otpStore.set(`verified:${cleanPhone}`, {
+        verified: true,
+        expiresAt: Date.now() + 5 * 60 * 1000 // 5 minutes
+      });
+      return res.json({
+        success: true,
+        message: "OTP verified successfully"
+      });
+
+    } catch (error) {
+      console.error("Register OTP Error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to verify OTP"
+      });
     }
+  },
 
-    // 2) Look up host
-    const host = await prisma.host.findUnique({ where: { email } });
-    if (!host) {
-      return res.status(401).json({ success: false, message: 'Invalid email or password' });
+
+  verifyOTP: async (req, res) => {
+    try {
+      const { phone, otp } = req.body;
+
+      // Validation
+      if (!phone || !otp) {
+        return res.status(400).json({
+          success: false,
+          message: 'Phone number and OTP are required'
+        });
+      }
+
+      // Clean phone number
+      const cleanPhone = phone.replace(/\s|-/g, '');
+
+      // Get stored OTP
+      const storedOTPData = otpStore.get(cleanPhone);
+
+
+      if (!storedOTPData) {
+        return res.status(400).json({
+          success: false,
+          message: 'OTP not found. Please request a new OTP.'
+        });
+      }
+
+      // Check if OTP expired
+      if (Date.now() > storedOTPData.expiresAt) {
+        otpStore.delete(cleanPhone);
+        return res.status(400).json({
+          success: false,
+          message: 'OTP has expired. Please request a new OTP.'
+        });
+      }
+
+
+      // Verify OTP
+      if (storedOTPData.otp !== otp) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid OTP. Please try again.'
+        });
+      }
+
+      // OTP verified successfully - remove from store
+      otpStore.delete(cleanPhone);
+
+      // Check if user exists
+      let host = await prisma.host.findFirst({
+        where: {
+          phone: cleanPhone,
+          isDeleted: false
+        }
+      });
+
+
+      // If user doesn't exist, return flag indicating user needs to signup
+      if (!host) {
+        return res.json({
+          success: true,
+          message: 'OTP verified. Please complete your profile.',
+          data: {
+            userDidNotExist: true,
+            isNewUser: true,
+            phone: cleanPhone
+          }
+        });
+      }
+
+      console.log('jj')
+
+      // Generate JWT token
+      const accessToken = signToken(
+        { id: host.id, role: 'host' },
+        { expiresIn: '1h' }
+      );
+
+      const refreshToken = jwt.sign(
+        { id: host.id, tokenType: 'refresh', role: 'host' },
+        process.env.JWT_REFRESH_SECRET,
+        { expiresIn: '30d' }
+      );
+
+      // 5) Set refresh cookie (same path as your refresh endpoint)
+      res.cookie('refresh_token', refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production', // true in prod; false for localhost dev
+        sameSite: 'lax',
+        path: '/auth/refresh', // keep same as admin’s refresh endpoint
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+      });
+
+      console.log('jj2');
+
+      // Remove password from response
+      const { password: _, ...userWithoutPassword } = host;
+
+      res.json({
+        success: true,
+        message: 'Login successful',
+        data: {
+          host: userWithoutPassword,
+          token: accessToken,
+          isNewUser: false,
+          userDidNotExist: false
+        }
+      });
+
+      console.log('jj3');
+
+    } catch (error) {
+      console.error('Verify OTP Error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to verify OTP',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
     }
-  console.log("host ",host)
-    // 3) Verify password
-    const ok = await bcrypt.compare(password, host.password);
-    if (!ok) {
-      return res.status(401).json({ success: false, message: 'Invalid email or password' });
+  },
+
+  resendOTP: async (req, res) => {
+    try {
+      const { phone, countryCode = '+91' } = req.body;
+
+      // Validation
+      if (!phone) {
+        return res.status(400).json({
+          success: false,
+          message: 'Phone number is required'
+        });
+      }
+
+      // Clean phone number (remove spaces, dashes)
+      const cleanPhone = phone.replace(/\s|-/g, '');
+
+      // Construct full phone number with country code
+      const fullPhoneNumber = `${countryCode}${cleanPhone}`;
+
+      // Generate new 4-digit OTP
+      const otp = generateOTP();
+      const expiresAt = Date.now() + 1 * 60 * 1000; // 5 minutes expiry (increased from 60 seconds)
+
+      // Store new OTP (replaces existing if any)
+      otpStore.set(cleanPhone, { otp, expiresAt, countryCode });
+
+      // Clean expired OTPs periodically
+      cleanExpiredOTPs();
+
+      // Check if user exists and has email (optional: send email OTP if available)
+      let userEmail = null;
+      let userName = 'User';
+      try {
+        const existingUser = await prisma.user.findFirst({
+          where: { phone: cleanPhone, isDeleted: false },
+          select: { email: true, firstname: true, lastname: true }
+        });
+        if (existingUser) {
+          userEmail = existingUser.email;
+          if (existingUser.firstname) {
+            userName = `${existingUser.firstname}${existingUser.lastname ? ' ' + existingUser.lastname : ''}`;
+          }
+        }
+      } catch (error) {
+        // If user lookup fails, continue with SMS only
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('Could not fetch user email for OTP resend:', error.message);
+        }
+      }
+
+      // Send OTP via SMS using template
+      const smsMessage = smsTemplates.otp({ otp, expiresIn: 1 });
+
+      // For Twilio trial accounts, use TWILIO_PHONE_NUMBER instead of alphanumeric sender ID
+      const smsProvider = process.env.SMS_PROVIDER || 'mock';
+      const smsFrom = (smsProvider === 'twilio' && process.env.TWILIO_PHONE_NUMBER)
+        ? process.env.TWILIO_PHONE_NUMBER
+        : 'ZOMESSTAY';
+
+      const smsResult = await smsService.send({
+        to: fullPhoneNumber,
+        message: smsMessage,
+        from: smsFrom
+      });
+
+      // Log SMS failure only
+      if (!smsResult.success) {
+        console.error('SMS sending failed:', smsResult.error);
+      }
+
+      // Send OTP via Email if user has email (optional enhancement)
+      let emailResult = null;
+      if (userEmail) {
+        try {
+          const emailContent = emailTemplates.otp({ otp, userName, expiresIn: 5 });
+          emailResult = await emailService.send({
+            to: userEmail,
+            subject: 'OTP Verification - ZomesStay',
+            content: emailContent
+          });
+
+          if (!emailResult.success) {
+            console.error('Email sending failed:', emailResult.error);
+          }
+        } catch (error) {
+          console.error('Error sending OTP email:', error.message);
+        }
+      }
+
+      // Log OTP in development mode only
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`Resend OTP for ${fullPhoneNumber}: ${otp}`);
+      }
+
+      // Return success response (OTP is NOT included in response for security)
+      res.json({
+        success: true,
+        message: 'OTP resent successfully to your phone number',
+        data: {
+          phone: cleanPhone, // Return clean phone without country code
+          expiresIn: 300, // 5 minutes in seconds
+          message: 'OTP resent to your phone number. Please check your SMS.'
+        }
+      });
+
+    } catch (error) {
+      console.error('Resend OTP Error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to resend OTP. Please try again.',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
     }
+  },
 
-    const accessToken = signToken(
-      { id: host.id, role: 'host' },
-      { expiresIn: '1h' }
-    );
+  hostLogin: async (req, res) => {
 
-    const refreshToken = jwt.sign(
-      { id: host.id, tokenType: 'refresh', role: 'host' },
-      process.env.JWT_REFRESH_SECRET,
-      { expiresIn: '30d' }
-    );
+    try {
 
-    // 5) Set refresh cookie (same path as your refresh endpoint)
-    res.cookie('refresh_token', refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production', // true in prod; false for localhost dev
-      sameSite: 'lax',
-      path: '/auth/refresh', // keep same as admin’s refresh endpoint
-      maxAge: 30 * 24 * 60 * 60 * 1000,
-    });
+      if (!isValidRequest(req, ALLOWED_FIELDS_HOST)) {
+        return res.status(400).json({ success: false, message: 'unauthorised request' });
+      }
 
-    // 6) Respond with access token + host profile
-    return res.status(200).json({
-      success: true,
-      message: 'Login successful',
-      data: {
-        token: accessToken,
-        host: {
-          id: host.id,
-          email: host.email,
-          firstName: host.firstName,
-          lastName: host.lastName,
-          phone: host.phone,
-          profileImage: host.profileImage,
-          isVerified: host.isVerified,
-          role: 'host',
-          createdAt: host.createdAt,
-          updatedAt: host.updatedAt,
+      const email = String(req.body.email || '').toLowerCase().trim();
+      const password = String(req.body.password || '');
+
+      if (!email || !password) {
+        return res.status(400).json({ success: false, message: 'email and password are required' });
+      }
+
+      // 2) Look up host
+      const host = await prisma.host.findUnique({ where: { email } });
+      if (!host) {
+        return res.status(401).json({ success: false, message: 'Invalid email or password' });
+      }
+      console.log("host ", host)
+      // 3) Verify password
+      const ok = await bcrypt.compare(password, host.password);
+      if (!ok) {
+        return res.status(401).json({ success: false, message: 'Invalid email or password' });
+      }
+
+      const accessToken = signToken(
+        { id: host.id, role: 'host' },
+        { expiresIn: '1h' }
+      );
+
+      const refreshToken = jwt.sign(
+        { id: host.id, tokenType: 'refresh', role: 'host' },
+        process.env.JWT_REFRESH_SECRET,
+        { expiresIn: '30d' }
+      );
+
+      // 5) Set refresh cookie (same path as your refresh endpoint)
+      res.cookie('refresh_token', refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production', // true in prod; false for localhost dev
+        sameSite: 'lax',
+        path: '/auth/refresh', // keep same as admin’s refresh endpoint
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+      });
+
+      // 6) Respond with access token + host profile
+      return res.status(200).json({
+        success: true,
+        message: 'Login successful',
+        data: {
+          token: accessToken,
+          host: {
+            id: host.id,
+            email: host.email,
+            firstName: host.firstName,
+            lastName: host.lastName,
+            phone: host.phone,
+            profileImage: host.profileImage,
+            isVerified: host.isVerified,
+            role: 'host',
+            createdAt: host.createdAt,
+            updatedAt: host.updatedAt,
+          },
         },
-      },
-    });
-  } catch (err) {
-    console.error('Error logging in host:', err);
-    return res.status(500).json({
-      success: false,
-      message: err?.message || 'Error logging in host',
-    });
-  }
-},
-  hostLogout: async (req, res) => {
-  try {
-    res.clearCookie("refresh_token");
-    
-    return res.status(200).json({
-      success: true,
-      message: "Logout successful"
-    });
-  } catch (error) {
-    console.error('Error logging out:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Error logging out'
-    });
-  }
-},
-hostPropertys: async (req, res) => {
-  try {
-    const { hostId } = req.params;
-    if (!hostId) {
-      return res.status(400).json({ success: false, message: 'Invalid host ID' });
+      });
+    } catch (err) {
+      console.error('Error logging in host:', err);
+      return res.status(500).json({
+        success: false,
+        message: err?.message || 'Error logging in host',
+      });
     }
+  },
+  hostLogout: async (req, res) => {
+    try {
+      res.clearCookie("refresh_token");
+
+      return res.status(200).json({
+        success: true,
+        message: "Logout successful"
+      });
+    } catch (error) {
+      console.error('Error logging out:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Error logging out'
+      });
+    }
+  },
+  hostPropertys: async (req, res) => {
+    try {
+      const { hostId } = req.params;
+      if (!hostId) {
+        return res.status(400).json({ success: false, message: 'Invalid host ID' });
+      }
 
       const property = await prisma.property.findFirst({
-      where: { ownerHostId: hostId, isDeleted: false },
-      include: {
+        where: { ownerHostId: hostId, isDeleted: false },
+        include: {
           ownerHost: {
             select: {
               id: true,
@@ -397,7 +830,7 @@ hostPropertys: async (req, res) => {
               createdAt: true,
             },
           },
-        propertyType: true,
+          propertyType: true,
           cancellationPolicy: {
             include: {
               rules: {
@@ -405,76 +838,76 @@ hostPropertys: async (req, res) => {
               },
             },
           },
-        media: {
-          where: { isDeleted: false },
-          orderBy: [{ isFeatured: 'desc' }, { order: 'asc' }, { createdAt: 'asc' }],
-        },
-        amenities: {
-          where: { isDeleted: false },
-          include: { amenity: true },
-        },
-        facilities: {
-          where: { isDeleted: false },
-          include: { facility: true },
-        },
-        safeties: {
-          where: { isDeleted: false },
+          media: {
+            where: { isDeleted: false },
+            orderBy: [{ isFeatured: 'desc' }, { order: 'asc' }, { createdAt: 'asc' }],
+          },
+          amenities: {
+            where: { isDeleted: false },
+            include: { amenity: true },
+          },
+          facilities: {
+            where: { isDeleted: false },
+            include: { facility: true },
+          },
+          safeties: {
+            where: { isDeleted: false },
             include: { safety: true },
-        },
-        roomTypes: {
-          where: { isDeleted: false },
-          include: {
+          },
+          roomTypes: {
+            where: { isDeleted: false },
+            include: {
               roomType: true,
               media: {
                 where: { isDeleted: false },
                 orderBy: [{ isFeatured: 'desc' }, { order: 'asc' }, { createdAt: 'asc' }],
               },
-            amenities: {
-              where: { isDeleted: false },
-              include: { amenity: true },
+              amenities: {
+                where: { isDeleted: false },
+                include: { amenity: true },
+              },
+            },
+            orderBy: { createdAt: 'asc' },
+          },
+          promotions: {
+            where: { isDeleted: false, status: 'active' },
+          },
+          reviews: {
+            where: { isDeleted: false },
+            take: 10,
+            orderBy: { createdAt: 'desc' },
+            include: {
+              user: { select: { id: true, firstname: true, lastname: true, profileImage: true } },
             },
           },
-            orderBy: { createdAt: 'asc' },
-        },
-        promotions: {
-          where: { isDeleted: false, status: 'active' },
-        },
-        reviews: {
-          where: { isDeleted: false },
-          take: 10,
-          orderBy: { createdAt: 'desc' },
-          include: {
-            user: { select: { id: true, firstname: true, lastname: true, profileImage: true } },
-          },
-        },
-        _count: {
-          select: {
-            reviews: true,
-            promotions: true,
+          _count: {
+            select: {
+              reviews: true,
+              promotions: true,
               roomTypes: true,
             },
+          },
         },
-      },
-    });
+      });
 
       if (!property) {
         return res.status(404).json({ success: false, message: 'No property found for this host' });
-    }
+      }
 
-    return res.status(200).json({
-      success: true,
+      return res.status(200).json({
+        success: true,
         message: 'Host property retrieved successfully',
         data: property,
-    });
-  } catch (error) {
-    console.error('Error fetching host properties:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Error fetching host properties',
-      code: error.code,
-      detail: error.meta || error.message,
-    });
-  }
+      });
+    } catch (error) {
+      console.error('Error fetching host properties:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Error fetching host properties',
+        code: error.code,
+        detail: error.meta || error.message,
+      });
+    }
   },
 
   updateHostPropertyBasics: async (req, res) => {

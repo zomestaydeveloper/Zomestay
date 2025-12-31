@@ -19,7 +19,9 @@ import AboutUs from "../pages/AboutUs";
 import WhishList from "../pages/WhishList";
 import BookingSuccess from "../pages/BookingSuccess";
 import BookingFailure from "../pages/BookingFailure";
+import HostSignup from "../pages/Host/HostRegister";
 
+//
 /**
  * PublicRoutes
  * - All public routes that don't require authentication
@@ -34,7 +36,8 @@ const PublicRoutes = () => {
       {/* Login Pages */}
       <Route path="/admin" element={<AdminLogin />} />
       <Route path="/host" element={<HostLogin />} />
-      <Route path="/login" element={<UserLoginPage />} />
+      <Route path="/host-register" element={<HostSignup />} />
+      <Route path="/login" element={<UserLoginPage />} /> 
       <Route path="/otp-verified" element={<OtpVerified />} />
       <Route path="/debug/redux" element={<ReduxDebug />} />
 

@@ -18,11 +18,23 @@ const HostProtectedRoute = ({ redirectTo = '/host', children }) => {
 
   // Read host auth from Redux
   const hostAuth = useSelector((state) => state?.hostAuth || {});
-  
+
   // Get host token and role
   const hostAccessToken = hostAuth?.hostAccessToken || '';
   const currentRole = hostAuth?.role || '';
 
+  const isAuthed = Boolean(hostAccessToken);
+  const roleAllowed = currentRole === 'host';
+
+  if (!isAuthed || !roleAllowed) {
+    console.log("HostProtectedRoute: Redirecting to login", {
+      isAuthed,
+      roleAllowed,
+      hostAccessToken: !!hostAccessToken,
+      currentRole,
+      hostAuth
+    });
+  }
   // Check if token exists
   if (!hostAccessToken) {
     return <Navigate to={redirectTo} replace state={{ from: location }} />;
