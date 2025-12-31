@@ -1,7 +1,7 @@
 import React from "react";
 import { ArrowLeft, ArrowRight, Calendar } from "lucide-react";
-import { addMonths, buildCalendarGrid, formatMonthLabel, formatQueryDate, isSameDay, isWithinRange, isPastDate } from "../utils/dateUtils";
-import { formatDate } from "../utils/formatUtils";
+import { addMonths, buildCalendarGrid, formatQueryDate, isSameDay, isWithinRange, isPastDate } from "../utils/dateUtils";
+import { formatDate, formatMonthLabel } from "../utils/formatUtils";
 
 const DatePicker = ({
   isOpen,
@@ -154,4 +154,5 @@ const DatePicker = ({
 };
 
 export default DatePicker;
+
 

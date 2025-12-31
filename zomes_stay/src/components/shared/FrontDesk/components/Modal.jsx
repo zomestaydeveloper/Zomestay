@@ -36,3 +36,4 @@ const Modal = ({ title, accentColour = "bg-blue-500", onClose, children }) => {
 
 export default Modal;
 
+

@@ -69,3 +69,4 @@ const NonAvailableModal = ({ slot, date, room, roomType, onRelease, onClose }) =
 
 export default NonAvailableModal;
 
+

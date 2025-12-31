@@ -89,3 +89,4 @@ const RoomCell = ({ slot, date, room, roomType, onCellClick, index }) => {
 
 export default RoomCell;
 
+

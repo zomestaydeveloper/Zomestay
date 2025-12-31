@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { DollarSign, Plus, Trash2, Info } from "lucide-react";
 
 const DEFAULT_TAX_SLABS = [
@@ -15,18 +15,25 @@ const TaxConfigurationSection = ({
   isEdit,
   onSave,
   isSaving,
-  isAdmin = true, // Default to true for admin routes
+  isAdmin = true,
 }) => {
+  // Initialize state from formData or defaults
   const [taxSlabs, setTaxSlabs] = useState(
-    formData.taxSlabs && Array.isArray(formData.taxSlabs) && formData.taxSlabs.length > 0
-      ? formData.taxSlabs
-      : DEFAULT_TAX_SLABS
+    formData.taxSlabs?.length > 0 ? formData.taxSlabs : DEFAULT_TAX_SLABS
   );
   const [cessRate, setCessRate] = useState(formData.cessRate || "");
+  
+  // Use ref to track if update is from user input (prevents sync loop)
+  const isUserInputRef = useRef(false);
 
-  // Sync with formData when it changes
+  // Sync with formData only when changed externally (not from user input)
   useEffect(() => {
-    if (formData.taxSlabs && Array.isArray(formData.taxSlabs) && formData.taxSlabs.length > 0) {
+    if (isUserInputRef.current) {
+      isUserInputRef.current = false;
+      return;
+    }
+
+    if (formData.taxSlabs?.length > 0) {
       setTaxSlabs(formData.taxSlabs);
     }
     if (formData.cessRate !== undefined) {
@@ -34,127 +41,91 @@ const TaxConfigurationSection = ({
     }
   }, [formData.taxSlabs, formData.cessRate]);
 
-  const validateSlab = (slab, index, allSlabs) => {
-    const errors = [];
-    
-    // Validate min
-    if (typeof slab.min !== 'number' || slab.min < 0 || !Number.isInteger(slab.min)) {
-      errors.push(`Slab ${index + 1}: Min must be a non-negative integer`);
+  // Helper: Convert input value to number (handles empty strings, decimals, etc.)
+  const parseNumber = (value, allowEmpty = false) => {
+    if (value === "" || value === null || value === undefined) {
+      return allowEmpty ? null : undefined;
     }
-    
-    // Validate max
-    if (slab.max !== null && (typeof slab.max !== 'number' || slab.max < slab.min || !Number.isInteger(slab.max))) {
-      errors.push(`Slab ${index + 1}: Max must be null or an integer >= min`);
-    }
-    
-    // Validate rate
-    if (typeof slab.rate !== 'number' || slab.rate < 0 || slab.rate > 100) {
-      errors.push(`Slab ${index + 1}: Rate must be between 0 and 100`);
-    }
-    
-    // Check for gaps/overlaps with previous slab
-    if (index > 0) {
-      const prevSlab = allSlabs[index - 1];
-      const prevMax = prevSlab.max === null ? Infinity : prevSlab.max;
-      
-      if (slab.min > prevMax + 1) {
-        errors.push(`Slab ${index + 1}: Gap detected. Min should be <= ${prevMax + 1}`);
-      }
-      
-      if (slab.min <= prevMax && prevSlab.max !== null) {
-        errors.push(`Slab ${index + 1}: Overlap detected with previous slab`);
-      }
-    }
-    
-    return errors;
+    const num = Number(value);
+    return isNaN(num) ? undefined : num;
   };
 
+  // Update a single field in a tax slab - Simple: just validate it's a number
   const handleSlabChange = (index, field, value) => {
     const updatedSlabs = taxSlabs.map((slab, i) => {
-      if (i === index) {
-        // Handle max field - allow empty string to set null
-        if (field === "max" && (value === "" || value === null || value === undefined)) {
-          return { ...slab, max: null };
+      if (i !== index) return slab;
+
+      const updatedSlab = { ...slab };
+
+      // Handle max field (can be null for "no limit")
+      if (field === "max") {
+        // If empty, set to null (no limit)
+        if (value === "" || value === null || value === undefined) {
+          updatedSlab.max = null;
+          return updatedSlab;
         }
         
-        // Convert to number for numeric fields
-        if (field === "min" || field === "max" || field === "rate") {
-          // If empty, handle based on field type
-          if (value === "" || value === null || value === undefined) {
-            if (field === "max") {
-              return { ...slab, max: null };
-            }
-            // For min and rate (required), keep current value if empty
-            return slab;
-          }
-          
-          // Try to convert to number
-          const numValue = Number(value);
-          
-          // Always update if it's a valid number
-          if (!isNaN(numValue)) {
-            // Additional validation for max field: ensure max >= min
-            if (field === "max" && numValue !== null && numValue < slab.min) {
-              return slab; // Don't update if max < min
-            }
-            return { ...slab, [field]: numValue };
-          }
-          
-          // If NaN, try parseFloat for decimal handling (handles "5." -> 5, "5.5" -> 5.5)
-          const floatValue = parseFloat(value);
-          if (!isNaN(floatValue)) {
-            // Additional validation for max field: ensure max >= min
-            if (field === "max" && floatValue < slab.min) {
-              return slab; // Don't update if max < min
-            }
-            return { ...slab, [field]: floatValue };
-          }
-          
-          // If still invalid, keep current value
-          // State will still update (new array reference) to trigger re-render
-          return slab;
+        // Try to parse as number - if valid, update it
+        const numValue = parseNumber(value, true);
+        if (numValue !== undefined && numValue !== null) {
+          updatedSlab.max = numValue;
+          return updatedSlab;
         }
         
-        return { ...slab, [field]: value };
+        // If invalid number, keep current value
+        return slab;
       }
-      return slab;
+
+      // Handle min and rate fields (must be numbers)
+      if (field === "min" || field === "rate") {
+        // If empty, set to 0 (input will show empty via value prop)
+        if (value === "" || value === null || value === undefined) {
+          updatedSlab[field] = 0;
+          return updatedSlab;
+        }
+        
+        // Try to parse as number - if valid, update it
+        const numValue = parseNumber(value);
+        if (numValue !== undefined) {
+          updatedSlab[field] = numValue;
+          return updatedSlab;
+        }
+        
+        // If invalid number, keep current value
+        return slab;
+      }
+
+      return updatedSlab;
     });
-    
-    // Always update state - create new array reference to ensure React re-renders
-    // This is critical for controlled inputs to stay responsive
-    const newSlabs = updatedSlabs.map(slab => ({ ...slab }));
-    setTaxSlabs(newSlabs);
-    if (onTaxSlabsChange) {
-      onTaxSlabsChange(newSlabs);
-    }
+
+    isUserInputRef.current = true;
+    setTaxSlabs(updatedSlabs);
+    onTaxSlabsChange?.(updatedSlabs);
   };
 
+  // Add a new tax slab
   const addSlab = () => {
     const lastSlab = taxSlabs[taxSlabs.length - 1];
-    const newMin = lastSlab?.max !== null ? (lastSlab.max + 1) : (lastSlab?.min || 0) + 1000;
-    const newSlab = {
-      min: newMin,
-      max: null,
-      rate: 18
-    };
+    const newMin = lastSlab?.max !== null ? lastSlab.max + 1 : (lastSlab?.min || 0) + 1000;
+    const newSlab = { min: newMin, max: null, rate: 18 };
     const updatedSlabs = [...taxSlabs, newSlab];
+    
+    isUserInputRef.current = true;
     setTaxSlabs(updatedSlabs);
-    if (onTaxSlabsChange) {
-      onTaxSlabsChange(updatedSlabs);
-    }
+    onTaxSlabsChange?.(updatedSlabs);
   };
 
+  // Remove a tax slab (keep at least one)
   const removeSlab = (index) => {
-    if (taxSlabs.length <= 1) {
-      return; // Keep at least one slab
-    }
+    if (taxSlabs.length <= 1) return;
+    
     const updatedSlabs = taxSlabs.filter((_, i) => i !== index);
+    isUserInputRef.current = true;
     setTaxSlabs(updatedSlabs);
-    if (onTaxSlabsChange) {
-      onTaxSlabsChange(updatedSlabs);
-    }
+    onTaxSlabsChange?.(updatedSlabs);
   };
 
+  // Get GST rate for a given tariff
   const getGSTRate = (tariff) => {
     for (const slab of taxSlabs) {
       const min = slab.min || 0;
@@ -166,67 +137,51 @@ const TaxConfigurationSection = ({
     return 0;
   };
 
+  // Handle CESS rate change
   const handleCessRateChange = (e) => {
     const value = e.target.value;
     
-    // Allow empty value (optional field)
-    if (value === "" || value === null || value === undefined) {
-      setCessRate("");
-      if (handleInputChange) {
-        const syntheticEvent = {
-          target: {
-            name: "cessRate",
-            value: ""
-          }
-        };
-        handleInputChange(syntheticEvent);
-      }
-      return;
-    }
-    
-    // Allow typing - validation happens on blur/submit
+    isUserInputRef.current = true;
     setCessRate(value);
     
-    // Try to convert to number for formData, but allow typing
-    const numValue = Number(value);
-    if (!isNaN(numValue)) {
-      if (handleInputChange) {
-        const syntheticEvent = {
-          target: {
-            name: "cessRate",
-            value: numValue >= 0 && numValue <= 100 ? numValue : value
-          }
-        };
-        handleInputChange(syntheticEvent);
-      }
-    } else {
-      // Still allow typing even if not a valid number yet
-      if (handleInputChange) {
-        const syntheticEvent = {
-          target: {
-            name: "cessRate",
-            value: value
-          }
-        };
-        handleInputChange(syntheticEvent);
-      }
+    // Update parent form data
+    if (handleInputChange) {
+      const numValue = parseNumber(value, true);
+      handleInputChange({
+        target: {
+          name: "cessRate",
+          value: numValue !== undefined ? numValue : value
+        }
+      });
     }
   };
 
+  // Hide for non-admin users
+  if (!isAdmin) return null;
 
-  // Hide tax configuration for non-admin users
-  if (!isAdmin) {
-    return null;
-  }
+  // Calculate example tax breakdown
+  const calculateExample = () => {
+    const baseAmount = 5000;
+    const gstRate = getGSTRate(baseAmount);
+    const gstAmount = (baseAmount * gstRate) / 100;
+    const cessAmount = cessRate ? (baseAmount * Number(cessRate)) / 100 : 0;
+    const totalTax = gstAmount + cessAmount;
+    
+    return { baseAmount, gstRate, gstAmount, cessAmount, totalTax };
+  };
+
+  const example = calculateExample();
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
+      {/* Header */}
       <div className="border-b border-gray-200 px-6 py-3">
         <h2 className="text-sm font-semibold text-gray-900 flex items-center">
           <DollarSign className="h-4 w-4 mr-2 text-blue-600" />
           Tax Configuration
         </h2>
       </div>
+
       <div className="p-6">
         {/* Info Box */}
         <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
@@ -244,11 +199,12 @@ const TaxConfigurationSection = ({
           </div>
         </div>
 
-        {/* Tax Slabs */}
+        {/* Tax Slabs Section */}
         <div className="mb-6">
           <label className="block text-xs font-medium text-gray-700 mb-3">
             Tax Slabs (Based on Room Tariff per Day) *
           </label>
+          
           {errors.taxSlabs && (
             <p className="text-red-500 text-xs mb-2">{errors.taxSlabs}</p>
           )}
@@ -260,11 +216,12 @@ const TaxConfigurationSection = ({
                 className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg bg-gray-50"
               >
                 <div className="flex-1 grid grid-cols-4 gap-3">
+                  {/* Min Field */}
                   <div>
                     <label className="block text-xs text-gray-600 mb-1">Min (₹) *</label>
                     <input
                       type="number"
-                      value={slab.min}
+                      value={slab.min === 0 ? "" : slab.min}
                       onChange={(e) => handleSlabChange(index, "min", e.target.value)}
                       min="0"
                       step="1"
@@ -281,6 +238,8 @@ const TaxConfigurationSection = ({
                       </p>
                     )}
                   </div>
+
+                  {/* Max Field */}
                   <div>
                     <label className="block text-xs text-gray-600 mb-1">Max (₹)</label>
                     <input
@@ -305,11 +264,13 @@ const TaxConfigurationSection = ({
                       </p>
                     )}
                   </div>
+
+                  {/* Rate Field */}
                   <div>
                     <label className="block text-xs text-gray-600 mb-1">GST Rate (%) *</label>
                     <input
                       type="number"
-                      value={slab.rate}
+                      value={slab.rate === 0 ? "" : slab.rate}
                       onChange={(e) => handleSlabChange(index, "rate", e.target.value)}
                       min="0"
                       max="100"
@@ -325,6 +286,8 @@ const TaxConfigurationSection = ({
                       <p className="text-red-500 text-xs mt-0.5">{errors[`taxSlab_${index}_rate`]}</p>
                     )}
                   </div>
+
+                  {/* Delete Button */}
                   <div className="flex items-end">
                     {taxSlabs.length > 1 && (
                       <button
@@ -351,7 +314,7 @@ const TaxConfigurationSection = ({
           </button>
         </div>
 
-        {/* CESS Rate */}
+        {/* CESS Rate Section */}
         <div className="mb-6">
           <label className="block text-xs font-medium text-gray-700 mb-2">
             CESS Rate (%) <span className="text-gray-500 font-normal">(Optional)</span>
@@ -378,7 +341,8 @@ const TaxConfigurationSection = ({
         {/* Tax Calculation Preview */}
         <div className="mt-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
           <h3 className="text-xs font-semibold text-gray-700 mb-3">Tax Calculation Preview</h3>
-          <div className="space-y-2 text-xs">
+          
+          <div className="space-y-2 text-xs mb-4">
             <div className="flex justify-between">
               <span className="text-gray-600">Room Tariff: ₹500/day</span>
               <span className="text-gray-900 font-medium">GST: {getGSTRate(500)}%</span>
@@ -401,40 +365,35 @@ const TaxConfigurationSection = ({
             )}
           </div>
 
-          <div className="mt-4 p-3 bg-white border border-gray-200 rounded">
-            <p className="text-xs font-medium text-gray-700 mb-2">Example: ₹5,000 booking (1 night)</p>
-            {(() => {
-              const baseAmount = 5000;
-              const gstRate = getGSTRate(5000);
-              const gstAmount = (baseAmount * gstRate) / 100;
-              const cessAmountVal = cessRate ? (baseAmount * Number(cessRate)) / 100 : 0;
-              const totalTax = gstAmount + cessAmountVal;
-              return (
-                <div className="space-y-1 text-xs">
-                  <div className="flex justify-between text-gray-600">
-                    <span>Base Amount:</span>
-                    <span>₹{baseAmount.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between text-gray-600">
-                    <span>GST ({gstRate}%):</span>
-                    <span>₹{gstAmount.toFixed(2)}</span>
-                  </div>
-                  {cessRate && cessAmountVal > 0 && (
-                    <div className="flex justify-between text-gray-600">
-                      <span>CESS ({cessRate}%):</span>
-                      <span>₹{cessAmountVal.toFixed(2)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between font-semibold text-gray-900 pt-1 border-t border-gray-200">
-                    <span>Total Amount:</span>
-                    <span>₹{(baseAmount + totalTax).toFixed(2)}</span>
-                  </div>
+          {/* Example Calculation */}
+          <div className="p-3 bg-white border border-gray-200 rounded">
+            <p className="text-xs font-medium text-gray-700 mb-2">
+              Example: ₹5,000 booking (1 night)
+            </p>
+            <div className="space-y-1 text-xs">
+              <div className="flex justify-between text-gray-600">
+                <span>Base Amount:</span>
+                <span>₹{example.baseAmount.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between text-gray-600">
+                <span>GST ({example.gstRate}%):</span>
+                <span>₹{example.gstAmount.toFixed(2)}</span>
+              </div>
+              {cessRate && example.cessAmount > 0 && (
+                <div className="flex justify-between text-gray-600">
+                  <span>CESS ({cessRate}%):</span>
+                  <span>₹{example.cessAmount.toFixed(2)}</span>
                 </div>
-              );
-            })()}
+              )}
+              <div className="flex justify-between font-semibold text-gray-900 pt-1 border-t border-gray-200">
+                <span>Total Amount:</span>
+                <span>₹{(example.baseAmount + example.totalTax).toFixed(2)}</span>
+              </div>
+            </div>
           </div>
         </div>
 
+        {/* Save Button (Edit Mode Only) */}
         {isEdit && (
           <div className="mt-6 flex justify-end pr-5 pb-3">
             <button
@@ -453,4 +412,3 @@ const TaxConfigurationSection = ({
 };
 
 export default TaxConfigurationSection;
-

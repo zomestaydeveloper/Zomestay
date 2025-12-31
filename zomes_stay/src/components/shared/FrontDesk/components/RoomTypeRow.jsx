@@ -64,3 +64,4 @@ const RoomTypeRow = ({ roomType, displayDays, isExpanded, onToggle, onCellClick 
 
 export default RoomTypeRow;
 
+

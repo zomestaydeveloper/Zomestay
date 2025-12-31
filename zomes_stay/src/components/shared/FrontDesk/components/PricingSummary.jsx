@@ -59,3 +59,4 @@ const PricingSummary = ({ pricingSummary }) => {
 
 export default PricingSummary;
 
+
