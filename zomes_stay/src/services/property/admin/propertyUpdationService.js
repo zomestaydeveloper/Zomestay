@@ -46,6 +46,14 @@ const propertyUpdationService = {
       config ?? multipartConfig
     ),
 
+  // Alias for updateGallery (for consistency with component naming)
+  updateMedia: (propertyId, payload, config) =>
+    apiService.patch(
+      `${PROPERTY.PROPERTY}/${encodeId(propertyId)}/gallery`,
+      payload,
+      config ?? multipartConfig
+    ),
+
   deleteRoomType: (propertyId, propertyRoomTypeId) =>
     apiService.delete(
       `${PROPERTY.PROPERTY}/${encodeId(propertyId)}/room-types/${encodeId(propertyRoomTypeId)}`
