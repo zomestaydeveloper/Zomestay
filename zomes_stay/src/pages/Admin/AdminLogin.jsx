@@ -137,7 +137,7 @@ const AdminLogin = () => {
             adminAccessToken: token,
           })
         );
-
+         
         await persistor.flush();
         navigate("/admin/base/dashboard", { replace: true });
       } else {

@@ -1642,7 +1642,7 @@ const PropertyForm = ({ mode = "create" }) => {
         });
         setTimeout(() => {
           if (createdPropertyId) {
-            navigate(`/admin/base/properties/${createdPropertyId}/edit`);
+            navigate(`/admin/base/properties/edit/${createdPropertyId}`);
           } else {
             navigate('/admin/base/properties');
           }
