@@ -340,9 +340,9 @@ const HostController = {
       let userEmail = null;
       let userName = 'Host';
       try {
-        const existingUser = await prisma.user.findFirst({
+        const existingUser = await prisma.host.findFirst({
           where: { phone: cleanPhone, isDeleted: false },
-          select: { email: true, firstname: true, lastname: true }
+          select: { email: true, firstName: true, lastName: true }
         });
         if (existingUser) {
           userEmail = existingUser.email;
@@ -566,6 +566,12 @@ const HostController = {
         { expiresIn: '30d' }
       );
 
+      const existingUser = await prisma.host.findFirst({
+          where: { phone: cleanPhone, isDeleted: false },
+          select: { email: true, firstName: true, lastName: true, profileImage:true }
+        });
+
+        console.log(existingUser,'host data')
       // 5) Set refresh cookie (same path as your refresh endpoint)
       res.cookie('refresh_token', refreshToken, {
         httpOnly: true,
@@ -587,7 +593,8 @@ const HostController = {
           host: userWithoutPassword,
           token: accessToken,
           isNewUser: false,
-          userDidNotExist: false
+          userDidNotExist: false,
+          host:existingUser
         }
       });
 
