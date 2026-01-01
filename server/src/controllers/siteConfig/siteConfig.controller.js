@@ -57,6 +57,25 @@ const siteConfigController = {
         }
       });
 
+      if (!siteConfig) {
+  return sendSuccess(res, {
+    id: null,
+    logo: null,
+    phoneNumber: null,
+    bannerImages: [],
+    heroTitle: null,
+    heroSubtitle: null,
+    siteName: null,
+    supportEmail: null,
+    supportPhone: null,
+    address: null,
+    socialMedia: {},
+    createdAt: null,
+    updatedAt: null
+  }, 'Site configuration not set');
+}
+
+
       // Parse JSON fields if they exist
       const formattedConfig = {
         id: siteConfig.id,

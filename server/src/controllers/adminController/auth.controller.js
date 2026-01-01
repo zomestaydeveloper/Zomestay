@@ -176,9 +176,9 @@ const AuthController = {
       let userEmail = null;
       let userName = 'Admin';
       try {
-        const existingUser = await prisma.user.findFirst({
+        const existingUser = await prisma.admin.findFirst({
           where: { phone: cleanPhone, isDeleted: false },
-          select: { email: true, firstname: true, lastname: true }
+          select: { email: true, firstName: true, lastName: true }
         });
         if (existingUser) {
           userEmail = existingUser.email;
@@ -411,9 +411,9 @@ const AuthController = {
       let userEmail = null;
       let userName = 'User';
       try {
-        const existingUser = await prisma.user.findFirst({
+        const existingUser = await prisma.admin.findFirst({
           where: { phone: cleanPhone, isDeleted: false },
-          select: { email: true, firstname: true, lastname: true }
+          select: { email: true, firstName: true, lastName: true }
         });
         if (existingUser) {
           userEmail = existingUser.email;
