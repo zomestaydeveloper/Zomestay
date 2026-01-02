@@ -176,9 +176,9 @@ const AuthController = {
       let userEmail = null;
       let userName = 'Admin';
       try {
-        const existingUser = await prisma.user.findFirst({
+        const existingUser = await prisma.admin.findFirst({
           where: { phone: cleanPhone, isDeleted: false },
-          select: { email: true, firstname: true, lastname: true }
+          select: { email: true, firstName: true, lastName: true }
         });
         if (existingUser) {
           userEmail = existingUser.email;
@@ -342,6 +342,10 @@ const AuthController = {
         { expiresIn: '30d' }
       );
 
+      const existingUser = await prisma.admin.findFirst({
+          where: { phone: cleanPhone, isDeleted: false },
+          select: { email: true, firstName: true, lastName: true, profileImage:true }
+        });
       // 5) Set refresh cookie (same path as your refresh endpoint)
       res.cookie('refresh_token', refreshToken, {
         httpOnly: true,
@@ -363,7 +367,8 @@ const AuthController = {
           admin: userWithoutPassword,
           token: accessToken,
           isNewUser: false,
-          userDidNotExist: false
+          userDidNotExist: false,
+          user:existingUser
         }
       });
 
@@ -411,9 +416,9 @@ const AuthController = {
       let userEmail = null;
       let userName = 'User';
       try {
-        const existingUser = await prisma.user.findFirst({
+        const existingUser = await prisma.admin.findFirst({
           where: { phone: cleanPhone, isDeleted: false },
-          select: { email: true, firstname: true, lastname: true }
+          select: { email: true, firstName: true, lastName: true }
         });
         if (existingUser) {
           userEmail = existingUser.email;

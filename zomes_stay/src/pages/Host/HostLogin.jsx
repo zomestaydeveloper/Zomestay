@@ -102,6 +102,7 @@ const HostLoginPage = () => {
       if (!res.data.success) throw new Error();
 
       const { host, token } = res.data.data;
+      console.log(res.data,'response data')
       dispatch(
         setHostLogin({
           id: host.id,

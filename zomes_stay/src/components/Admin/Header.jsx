@@ -1,14 +1,15 @@
-import { MagnifyingGlassIcon, BellIcon } from "@heroicons/react/24/outline";
+import { MagnifyingGlassIcon, BellIcon, UserIcon } from "@heroicons/react/24/outline";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "react-toastify";
 import authService from "../../services/auth/authService";
-import { useSelector, useDispatch } from "react-redux";
 import hostAuthService from "../../services/auth/host_authService";
+import { useSelector, useDispatch } from "react-redux";
 import { persistor } from "../../store/store";
 import { logoutAdmin } from "../../store/adminAuthSlice";
 import { logoutHost } from "../../store/hostAuthSlice";
 import { setHostProperty } from "../../store/propertySlice";
 import { findRoleFromPathname } from "../../utils/findrole";
+import { useState } from "react";
 
 const Header = ({ onOpenSidebar }) => {
   const navigate = useNavigate();
@@ -16,37 +17,50 @@ const Header = ({ onOpenSidebar }) => {
   const location = useLocation();
   const adminAuth = useSelector((state) => state.adminAuth);
   const hostAuth = useSelector((state) => state.hostAuth);
-  
-  // Determine role from current pathname (frontend route)
-  // This ensures correct role detection even when multiple roles are logged in
-  // Uses pathname-based detection instead of Redux state to avoid conflicts
+
+  // Determine role from current pathname
   const role = findRoleFromPathname(location.pathname) || "";
 
+  // Map Redux user slice to unified user object
+ const user =
+  role === "host"
+    ? {
+        name: `${hostAuth.first_name || ""} ${hostAuth.last_name || ""}`.trim(),
+        avatar: hostAuth.profileImage || null,
+      }
+    : role === "admin"
+    ? {
+        name: `${adminAuth.first_name || ""} ${adminAuth.last_name || ""}`.trim(),
+        avatar: adminAuth.profileImage || null,
+      }
+    : null;
+
+
+      console.log(user,'user nnn')
+  // Optional search input state
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Logout handler
   const handleLogout = async () => {
     try {
       if (role === "admin") await authService.logout();
       else if (role === "host") await hostAuthService.logout();
     } catch (error) {
       console.error("Logout API failed:", error);
+      toast.error("Logout failed. Try again!");
     } finally {
-      // remove any client token
-
-      // reset redux in-memory based on role
       if (role === "admin") {
         dispatch(logoutAdmin());
-  localStorage.removeItem("persist:adminAuth");
-
+        localStorage.removeItem("persist:adminAuth");
       } else if (role === "host") {
         dispatch(logoutHost());
-        // Clear property data when host logs out
         dispatch(setHostProperty(null));
         localStorage.removeItem("persist:hostAuth");
         localStorage.removeItem("persist:property");
       }
 
-      // Flush to ensure the logout action is saved to localStorage
-      // DO NOT purge - that would clear all roles' data!
-      // Redux Persist will automatically save only the updated slice
+      // Flush Redux Persist
+      await persistor.flush();
 
       toast.success("Logged out successfully!");
       if (role === "host") navigate("/host", { replace: true });
@@ -55,7 +69,7 @@ const Header = ({ onOpenSidebar }) => {
   };
 
   return (
-    <header className="w-full shadow-lg h-[100px] bg-white flex items-center px-6">
+    <header className="w-full shadow-lg h-24 bg-white flex items-center px-6">
       {/* Hamburger for mobile */}
       <button
         type="button"
@@ -82,6 +96,8 @@ const Header = ({ onOpenSidebar }) => {
       <div className="relative w-full max-w-[500px]">
         <input
           type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Search..."
           className="w-full rounded-lg border border-gray-300 py-2 pl-4 pr-10 text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400"
         />
@@ -90,6 +106,7 @@ const Header = ({ onOpenSidebar }) => {
 
       {/* Right cluster */}
       <div className="ml-auto flex items-center gap-6">
+        {/* Notifications */}
         <div className="relative">
           <BellIcon className="h-6 w-6 text-indigo-400 cursor-pointer" />
           <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white"></span>
@@ -97,15 +114,24 @@ const Header = ({ onOpenSidebar }) => {
 
         {/* User info */}
         <div className="flex items-center gap-3">
-          <img
-            src="https://i.pravatar.cc/100?img=12"
-            alt="User Avatar"
-            className="h-9 w-9 rounded-full object-cover"
-          />
+          {user?.avatar ? (
+            <img
+              src={user.avatar}
+              alt={user.name || "User Avatar"}
+              className="h-9 w-9 rounded-full object-cover"
+            />
+          ) : (
+            <div className="h-9 w-9 rounded-full bg-gray-200 flex items-center justify-center">
+              <UserIcon className="h-5 w-5 text-gray-400" />
+            </div>
+          )}
+
           <div className="leading-tight hidden sm:block">
-            <div className="text-sm font-semibold text-gray-800">John Thomson</div>
+            <div className="text-sm font-semibold text-gray-800">
+              {user?.name || "Unknown User"}
+            </div>
             <div className="text-xs text-indigo-400">
-              {role === "host" ? "Property owner" : "Admin"}
+              {role === "host" ? "Property Owner" : "Admin"}
             </div>
           </div>
         </div>
@@ -114,6 +140,7 @@ const Header = ({ onOpenSidebar }) => {
         <button
           onClick={handleLogout}
           className="text-sm font-semibold text-red-500 hover:text-red-600"
+          aria-label="Logout"
         >
           Logout
         </button>
