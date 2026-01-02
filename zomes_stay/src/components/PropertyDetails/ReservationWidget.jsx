@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Calendar, Users, Home, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { useSelector } from "react-redux";
 import { WidgetLoader } from "../Loader";
+import { validateAuth, detectRoleFromRoute } from "../../utils/authUtils";
 
 // ---- Local helpers ----
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -301,7 +303,8 @@ export default function ReservationBookingWidget({
   propertyDetails,
   range: controlledRange,
   onRangeChange,
-  onMonthNavigation
+  onMonthNavigation,
+  onAuthRequired // Optional callback when auth is required
 }) {
   const [internalRange, setInternalRange] = useState({ start: null, end: null });
   const range = controlledRange ?? internalRange;
@@ -315,6 +318,27 @@ export default function ReservationBookingWidget({
 
   const guestDropdownRef = useRef(null);
   const roomDropdownRef = useRef(null);
+
+  // Detect role from current route
+  const currentRole = detectRoleFromRoute();
+  
+  // Check authentication status (Best Practice: Validate with expiration check)
+  const userAuth = useSelector((state) => state.userAuth);
+  const agentAuth = useSelector((state) => state.agentAuth);
+  
+  // Select auth based on current role
+  let selectedAuth = null;
+  if (currentRole === 'user') {
+    selectedAuth = userAuth;
+  } else if (currentRole === 'agent') {
+    selectedAuth = agentAuth;
+  }
+  
+  const authStatus = validateAuth(
+    currentRole === 'user' ? userAuth : null,
+    currentRole === 'agent' ? agentAuth : null
+  );
+  const isLoggedIn = authStatus.isAuthenticated;
 
 
   console.log(calendarData)
@@ -560,6 +584,28 @@ export default function ReservationBookingWidget({
           <button
             disabled={!range.start || !range.end}
             onClick={() => {
+              // Best Practice: Validate authentication before proceeding
+              if (!isLoggedIn) {
+                // Handle expired token case
+                if (authStatus.needsRefresh) {
+                  if (onAuthRequired) {
+                    onAuthRequired({ reason: 'token_expired' });
+                  } else {
+                    alert("Your session has expired. Please login again.");
+                  }
+                } else {
+                  // No token - user needs to login
+                  if (onAuthRequired) {
+                    onAuthRequired({ reason: 'not_authenticated' });
+                  } else {
+                    alert("Please login to continue with booking");
+                  }
+                }
+                return;
+              }
+
+              // User is authenticated and token is valid, proceed with booking
+              // Note: Backend will still validate the token on API calls
               if (onBookNow) {
                 onBookNow({
                   checkIn: range.start,
@@ -572,7 +618,7 @@ export default function ReservationBookingWidget({
             }}
             className="w-full bg-[#003580] hover:bg-[#00224d] disabled:bg-gray-300 text-white py-3 rounded-lg font-semibold text-base transition-colors disabled:cursor-not-allowed"
           >
-            Apply
+            Apply Now
           </button>
 
 

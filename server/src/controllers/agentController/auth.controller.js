@@ -181,7 +181,7 @@ const TravelAgentAuthController = {
           status: travelAgent.status,
           type: 'travel_agent'
         },
-        { expiresIn: '24h' }  // 1 minute expiration
+        { expiresIn: '24h' }
       );
 
       // Remove password from response
@@ -476,6 +476,7 @@ const TravelAgentAuthController = {
     }
   },
 
+  // Refresh Travel Agent Token
   // Travel Agent Logout
   logout: async (req, res) => {
     try {

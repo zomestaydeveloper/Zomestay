@@ -21,6 +21,7 @@ module.exports = (app) => {
   app.use('/api', require('./userRoutes/rooms.routes'));
   app.use('/api/search', require('./userRoutes/propertySearch.routes'));
   app.use('/api/callback-requests', require('./userRoutes/requestCallback.routes'));
+  app.use('/', require('./userRoutes/propertyDetials.routes'));
 
   app.use('/api', require('./agentRoutes/auth.routes'));
   app.use('/api/travel-agents', require('./agentRoutes/travelAgent.routes'));

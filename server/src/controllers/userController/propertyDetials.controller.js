@@ -233,6 +233,8 @@ const PropertyDetailsController = {
             const { id } = req.params;
             const { startDate, endDate, month, year } = req.query;
 
+            console.log(startDate, endDate, month, year)
+
             // Check if role is agent and fetch agent discount
             let agentDiscount = null;
             let isApprovedAgent = false;
@@ -285,25 +287,32 @@ const PropertyDetailsController = {
             }
 
             // Support multiple loading strategies
+            // Use UTC dates to avoid timezone conversion issues
             let queryStartDate, queryEndDate;
             
             if (month && year) {
                 // Single month loading (e.g., month=1, year=2024)
-                const startOfMonth = new Date(year, month - 1, 1);
-                const endOfMonth = new Date(year, month, 0); // Last day of month
+                // Use UTC to ensure consistent date boundaries
+                const startOfMonth = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+                const endOfMonth = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999)); // Last day of month at end of day
                 queryStartDate = startOfMonth;
                 queryEndDate = endOfMonth;
             } else if (startDate && endDate) {
                 // Date range loading (for initial load: current + next month)
-                queryStartDate = new Date(startDate);
-                queryEndDate = new Date(endDate);
+                // Parse date strings as UTC to avoid timezone shifts
+                const startDateUTC = new Date(startDate + 'T00:00:00Z');
+                const endDateUTC = new Date(endDate + 'T23:59:59Z'); // Include full end date
+                queryStartDate = startDateUTC;
+                queryEndDate = endDateUTC;
             } else {
                 // Default: Load current month + next month
                 const now = new Date();
-                const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-                const nextMonth = new Date(now.getFullYear(), now.getMonth() + 2, 0); // Last day of next month
-                queryStartDate = currentMonth;
-                queryEndDate = nextMonth;
+                const currentYear = now.getUTCFullYear();
+                const currentMonth = now.getUTCMonth();
+                const currentMonthStart = new Date(Date.UTC(currentYear, currentMonth, 1, 0, 0, 0, 0));
+                const nextMonthEnd = new Date(Date.UTC(currentYear, currentMonth + 2, 0, 23, 59, 59, 999)); // Last day of next month
+                queryStartDate = currentMonthStart;
+                queryEndDate = nextMonthEnd;
             }
 
             // Step 1: Get all RatePlanDates for the date range
@@ -449,10 +458,29 @@ const PropertyDetailsController = {
             // Step 7: Calculate simplified availability and pricing per date
             const availabilityByDate = {};
             const dateRange = [];
-            let currentDate = new Date(queryStartDate);
             
-            while (currentDate <= queryEndDate) {
-                const dateStr = currentDate.toISOString().split('T')[0];
+            // Normalize start and end dates to UTC midnight for consistent date iteration
+            const startDateUTC = new Date(Date.UTC(
+                queryStartDate.getUTCFullYear(),
+                queryStartDate.getUTCMonth(),
+                queryStartDate.getUTCDate(),
+                0, 0, 0, 0
+            ));
+            const endDateUTC = new Date(Date.UTC(
+                queryEndDate.getUTCFullYear(),
+                queryEndDate.getUTCMonth(),
+                queryEndDate.getUTCDate(),
+                0, 0, 0, 0
+            ));
+            
+            let currentDate = new Date(startDateUTC);
+            
+            while (currentDate <= endDateUTC) {
+                // Format date as YYYY-MM-DD using UTC methods to avoid timezone shifts
+                const year = currentDate.getUTCFullYear();
+                const month = String(currentDate.getUTCMonth() + 1).padStart(2, '0');
+                const day = String(currentDate.getUTCDate()).padStart(2, '0');
+                const dateStr = `${year}-${month}-${day}`;
                 dateRange.push(dateStr);
                 
                 let totalAvailableRoomsForDate = 0;
@@ -463,8 +491,13 @@ const PropertyDetailsController = {
                     const totalRooms = roomType.totalRooms;
                     
                     // Count blocked/unavailable rooms for this date and room type
+                    // Format database date as YYYY-MM-DD using UTC to match dateStr format
                     const blockedRooms = availabilityData.filter(av => {
-                        const avDate = av.date.toISOString().split('T')[0];
+                        const avDateObj = new Date(av.date);
+                        const avYear = avDateObj.getUTCFullYear();
+                        const avMonth = String(avDateObj.getUTCMonth() + 1).padStart(2, '0');
+                        const avDay = String(avDateObj.getUTCDate()).padStart(2, '0');
+                        const avDate = `${avYear}-${avMonth}-${avDay}`;
                         return avDate === dateStr && 
                                av.room.propertyRoomTypeId === roomType.id &&
                                (av.status === 'booked' || av.status === 'maintenance' || av.status === 'blocked');
@@ -475,8 +508,13 @@ const PropertyDetailsController = {
                     totalAvailableRoomsForDate += availableRooms;
                     
                     // Find rate plan for this date
+                    // Format database date as YYYY-MM-DD using UTC to match dateStr format
                     const ratePlanForDate = ratePlanDates.find(rpd => {
-                        const rpdDate = rpd.date.toISOString().split('T')[0];
+                        const rpdDateObj = new Date(rpd.date);
+                        const rpdYear = rpdDateObj.getUTCFullYear();
+                        const rpdMonth = String(rpdDateObj.getUTCMonth() + 1).padStart(2, '0');
+                        const rpdDay = String(rpdDateObj.getUTCDate()).padStart(2, '0');
+                        const rpdDate = `${rpdYear}-${rpdMonth}-${rpdDay}`;
                         return rpdDate === dateStr;
                     });
                     
@@ -537,7 +575,13 @@ const PropertyDetailsController = {
                     } : null
                 };
                 
-                currentDate.setDate(currentDate.getDate() + 1);
+                // Increment date using UTC methods to avoid timezone shifts
+                currentDate = new Date(Date.UTC(
+                    currentDate.getUTCFullYear(),
+                    currentDate.getUTCMonth(),
+                    currentDate.getUTCDate() + 1,
+                    0, 0, 0, 0
+                ));
             }
 
           

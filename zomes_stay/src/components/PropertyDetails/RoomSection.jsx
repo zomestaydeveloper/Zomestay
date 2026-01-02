@@ -4,8 +4,7 @@ import { bookingDataService } from "../../services";
 import paymentService from "../../services/paymentService";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
-//import AuthModal from "../UserAgentAuth/AuthModal";
-
+import UserLoginPage from "../UserAgentAuth/UserLoginPage";
 const RoomSection = ({ propertyId, range, party }) => {
 
 

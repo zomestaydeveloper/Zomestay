@@ -122,11 +122,17 @@ const DetailsPage = () => {
     try {
       const now = new Date();
       // Load current month + next month (2-month window)
-      const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-      const nextMonthEnd = new Date(now.getFullYear(), now.getMonth() + 2, 0); // Last day of next month
-
-      const startDate = currentMonthStart.toISOString().split('T')[0];
-      const endDate = nextMonthEnd.toISOString().split('T')[0];
+      // Use UTC methods to avoid timezone conversion issues
+      const currentYear = now.getUTCFullYear();
+      const currentMonth = now.getUTCMonth();
+      
+      // Calculate start date: first day of current month (UTC)
+      const startDate = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-01`;
+      
+      // Calculate end date: last day of next month (UTC)
+      // month + 2, day 0 = last day of (month + 1)
+      const nextMonthEndDate = new Date(Date.UTC(currentYear, currentMonth + 2, 0));
+      const endDate = `${nextMonthEndDate.getUTCFullYear()}-${String(nextMonthEndDate.getUTCMonth() + 1).padStart(2, '0')}-${String(nextMonthEndDate.getUTCDate()).padStart(2, '0')}`;
 
       // Add timeout for network requests
       const controller = new AbortController();
@@ -137,10 +143,23 @@ const DetailsPage = () => {
 
       const pricingData = response?.data?.data;
       if (pricingData) {
-        // Store the simplified pricing data directly
+        // Filter out dates outside the requested range (backend timezone bug workaround)
+        const filteredPricingData = {};
+        const startDateObj = new Date(startDate + 'T00:00:00Z');
+        const endDateObj = new Date(endDate + 'T00:00:00Z');
+        
+        Object.entries(pricingData).forEach(([dateStr, data]) => {
+          const dateObj = new Date(dateStr + 'T00:00:00Z'); // Parse as UTC to avoid timezone shifts
+          // Only include dates within the requested range (inclusive)
+          if (dateObj >= startDateObj && dateObj <= endDateObj) {
+            filteredPricingData[dateStr] = data;
+          }
+        });
+
+        // Store the filtered pricing data
         setPropertyDetails(prev => ({
           ...prev,
-          pricingData: pricingData // Store the simplified { date: { totalAvailableRooms, minimumPrice } } format
+          pricingData: filteredPricingData // Store the filtered { date: { totalAvailableRooms, minimumPrice } } format
         }));
         setLastDataFetch(new Date());
         setRetryCount(0); // Reset retry count on success
@@ -582,7 +601,11 @@ const DetailsPage = () => {
     const processedData = {};
 
     // Process each date from the simplified pricing data
-    Object.entries(propertyDetails.pricingData).forEach(([date, data]) => {
+    Object.entries(propertyDetails.pricingData).forEach(([dateStr, data]) => {
+      // Ensure date string is in YYYY-MM-DD format (should already be from API)
+      // Normalize the date key to match getDateKey() format from ReservationWidget
+      const normalizedDate = dateStr.match(/^\d{4}-\d{2}-\d{2}/)?.[0] || dateStr;
+      
       const isAvailable = data.totalAvailableRooms > 0;
       const hasEnoughRooms = data.totalAvailableRooms >= requiredRooms;
 
@@ -598,12 +621,17 @@ const DetailsPage = () => {
       }
 
       // Check if date is in the past
+      // Parse date string as UTC to avoid timezone shifts when comparing
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const dateObj = new Date(date);
-      const isPastDate = dateObj < today;
+      const dateObj = new Date(normalizedDate + 'T00:00:00Z'); // Parse as UTC midnight
+      const todayUTC = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
+      const isPastDate = dateObj < todayUTC;
 
-      processedData[date] = {
+      // Use normalized date string as key to ensure it matches getDateKey() format
+      // getDateKey() uses local timezone methods, but since we're using calendar dates,
+      // both should produce the same YYYY-MM-DD string for the same calendar date
+      processedData[normalizedDate] = {
         minRate: data.minimumPrice || null,
         isAvailable: isAvailable && hasEnoughRooms && !isPastDate,
         specialRate: null, // We'll handle special rates separately if needed
@@ -618,8 +646,12 @@ const DetailsPage = () => {
       };
     });
 
+    // Debug: Log to verify data is being processed
+    console.log('📅 Processed calendarData:', Object.keys(processedData).length, 'dates');
+    console.log('📅 Sample keys:', Object.keys(processedData).slice(0, 5));
+
     return processedData;
-  }, [propertyDetails, requiredRooms]);
+  }, [propertyDetails?.pricingData, requiredRooms]);
 
   // Helper function to create icon component from URL
   const createIconFromUrl = (iconUrl) => {
