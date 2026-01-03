@@ -697,7 +697,7 @@ const PropertyDetailsController = {
             // ===================== STEP 3: PROPERTY VALIDATION =====================
             // Verify the property exists, is active, and fetch its check-in/check-out times
             
-            // Step 3.1: Fetch property details (including check-in/check-out times)
+            // Step 3.1: Fetch property details (including check-in/check-out times and tax slabs)
             const property = await prisma.property.findFirst({
                 where: {
                     id: propertyId,
@@ -709,7 +709,8 @@ const PropertyDetailsController = {
                     title: true,
                     status: true,
                     checkInTime: true,  // Property-specific check-in time (e.g., "14:00")
-                    checkOutTime: true  // Property-specific check-out time (e.g., "11:00")
+                    checkOutTime: true,  // Property-specific check-out time (e.g., "11:00")
+                    taxSlabs: true  // Tax slabs configuration: [{min: number, max: number|null, rate: number}]
                 }
             });
 
@@ -1091,7 +1092,8 @@ const PropertyDetailsController = {
                 requestedGuests: guestCount,  // Number of adult guests
                 requestedRooms: roomCount,  // Number of rooms requested
                 requestedChildren: childrenCount,  // Number of children
-                agentRates: agentRates || null  // Agent discount info (agentId, discount, type) - null if not applicable
+                agentRates: agentRates || null,  // Agent discount info (agentId, discount, type) - null if not applicable
+                taxSlabs: property.taxSlabs || null  // Tax slabs configuration: [{min: number, max: number|null, rate: number}]
             });
 
         } catch (error) {

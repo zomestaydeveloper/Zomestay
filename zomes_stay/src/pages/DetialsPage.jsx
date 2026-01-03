@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useParams, useLocation } from "react-router-dom";
 import { propertyDetailsService, mediaService } from "../services";
 import { PropertyHeader, PropertyGallery, PropertyReviews, PropertyLocation, RoomSection, ReservationBookingWidget, PageLoader, WidgetLoader } from "../components/PropertyDetails";
+import { restoreBookingState, clearBookingState } from "../utils/bookingStateUtils";
 
 const DetailsPage = () => {
   const { id } = useParams();
@@ -18,44 +19,6 @@ const DetailsPage = () => {
   const [refreshInterval, setRefreshInterval] = useState(null);
   const [isAutoRefreshEnabled, setIsAutoRefreshEnabled] = useState(true);
 
-  const [reviews] = useState([
-    {
-      id: 1,
-      name: "John Doe",
-      rating: 5,
-      review: "Amazing place! Highly recommend.",
-      avatar: "https://randomuser.me/api/portraits/men/1.jpg",
-    },
-    {
-      id: 2,
-      name: "Jane Smith",
-      rating: 4,
-      review: "Very good, but room for improvement.",
-      avatar: "https://randomuser.me/api/portraits/women/2.jpg",
-    },
-    {
-      id: 3,
-      name: "Alice Johnson",
-      rating: 5,
-      review: "Loved it! Will come again.",
-      avatar: "https://randomuser.me/api/portraits/women/3.jpg",
-    },
-    {
-      id: 4,
-      name: "Bob Brown",
-      rating: 3,
-      review: "It's okay, not great.",
-      avatar: "https://randomuser.me/api/portraits/men/4.jpg",
-    },
-    {
-      id: 5,
-      name: "Charlie Green",
-      rating: 4,
-      review: "Nice place, friendly staff.",
-      avatar: "https://randomuser.me/api/portraits/men/5.jpg",
-    },
-  ]);
-
   const [propertyDetails, setPropertyDetails] = useState(null);
   const [showRoomSelection, setShowRoomSelection] = useState(false);
   const roomSectionRef = useRef(null);
@@ -68,10 +31,41 @@ const DetailsPage = () => {
   });
   const [bookingNights, setBookingNights] = useState(0);
 
+  // Transform reviews from API format to component format
+  const reviews = useMemo(() => {
+    if (!propertyDetails?.reviews || !Array.isArray(propertyDetails.reviews)) {
+      return [];
+    }
+    
+    return propertyDetails.reviews.map((review) => {
+      const userName = review.user?.firstname && review.user?.lastname
+        ? `${review.user.firstname} ${review.user.lastname}`
+        : review.user?.username || 'Anonymous';
+      
+      return {
+        id: review.id,
+        name: userName,
+        rating: review.rating || 0,
+        review: review.description || 'No review text provided.',
+        avatar: review.user?.profileImage 
+          ? mediaService.getMedia(review.user.profileImage)
+          : `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=random`,
+        createdAt: review.createdAt
+      };
+    });
+  }, [propertyDetails?.reviews]);
+
+  // Use avgRating from API, fallback to calculated if not available
   const avgRating = useMemo(() => {
-    const total = reviews.reduce((acc, r) => acc + r.rating, 0);
-    return (total / reviews.length).toFixed(1);
-  }, [reviews]);
+    if (propertyDetails?.avgRating != null) {
+      return Number(propertyDetails.avgRating).toFixed(1);
+    }
+    if (reviews.length > 0) {
+      const total = reviews.reduce((acc, r) => acc + r.rating, 0);
+      return (total / reviews.length).toFixed(1);
+    }
+    return '0.0';
+  }, [propertyDetails?.avgRating, reviews]);
 
   const formatTimeString = (timeString) => {
     if (!timeString || typeof timeString !== "string") return "";
@@ -180,12 +174,15 @@ const DetailsPage = () => {
         setError("Failed to load pricing data. Please try again.");
       }
 
-      // Implement retry mechanism
+      // Implement retry mechanism with max retries to prevent infinite loops
       if (retryCount < 3) {
-        setTimeout(() => {
+        const timeoutId = setTimeout(() => {
           setRetryCount(prev => prev + 1);
           handleFetchInitialPricingData(id);
         }, 2000 * (retryCount + 1)); // Exponential backoff
+        
+        // Note: Timeout cleanup should be handled by component unmount
+        // In a production app, you might want to store timeoutId in ref for cleanup
       }
     } finally {
       setPricingLoading(false);
@@ -250,12 +247,19 @@ const DetailsPage = () => {
 
   // Start periodic refresh
   const startPeriodicRefresh = () => {
+    // Clear any existing interval first
     if (refreshInterval) {
       clearInterval(refreshInterval);
+      setRefreshInterval(null);
     }
 
+    // Only start if auto refresh is enabled
+    if (!isAutoRefreshEnabled) return;
+
     const interval = setInterval(() => {
-      handlePeriodicRefresh();
+      if (isAutoRefreshEnabled) {
+        handlePeriodicRefresh();
+      }
     }, 300000); // Refresh every 5 minutes
 
     setRefreshInterval(interval);
@@ -721,6 +725,54 @@ const DetailsPage = () => {
     return parts.join(", ");
   }, [propertyDetails, locationDisplay]);
 
+  // State for restored booking data
+  const [restoredGuests, setRestoredGuests] = useState(null);
+  const [restoredRooms, setRestoredRooms] = useState(null);
+
+  // Restore booking state from sessionStorage on mount (after login redirect)
+  useEffect(() => {
+    const savedState = restoreBookingState();
+    if (savedState && savedState.propertyId === id) {
+      // Validate and restore date range
+      if (savedState.checkIn && savedState.checkOut) {
+        const checkInDate = new Date(savedState.checkIn);
+        const checkOutDate = new Date(savedState.checkOut);
+        
+        // Validate dates are valid and not in the past
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        if (!isNaN(checkInDate.getTime()) && !isNaN(checkOutDate.getTime()) && 
+            checkInDate >= today && checkOutDate > checkInDate) {
+          setRange({
+            start: checkInDate,
+            end: checkOutDate
+          });
+        } else {
+          console.warn('Invalid restored dates, ignoring:', { checkInDate, checkOutDate });
+        }
+      }
+      
+      // Restore guests and rooms
+      if (savedState.guests) {
+        setRestoredGuests(savedState.guests);
+        // Also update party state for RoomSection
+        setParty({
+          adults: savedState.guests.adults || 0,
+          children: savedState.guests.children || 0,
+          infants: 0
+        });
+      }
+      if (savedState.rooms) {
+        setRestoredRooms(savedState.rooms);
+        setRequiredRooms(savedState.rooms);
+      }
+      
+      // Clear the saved state after restoring
+      clearBookingState();
+    }
+  }, [id]);
+
   useEffect(() => {
     if (id) {
       handleFetchBasicDetails(id);
@@ -733,15 +785,22 @@ const DetailsPage = () => {
   }, [id]);
 
   // Load pricing data when propertyDetails is available but pricingData is not
+  // Only fetch if we haven't already fetched recently to avoid race conditions
   useEffect(() => {
-    if (propertyDetails && !propertyDetails.pricingData && id) {
-      handleFetchInitialPricingData(id);
+    if (propertyDetails && !propertyDetails.pricingData && id && !pricingLoading) {
+      // Add a small delay to avoid race condition with initial fetch
+      const timeoutId = setTimeout(() => {
+        if (!propertyDetails.pricingData) {
+          handleFetchInitialPricingData(id);
+        }
+      }, 100);
+      return () => clearTimeout(timeoutId);
     }
-  }, [propertyDetails, id]);
+  }, [propertyDetails, id, pricingLoading]);
 
   // Check for data staleness and refresh if needed
   useEffect(() => {
-    if (lastDataFetch && propertyDetails?.pricingData) {
+    if (lastDataFetch && propertyDetails?.pricingData && id && !pricingLoading) {
       const now = new Date();
       const timeSinceLastFetch = now - lastDataFetch;
       const maxDataAge = 5 * 60 * 1000; // 5 minutes
@@ -750,7 +809,7 @@ const DetailsPage = () => {
         handleFetchInitialPricingData(id);
       }
     }
-  }, [lastDataFetch, propertyDetails, id]);
+  }, [lastDataFetch, propertyDetails, id, pricingLoading]);
 
   // Auto-load next 2-month window when user navigates (fallback mechanism)
   useEffect(() => {
@@ -840,6 +899,8 @@ const DetailsPage = () => {
               onMonthNavigation={handleMonthNavigation}
               onBookNow={handleBookNowClick}
               propertyDetails={propertyDetails}
+              initialGuests={restoredGuests}
+              initialRooms={restoredRooms}
             />
           )}
         </div>

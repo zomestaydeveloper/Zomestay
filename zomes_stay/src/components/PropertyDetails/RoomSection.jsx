@@ -4,7 +4,7 @@ import { bookingDataService } from "../../services";
 import paymentService from "../../services/paymentService";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
-import UserLoginPage from "../UserAgentAuth/UserLoginPage";
+import { saveBookingState, saveReturnUrl } from "../../utils/bookingStateUtils";
 const RoomSection = ({ propertyId, range, party }) => {
 
 
@@ -66,6 +66,7 @@ const RoomSection = ({ propertyId, range, party }) => {
   const [requestedChildren, setRequestedChildren] = useState(0);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [agentRates, setAgentRates] = useState(null); // Store agent discount info
+  const [taxSlabs, setTaxSlabs] = useState(null); // Store tax slabs configuration
 
   // Track which room type cards are selected by user
   const [selectedCards, setSelectedCards] = useState(new Set());
@@ -76,10 +77,6 @@ const RoomSection = ({ propertyId, range, party }) => {
   // Track which room's gallery is open
   const [openGallery, setOpenGallery] = useState(null); // roomTypeId or null
   const [galleryImageIndex, setGalleryImageIndex] = useState(0);
-
-  // Auth Modal State
-  const [authModalOpen, setAuthModalOpen] = useState(false);
-  const [pendingPayment, setPendingPayment] = useState(false); // Track if payment is pending auth
 
   // Modal state for notifications
   const [modal, setModal] = useState({
@@ -305,10 +302,17 @@ const RoomSection = ({ propertyId, range, party }) => {
       const baseOccupancy = room.occupancy * booking.rooms;
       const extraPersons = Math.max(0, totalOccupancy - baseOccupancy);
 
-      // Base price for all rooms (each room gets base double occupancy)
-      const basePriceForAllRooms = planData.doubleOccupancyPrice * booking.rooms;
+      // Determine base price per room based on actual guests per room
+      // If guests per room <= 1, use single occupancy price, otherwise use double occupancy price
+      const guestsPerRoom = booking.rooms > 0 ? Math.ceil(totalOccupancy / booking.rooms) : 0;
+      const basePricePerRoom = guestsPerRoom <= 1 && planData.singleOccupancyPrice 
+        ? planData.singleOccupancyPrice 
+        : planData.doubleOccupancyPrice;
+      
+      const basePriceForAllRooms = basePricePerRoom * booking.rooms;
       totalPriceForDate += basePriceForAllRooms;
-      breakdown.push('Base Double Occupancy (' + booking.rooms + ' rooms): Rs.' + basePriceForAllRooms);
+      const occupancyType = guestsPerRoom <= 1 ? 'Single' : 'Double';
+      breakdown.push(`Base ${occupancyType} Occupancy (${booking.rooms} rooms): Rs.${basePriceForAllRooms}`);
 
       // Step 4: Calculate extra bed charges with optimization
       // Calculate total people and how many exceed base occupancy
@@ -353,13 +357,46 @@ const RoomSection = ({ propertyId, range, party }) => {
     return calculatePriceDetails(room, booking).totalPrice;
   };
 
-  // Calculate tax based on room rate per room
-  // Tax rule: If room rate <= 7500, tax is 5%, if > 7500, tax is 18%
+  // Calculate tax based on room rate per room using dynamic tax slabs
+  // Tax slabs format: [{min: number, max: number|null, rate: number}]
   const calculateTaxForRoom = (roomBaseRate) => {
     if (!roomBaseRate || roomBaseRate <= 0) return 0;
 
-    const taxPercentage = roomBaseRate <= 7500 ? 5 : 18;
+    // If no tax slabs configured, return 0
+    if (!taxSlabs || !Array.isArray(taxSlabs) || taxSlabs.length === 0) {
+      return 0;
+    }
+
+    // Find the matching tax slab for this room rate
+    const matchingSlab = taxSlabs.find(slab => {
+      const min = slab.min || 0;
+      const max = slab.max;
+      // Check if room rate falls within this slab's range
+      return roomBaseRate >= min && (max === null || roomBaseRate <= max);
+    });
+
+    // If no matching slab found, return 0
+    if (!matchingSlab || !matchingSlab.rate) {
+      return 0;
+    }
+
+    // Calculate tax: rate is a percentage (e.g., 5 means 5%)
+    const taxPercentage = matchingSlab.rate;
     return (roomBaseRate * taxPercentage) / 100;
+  };
+
+  // Helper function to get tax percentage for display purposes
+  const getTaxPercentage = (roomBaseRate) => {
+    if (!roomBaseRate || roomBaseRate <= 0) return 0;
+    if (!taxSlabs || !Array.isArray(taxSlabs) || taxSlabs.length === 0) return 0;
+
+    const matchingSlab = taxSlabs.find(slab => {
+      const min = slab.min || 0;
+      const max = slab.max;
+      return roomBaseRate >= min && (max === null || roomBaseRate <= max);
+    });
+
+    return matchingSlab?.rate || 0;
   };
 
   // Calculate tax for a room type based on per-room base rate and number of rooms
@@ -367,13 +404,23 @@ const RoomSection = ({ propertyId, range, party }) => {
   const calculateTaxForRoomType = (room, booking) => {
     if (!booking.rooms || booking.rooms <= 0) return { taxAmount: 0, taxDetails: [] };
 
-    // Get the base rate per room per date (double occupancy price)
+    // Calculate guests per room to determine which price to use
+    const totalOccupancy = booking.guests + booking.children;
+    const guestsPerRoom = booking.rooms > 0 ? Math.ceil(totalOccupancy / booking.rooms) : 0;
+
+    // Get the base rate per room per date (single or double occupancy based on guests)
     const firstDateData = room.ratePlanDates?.[0];
     const planData = firstDateData?.[booking.mealPlan];
-    if (!planData || !planData.doubleOccupancyPrice) return { taxAmount: 0, taxDetails: [] };
+    if (!planData) return { taxAmount: 0, taxDetails: [] };
 
-    const roomBaseRate = planData.doubleOccupancyPrice;
-    const taxPerRoom = calculateTaxForRoom(roomBaseRate);
+    // Determine base price per room: use single occupancy if 1 guest, otherwise double occupancy
+    const basePricePerRoom = guestsPerRoom <= 1 && planData.singleOccupancyPrice 
+      ? planData.singleOccupancyPrice 
+      : (planData.doubleOccupancyPrice || 0);
+    
+    if (!basePricePerRoom || basePricePerRoom <= 0) return { taxAmount: 0, taxDetails: [] };
+
+    const taxPerRoom = calculateTaxForRoom(basePricePerRoom);
 
     // Calculate tax for all dates
     let totalTax = 0;
@@ -383,15 +430,19 @@ const RoomSection = ({ propertyId, range, party }) => {
       const datePlanData = dateData[booking.mealPlan];
       if (!datePlanData) return;
 
-      const dateRoomBaseRate = datePlanData.doubleOccupancyPrice || roomBaseRate;
-      const dateTaxPerRoom = calculateTaxForRoom(dateRoomBaseRate);
+      // Use same logic for each date: single occupancy for 1 guest, double for 2+
+      const dateBasePricePerRoom = guestsPerRoom <= 1 && datePlanData.singleOccupancyPrice 
+        ? datePlanData.singleOccupancyPrice 
+        : (datePlanData.doubleOccupancyPrice || basePricePerRoom);
+      
+      const dateTaxPerRoom = calculateTaxForRoom(dateBasePricePerRoom);
       const dateTaxTotal = dateTaxPerRoom * booking.rooms;
       totalTax += dateTaxTotal;
 
       taxDetails.push({
         date: dateData.date,
-        roomBaseRate: dateRoomBaseRate,
-        taxPercentage: dateRoomBaseRate <= 7500 ? 5 : 18,
+        roomBaseRate: dateBasePricePerRoom,
+        taxPercentage: getTaxPercentage(dateBasePricePerRoom),
         taxPerRoom: dateTaxPerRoom,
         numberOfRooms: booking.rooms,
         taxAmount: dateTaxTotal
@@ -477,8 +528,19 @@ const RoomSection = ({ propertyId, range, party }) => {
   const handlePayment = async () => {
     // Auth Guard: Check if user or agent is logged in
     if (!isUserLoggedIn && !isAgentLoggedIn) {
-      setPendingPayment(true);
-      setAuthModalOpen(true);
+      // Save booking state before redirecting to login
+      if (propertyId && range?.start && range?.end) {
+        saveBookingState({
+          checkIn: range.start,
+          checkOut: range.end,
+          guests: { adults: requestedGuests, children: requestedChildren },
+          rooms: requestedRooms,
+          propertyId
+        });
+        saveReturnUrl(pathname);
+      }
+      // Navigate to login page
+      navigate('/login');
       return;
     }
 
@@ -914,6 +976,7 @@ const RoomSection = ({ propertyId, range, party }) => {
           setRequestedRooms(response.data.requestedRooms || 0);
           setRequestedChildren(response.data.requestedChildren || 0);
           setAgentRates(response.data.agentRates || null); // Store agent discount info
+          setTaxSlabs(response.data.taxSlabs || null); // Store tax slabs configuration
         }
       } catch (err) {
         setError("Failed to load room data");
@@ -1814,21 +1877,6 @@ const RoomSection = ({ propertyId, range, party }) => {
           </div>
         </div>
       )}
-      <AuthModal
-        isOpen={authModalOpen}
-        onClose={() => {
-          setAuthModalOpen(false);
-          setPendingPayment(false);
-        }}
-        onSuccess={() => {
-          setAuthModalOpen(false);
-          if (pendingPayment) {
-            setPendingPayment(false);
-            // Re-trigger payment with a small delay to allow state updates
-            setTimeout(() => handlePayment(), 100);
-          }
-        }}
-      />
     </section>
   );
 };

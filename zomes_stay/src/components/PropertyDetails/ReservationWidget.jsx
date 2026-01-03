@@ -1,8 +1,10 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Calendar, Users, Home, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { useSelector } from "react-redux";
+import { useNavigate, useLocation } from "react-router-dom";
 import { WidgetLoader } from "../Loader";
 import { validateAuth, detectRoleFromRoute } from "../../utils/authUtils";
+import { saveBookingState, saveReturnUrl } from "../../utils/bookingStateUtils";
 
 // ---- Local helpers ----
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -135,14 +137,30 @@ function CalendarPopup({ calendarData = {}, unavailableDates = [], range, setRan
     const key = day ? getDateKey(day) : "";
     const cal = key ? calendarData[key] : null;
     const notAvailable = cal ? cal.isAvailable === false : false;
-    if (!day || isBeforeDay(day, today) || unavailableSet.current.has(key) || notAvailable) return;
-
+    // Check if date has 0 rooms (can still be check-out, but not check-in)
+    const hasZeroRooms = cal ? (cal.totalAvailableRooms === 0) : false;
+    const isUnavailable = unavailableSet.current.has(key) || notAvailable;
+    
+    // Prevent clicking past dates
+    if (!day || isBeforeDay(day, today)) return;
+    
+    // If selecting check-in date (no start or resetting), unavailable dates are not allowed
     if (!range.start || (range.start && range.end)) {
+      // Cannot select unavailable date as check-in (including dates with 0 rooms)
+      if (isUnavailable || hasZeroRooms) return;
       setRange({ start: day, end: null });
     } else if (range.start && !range.end) {
+      // Selecting check-out date - dates with 0 rooms ARE allowed (guest is leaving, doesn't need room)
+      // But dates from unavailableSet (legacy unavailable) are still not allowed
       if (isBeforeDay(day, range.start)) {
+        // If selecting before check-in, treat as new check-in (unavailable not allowed)
+        if (isUnavailable || hasZeroRooms) return;
         setRange({ start: day, end: range.start });
       } else {
+        // Selecting check-out date - allow dates with 0 rooms, but not legacy unavailable dates
+        // Only block if it's in the legacy unavailable set (not just 0 rooms)
+        if (unavailableSet.current.has(key)) return; // Legacy unavailable dates still blocked
+        // Allow dates with 0 rooms as check-out
         setRange({ start: range.start, end: day });
       }
     }
@@ -176,8 +194,14 @@ function CalendarPopup({ calendarData = {}, unavailableDates = [], range, setRan
             const isPast = isBeforeDay(day, today);
             const fromLegacyUnavailable = unavailableSet.current.has(key);
             const notAvailable = fromMap ? fromMap.isAvailable === false : false;
+            const hasZeroRooms = fromMap ? (fromMap.totalAvailableRooms === 0) : false;
             const isUnavailable = fromLegacyUnavailable || notAvailable;
-            const isDisabled = isPast || isUnavailable;
+            // Allow dates with 0 rooms when selecting check-out (range.start exists but range.end is null)
+            // Dates with 0 rooms are disabled only when selecting check-in or when date is in the past
+            // Legacy unavailable dates are always disabled
+            const isSelectingCheckOut = range.start && !range.end && !isBeforeDay(day, range.start);
+            // Disable if: past date OR legacy unavailable OR (unavailable/zero rooms AND not selecting check-out)
+            const isDisabled = isPast || fromLegacyUnavailable || ((hasZeroRooms || notAvailable) && !isSelectingCheckOut);
             const isSelected =
               (range.start && isSameDay(day, range.start)) ||
               (range.end && isSameDay(day, range.end));
@@ -205,13 +229,15 @@ function CalendarPopup({ calendarData = {}, unavailableDates = [], range, setRan
                     ? "bg-[#003580] text-white font-semibold "
                     : isInSelectedRange || isHoveredRange
                     ? "bg-blue-100 text-[#003580] "
+                    : (hasZeroRooms || (isUnavailable && !fromLegacyUnavailable)) && isSelectingCheckOut
+                    ? "bg-yellow-50 text-gray-600 border border-yellow-300 hover:bg-yellow-100 cursor-pointer "
                     : "hover:bg-blue-50 cursor-pointer ") +
                   (isToday && !isSelected ? "ring-2 ring-[#003580] ring-opacity-40 " : "")
                 }
               >
                 <span className="font-medium">{day.getDate()}</span>
-                {/* Price logic */}
-                {!isUnavailable && (
+                {/* Price logic - show prices for available dates or dates with 0 rooms when selecting check-out */}
+                {(!isUnavailable || (hasZeroRooms && isSelectingCheckOut)) && (
                   <span className="text-[10px] text-gray-500">
                     {finalPrice != null ? (
                       type === 'offer' ? (
@@ -304,20 +330,35 @@ export default function ReservationBookingWidget({
   range: controlledRange,
   onRangeChange,
   onMonthNavigation,
-  onAuthRequired // Optional callback when auth is required
+  onAuthRequired, // Optional callback when auth is required
+  initialGuests, // Optional initial guests state
+  initialRooms // Optional initial rooms state
 }) {
   const [internalRange, setInternalRange] = useState({ start: null, end: null });
   const range = controlledRange ?? internalRange;
   const updateRange = (next) => (onRangeChange ? onRangeChange(next) : setInternalRange(next));
 
-  const [guests, setGuests] = useState({ adults: 1, children: 0 });
-  const [rooms, setRooms] = useState(1);
+  const [guests, setGuests] = useState(initialGuests || { adults: 1, children: 0 });
+  const [rooms, setRooms] = useState(initialRooms || 1);
   const [showCalendar, setShowCalendar] = useState(false);
   const [showGuestDropdown, setShowGuestDropdown] = useState(false);
   const [showRoomDropdown, setShowRoomDropdown] = useState(false);
 
   const guestDropdownRef = useRef(null);
   const roomDropdownRef = useRef(null);
+
+  // Update guests and rooms when initial values are provided (e.g., after login restore)
+  useEffect(() => {
+    if (initialGuests) {
+      setGuests(initialGuests);
+    }
+  }, [initialGuests]);
+
+  useEffect(() => {
+    if (initialRooms) {
+      setRooms(initialRooms);
+    }
+  }, [initialRooms]);
 
   // Detect role from current route
   const currentRole = detectRoleFromRoute();
@@ -338,7 +379,11 @@ export default function ReservationBookingWidget({
     currentRole === 'user' ? userAuth : null,
     currentRole === 'agent' ? agentAuth : null
   );
+  console.log(authStatus);
   const isLoggedIn = authStatus.isAuthenticated;
+
+  const navigate = useNavigate();
+  const location = useLocation();
 
 
   console.log(calendarData)
@@ -586,19 +631,34 @@ export default function ReservationBookingWidget({
             onClick={() => {
               // Best Practice: Validate authentication before proceeding
               if (!isLoggedIn) {
+                // Save booking state before redirecting to login
+                const propertyId = propertyDetails?.id || location.pathname.split('/').pop();
+                saveBookingState({
+                  checkIn: range.start,
+                  checkOut: range.end,
+                  guests,
+                  rooms,
+                  propertyId
+                });
+                
+                // Save return URL (current page)
+                saveReturnUrl(location.pathname + location.search);
+
                 // Handle expired token case
                 if (authStatus.needsRefresh) {
                   if (onAuthRequired) {
                     onAuthRequired({ reason: 'token_expired' });
                   } else {
-                    alert("Your session has expired. Please login again.");
+                    // Navigate to login page
+                    navigate('/login');
                   }
                 } else {
                   // No token - user needs to login
                   if (onAuthRequired) {
                     onAuthRequired({ reason: 'not_authenticated' });
                   } else {
-                    alert("Please login to continue with booking");
+                    // Navigate to login page
+                    navigate('/login');
                   }
                 }
                 return;
@@ -618,7 +678,7 @@ export default function ReservationBookingWidget({
             }}
             className="w-full bg-[#003580] hover:bg-[#00224d] disabled:bg-gray-300 text-white py-3 rounded-lg font-semibold text-base transition-colors disabled:cursor-not-allowed"
           >
-            Apply Now
+            {isLoggedIn ? "Apply Now" : "Please login and continue"}
           </button>
 
 

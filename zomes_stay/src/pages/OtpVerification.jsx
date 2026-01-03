@@ -8,6 +8,7 @@ import NotificationModal from "../components/NotificationModal";
 import UserSignupModal from "../components/UserSignupModal";
 import { PageLoader } from "../components/Loader";
 import { setUserLogin } from "../store/userAuthSlice";
+import { getReturnUrl, clearReturnUrl } from "../utils/bookingStateUtils";
 
 const OtpVerification = () => {
   const navigate = useNavigate();
@@ -154,8 +155,14 @@ const OtpVerification = () => {
             profileImage: userData.profileImage || ''
           }));
 
-          // Navigate to home
-          navigate("/app/home", { replace: true });
+          // Redirect to return URL if available, otherwise go to home
+          const returnUrl = getReturnUrl();
+          if (returnUrl) {
+            clearReturnUrl();
+            navigate(returnUrl, { replace: true });
+          } else {
+            navigate("/app/home", { replace: true });
+          }
         }
       } else {
         showModal("error", "Verification Failed", response.data.message || "Failed to verify OTP. Please try again.");
@@ -196,8 +203,14 @@ const OtpVerification = () => {
       // Close signup modal
       setShowSignupModal(false);
 
-      // Navigate to home
-      navigate("/app/home", { replace: true });
+      // Redirect to return URL if available, otherwise go to home
+      const returnUrl = getReturnUrl();
+      if (returnUrl) {
+        clearReturnUrl();
+        navigate(returnUrl, { replace: true });
+      } else {
+        navigate("/app/home", { replace: true });
+      }
     } else {
       // If success is false, throw an error so UserSignupModal can catch it
       const error = new Error(response.data.message || "Failed to create account. Please try again.");

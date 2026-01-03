@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import { Phone, ArrowLeft, ChevronLeft, Shield, CheckCircle2, Loader2 } from 'lucide-react';
 import userAuthService from "../../services/auth/user_authService";
@@ -9,9 +9,11 @@ import AgentLoginModal from "./AgentLoginModal";
 import AgentSignupModal from "./AgentSignupModal";
 import UserSignupModal from "../UserSignupModal";
 import NotificationModal from "../NotificationModal";
+import { getReturnUrl, clearReturnUrl } from "../../utils/bookingStateUtils";
 
 const UserLoginPage = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const dispatch = useDispatch();
 
     const [step, setStep] = useState('PHONE'); // PHONE | OTP
@@ -116,7 +118,14 @@ const UserLoginPage = () => {
                         profileImage: userData.profileImage || ''
                     }));
 
-                    navigate("/app/home", { replace: true });
+                    // Redirect to return URL if available, otherwise go to home
+                    const returnUrl = getReturnUrl();
+                    if (returnUrl) {
+                        clearReturnUrl();
+                        navigate(returnUrl, { replace: true });
+                    } else {
+                        navigate("/app/home", { replace: true });
+                    }
                 }
             } else {
                 showNotification("error", "Verification Failed", response.data.message || "Invalid OTP");
@@ -186,7 +195,15 @@ const UserLoginPage = () => {
                 }));
 
                 setShowUserSignup(false);
-                navigate("/app/home", { replace: true });
+                
+                // Redirect to return URL if available, otherwise go to home
+                const returnUrl = getReturnUrl();
+                if (returnUrl) {
+                    clearReturnUrl();
+                    navigate(returnUrl, { replace: true });
+                } else {
+                    navigate("/app/home", { replace: true });
+                }
             } else {
                 const error = new Error(response.data.message || "Failed to create account");
                 error.response = { data: response.data };
