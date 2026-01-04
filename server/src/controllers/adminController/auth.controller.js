@@ -334,7 +334,7 @@ const AuthController = {
       // Generate JWT token
       const accessToken = signToken(
         { id: admin.id, role: 'admin' },
-        { expiresIn: '1h' }
+        { expiresIn: '7d' }
       );
 
       const refreshToken = signToken(

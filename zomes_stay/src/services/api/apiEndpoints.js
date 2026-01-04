@@ -1,7 +1,7 @@
 // Base API URL
 // export const API_BASE_URL = 'https://api.techiconnect.shop';
 
- export const API_BASE_URL = 'http://localhost:5000';
+ export const API_BASE_URL = import.meta.env.BASE_URL
 
 // Base API paths
 export const API_BASE = '/api';

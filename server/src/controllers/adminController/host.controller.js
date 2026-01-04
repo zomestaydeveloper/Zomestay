@@ -557,7 +557,7 @@ const HostController = {
       // Generate JWT token
       const accessToken = signToken(
         { id: host.id, role: 'host' },
-        { expiresIn: '1h' }
+        { expiresIn: '7d' }
       );
 
       const refreshToken = jwt.sign(

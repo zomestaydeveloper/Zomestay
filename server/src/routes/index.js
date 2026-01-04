@@ -30,6 +30,7 @@ module.exports = (app) => {
 
   app.use('/api', require('./reviewRoutes/review.routes'));
   app.use('/api', require('./cancellationRequestRoutes/cancellationRequest.routes'));
+  
 
   // Host routes
   app.use('/host/daily-rates', require('./HostRoutes/dailyRate.routes'));
