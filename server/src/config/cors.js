@@ -1,20 +1,8 @@
-const cors = require('cors')
+import cors from "cors";
 
-const allowedOrigins = [
-  "http://localhost:5173",
-  "https://zomestay.com",
-  "https://www.zomestay.com",
-];
-
-module.exports = cors({
-  origin: function (origin, callback) {
-    if (!origin) return callback(null, true); // allow server-to-server / curl
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-    callback(new Error("Not allowed by CORS"));
-  },
+app.use(cors({
+  origin: "https://zomestay.com",
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"]
-});
+  allowedHeaders: ["Content-Type", "Authorization"],
+}));
