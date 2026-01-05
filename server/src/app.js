@@ -9,6 +9,8 @@ const registerRoutes = require('./routes');
 const app = express();
 
 app.use(corsConfig);
+app.options('*', corsConfig);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
