@@ -210,154 +210,147 @@ const siteConfigController = {
    * Admin only
    */
   updateSiteConfig: async (req, res) => {
-    try {
-      // Handle file uploads
-      let logoUrl = undefined;
-      let bannerImageUrls = undefined;
+  try {
+    /* ----------------------------------
+       1️⃣ Handle uploads
+    ---------------------------------- */
+    let uploadedBannerUrls = [];
+    let logoUrl;
 
-      if (req.files) {
-        // Handle logo upload (single file)
-        if (req.files.logo && req.files.logo.length > 0) {
-          logoUrl = req.files.logo[0].url;
-        }
-
-        // Handle banner images (multiple files)
-        if (req.files.bannerImages && req.files.bannerImages.length > 0) {
-          bannerImageUrls = req.files.bannerImages.map(file => file.url);
-        }
-      }
-
-      // Get form data
-      const {
-        phoneNumber,
-        heroTitle,
-        heroSubtitle,
-        siteName,
-        supportEmail,
-        supportPhone,
-        address,
-        socialMedia,
-        keepExistingBanners // Flag to keep existing banners when new ones are uploaded
-      } = req.body;
-
-      // Find existing config
-      let existingConfig = await prisma.siteConfig.findFirst({
-        where: {
-          isDeleted: false
-        }
-      });
-
-      // Parse existing banner images
-      let existingBannerImages = [];
-      if (existingConfig && existingConfig.bannerImages) {
-        try {
-          existingBannerImages = typeof existingConfig.bannerImages === 'string' 
-            ? JSON.parse(existingConfig.bannerImages) 
-            : existingConfig.bannerImages;
-        } catch (e) {
-          existingBannerImages = [];
-        }
-      }
-
-      // Handle banner images: if new ones uploaded, replace or merge based on keepExistingBanners flag
-      let finalBannerImages = undefined;
-      if (bannerImageUrls !== undefined) {
-        if (keepExistingBanners === 'true' && existingBannerImages.length > 0) {
-          // Merge: keep existing and add new
-          finalBannerImages = [...existingBannerImages, ...bannerImageUrls];
-        } else {
-          // Replace: use only new images
-          finalBannerImages = bannerImageUrls;
-        }
-      }
-
-      // Delete old files if new ones are uploaded
-      if (logoUrl && existingConfig && existingConfig.logo) {
-        deleteOldFile(existingConfig.logo);
-      }
-
-      // Delete old banner images if replacing
-      if (finalBannerImages !== undefined && !keepExistingBanners && existingBannerImages.length > 0) {
-        existingBannerImages.forEach(url => deleteOldFile(url));
-      }
-
-      // Parse social media if it's a string
-      let socialMediaData = undefined;
-      if (socialMedia !== undefined) {
-        try {
-          socialMediaData = typeof socialMedia === 'string' ? JSON.parse(socialMedia) : socialMedia;
-        } catch (e) {
-          socialMediaData = {};
-        }
-      }
-
-      // If no config exists, create one
-      if (!existingConfig) {
-        existingConfig = await prisma.siteConfig.create({
-          data: {
-            logo: logoUrl || null,
-            phoneNumber: phoneNumber || null,
-            bannerImages: finalBannerImages && finalBannerImages.length > 0 ? JSON.stringify(finalBannerImages) : null,
-            heroTitle: heroTitle || null,
-            heroSubtitle: heroSubtitle || null,
-            siteName: siteName || null,
-            supportEmail: supportEmail || null,
-            supportPhone: supportPhone || null,
-            address: address || null,
-            socialMedia: socialMediaData && Object.keys(socialMediaData).length > 0 ? JSON.stringify(socialMediaData) : null
-          }
-        });
-      } else {
-        // Prepare update data
-        const updateData = {};
-
-        if (logoUrl !== undefined) updateData.logo = logoUrl;
-        if (phoneNumber !== undefined) updateData.phoneNumber = phoneNumber;
-        if (finalBannerImages !== undefined) {
-          updateData.bannerImages = finalBannerImages.length > 0 ? JSON.stringify(finalBannerImages) : null;
-        }
-        if (heroTitle !== undefined) updateData.heroTitle = heroTitle;
-        if (heroSubtitle !== undefined) updateData.heroSubtitle = heroSubtitle;
-        if (siteName !== undefined) updateData.siteName = siteName;
-        if (supportEmail !== undefined) updateData.supportEmail = supportEmail;
-        if (supportPhone !== undefined) updateData.supportPhone = supportPhone;
-        if (address !== undefined) updateData.address = address;
-        if (socialMediaData !== undefined) {
-          updateData.socialMedia = Object.keys(socialMediaData).length > 0 ? JSON.stringify(socialMediaData) : null;
-        }
-
-        // Update existing config
-        existingConfig = await prisma.siteConfig.update({
-          where: {
-            id: existingConfig.id
-          },
-          data: updateData
-        });
-      }
-
-      // Format response
-      const formattedConfig = {
-        id: existingConfig.id,
-        logo: existingConfig.logo,
-        phoneNumber: existingConfig.phoneNumber,
-        bannerImages: existingConfig.bannerImages ? JSON.parse(existingConfig.bannerImages) : [],
-        heroTitle: existingConfig.heroTitle,
-        heroSubtitle: existingConfig.heroSubtitle,
-        siteName: existingConfig.siteName,
-        supportEmail: existingConfig.supportEmail,
-        supportPhone: existingConfig.supportPhone,
-        address: existingConfig.address,
-        socialMedia: existingConfig.socialMedia ? JSON.parse(existingConfig.socialMedia) : {},
-        createdAt: existingConfig.createdAt,
-        updatedAt: existingConfig.updatedAt
-      };
-
-      return sendSuccess(res, formattedConfig, 'Site configuration updated successfully');
-    } catch (error) {
-      console.error('Update Site Config Error:', error);
-      return sendError(res, 'Failed to update site configuration', 500);
+    if (req.files?.logo?.length > 0) {
+      logoUrl = req.files.logo[0].url;
     }
+
+    if (req.files?.bannerImages?.length > 0) {
+      uploadedBannerUrls = req.files.bannerImages.map(f => f.url);
+    }
+
+    /* ----------------------------------
+       2️⃣ Read frontend FINAL banner list
+    ---------------------------------- */
+    let frontendBannerImages = [];
+
+    if (req.body.bannerImages) {
+      try {
+        frontendBannerImages =
+          typeof req.body.bannerImages === 'string'
+            ? JSON.parse(req.body.bannerImages)
+            : req.body.bannerImages;
+      } catch {
+        frontendBannerImages = [];
+      }
+    }
+
+    
+    // FINAL desired state
+    const finalBannerImages = [
+      ...frontendBannerImages,
+      ...uploadedBannerUrls
+    ];
+
+    /* ----------------------------------
+       3️⃣ Fetch existing config
+    ---------------------------------- */
+    const existingConfig = await prisma.siteConfig.findFirst({
+      where: { isDeleted: false }
+    });
+
+    let existingBannerImages = [];
+    if (existingConfig?.bannerImages) {
+      existingBannerImages = JSON.parse(existingConfig.bannerImages);
+    }
+
+    /* ----------------------------------
+       4️⃣ DELETE removed images
+    ---------------------------------- */
+    const imagesToDelete = existingBannerImages.filter(
+      img => !finalBannerImages.includes(img)
+    );
+
+    imagesToDelete.forEach(deleteOldFile);
+
+    // Delete old logo if replaced
+    if (logoUrl && existingConfig?.logo) {
+      deleteOldFile(existingConfig.logo);
+    }
+
+    /* ----------------------------------
+       5️⃣ Parse social media
+    ---------------------------------- */
+    let socialMediaData;
+    if (req.body.socialMedia !== undefined) {
+      try {
+        socialMediaData =
+          typeof req.body.socialMedia === 'string'
+            ? JSON.parse(req.body.socialMedia)
+            : req.body.socialMedia;
+      } catch {
+        socialMediaData = {};
+      }
+    }
+
+    /* ----------------------------------
+       6️⃣ Prepare DB payload
+    ---------------------------------- */
+    const data = {
+      logo: logoUrl ?? existingConfig?.logo ?? null,
+      phoneNumber: req.body.phoneNumber ?? null,
+      heroTitle: req.body.heroTitle ?? null,
+      heroSubtitle: req.body.heroSubtitle ?? null,
+      siteName: req.body.siteName ?? null,
+      supportEmail: req.body.supportEmail ?? null,
+      supportPhone: req.body.supportPhone ?? null,
+      address: req.body.address ?? null,
+      bannerImages:
+        finalBannerImages.length > 0
+          ? JSON.stringify(finalBannerImages)
+          : null,
+      socialMedia:
+        socialMediaData && Object.keys(socialMediaData).length > 0
+          ? JSON.stringify(socialMediaData)
+          : null
+    };
+
+    /* ----------------------------------
+       7️⃣ Save
+    ---------------------------------- */
+    const savedConfig = existingConfig
+      ? await prisma.siteConfig.update({
+          where: { id: existingConfig.id },
+          data
+        })
+      : await prisma.siteConfig.create({ data });
+
+    /* ----------------------------------
+       8️⃣ Response
+    ---------------------------------- */
+    return sendSuccess(
+      res,
+      {
+        id: savedConfig.id,
+        logo: savedConfig.logo,
+        phoneNumber: savedConfig.phoneNumber,
+        bannerImages: finalBannerImages,
+        heroTitle: savedConfig.heroTitle,
+        heroSubtitle: savedConfig.heroSubtitle,
+        siteName: savedConfig.siteName,
+        supportEmail: savedConfig.supportEmail,
+        supportPhone: savedConfig.supportPhone,
+        address: savedConfig.address,
+        socialMedia: savedConfig.socialMedia
+          ? JSON.parse(savedConfig.socialMedia)
+          : {},
+        createdAt: savedConfig.createdAt,
+        updatedAt: savedConfig.updatedAt
+      },
+      'Site configuration updated successfully'
+    );
+  } catch (error) {
+    console.error('Update Site Config Error:', error);
+    return sendError(res, 'Failed to update site configuration', 500);
   }
+}
+
 };
 
 module.exports = siteConfigController;

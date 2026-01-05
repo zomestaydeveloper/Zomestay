@@ -241,10 +241,7 @@ const SiteConfiguration = () => {
       // - If we have remaining existing banners AND new files, merge them
       // - If we only have new files (no existing), replace all
       // - If we only have existing (no new files), keep them (backend handles this)
-      if (existingBannerUrls.length > 0 && bannerFiles.length > 0) {
-        // Merging: keep existing and add new
-        formDataToSend.append('keepExistingBanners', 'true');
-      }
+      
       // Note: If all existing banners were removed and we have new files,
       // backend will replace (keepExistingBanners not set)
       // If no new files and we have existing, backend keeps them by default
@@ -268,7 +265,10 @@ const SiteConfiguration = () => {
       if (Object.keys(socialMediaData).length > 0) {
         formDataToSend.append('socialMedia', JSON.stringify(socialMediaData));
       }
-
+      formDataToSend.append(
+           'bannerImages',
+         JSON.stringify(existingBannerUrls)
+         );
       const response = await siteConfigService.updateSiteConfig(formDataToSend);
 
       if (response?.data?.success) {
