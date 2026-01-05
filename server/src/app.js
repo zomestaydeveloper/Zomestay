@@ -9,7 +9,7 @@ const registerRoutes = require('./routes');
 const app = express();
 
 app.use(corsConfig);
-app.options('*', corsConfig);
+
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
