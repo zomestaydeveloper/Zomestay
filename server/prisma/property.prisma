@@ -21,6 +21,10 @@ model Property {
   avgRating        Decimal?       @db.Decimal(3, 2)
   reviewCount      Int            @default(0)
   coverImage       String?
+
+  commissionPercentage Decimal? @db.Decimal(5, 2)
+  taxSlabs             Json?
+  
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
   isDeleted        Boolean        @default(false)

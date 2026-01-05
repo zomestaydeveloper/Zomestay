@@ -1962,6 +1962,10 @@ const softDeleteProperty = async (req, res) => {
   try {
     const { id } = req.params;
 
+     if (!id) {
+      return sendError(res, 'Property ID is required', 400);
+    }
+
     // Security: Verify property access (host can only delete their own properties)
     const accessResult = await verifyPropertyAccess({
       prisma,
@@ -1969,8 +1973,12 @@ const softDeleteProperty = async (req, res) => {
       user: req.user,
     });
 
-    if (!accessResult.ok) {
-      return sendError(res, accessResult.error.message, accessResult.error.status);
+     if (!accessResult.ok) {
+      return sendError(
+        res,
+        accessResult.error.message,
+        accessResult.error.status
+      );
     }
 
     const guard = await ensureNotDeleted(prisma.property, id, 'Property');

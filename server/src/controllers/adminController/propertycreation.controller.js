@@ -60,8 +60,10 @@ const propertyCreation = {
    * Create a new property with all related data
    */
   createProperty: async (req, res) => {
+    
     // Authorization: Only Admin can create properties
     const authError = requireAdmin(req.user, res);
+    
     if (authError) return;
 
     try {
@@ -126,7 +128,7 @@ const propertyCreation = {
       }, {});
       
       const cityIconFile = filesByField['cityIcon']?.[0] || null;
-      
+     
       // Add city icon to location data if uploaded
       if (cityIconFile) {
         // Validate it's an SVG file
@@ -149,7 +151,7 @@ const propertyCreation = {
         // Add city icon to location data
         locationData.cityIcon = cityIconUrl;
       }
-
+        
       // Validate foreign keys exist
       const mustExist = async (model, ids, label) => {
         if (!ids.length) return;
@@ -165,7 +167,7 @@ const propertyCreation = {
       };
 
       const trimmedCancellationPolicyId = typeof cancellationPolicyId === 'string' ? cancellationPolicyId.trim() : null;
-
+       
       // Validate property type
       if (propertyTypeId) {
         const propertyType = await prisma.propertyType.findFirst({ 
@@ -193,8 +195,7 @@ const propertyCreation = {
           });
         }
       }
-
-
+     console.log(ownerHostId,'ownerHostid')
       let host;
       // Validate owner host
       if (ownerHostId) {
@@ -203,13 +204,13 @@ const propertyCreation = {
           select: { id: true } 
         });
         if (!host) {
-          return res.status(404).json({ 
+          return res.status(400).json({ 
             success: false, 
             message: 'Owner host not found' 
           });
         }
       }
-
+   console.log('host ,,,,,,,')
       // Validate all related entities
       await mustExist(prisma.amenity, amenityList, 'Amenity');
       await mustExist(prisma.facility, facilityList, 'Facility');
@@ -313,7 +314,7 @@ const propertyCreation = {
 
         taxSlabsValue = parsedTaxSlabs;
       }
-
+      console.log('host ,,58966')
       // Validate CESS rate if provided
       let cessRateValue = null;
       if (cessRate !== undefined && cessRate !== null && cessRate !== '') {
