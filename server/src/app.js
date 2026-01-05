@@ -8,7 +8,7 @@ const registerRoutes = require('./routes');
 
 const app = express();
 
-app.use(corsConfig);
+// app.use(corsConfig);
 
 
 app.use(express.json());
