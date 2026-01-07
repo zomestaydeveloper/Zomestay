@@ -18,6 +18,8 @@ import {
   updatePropertyService,
 } from "../../services";
 import NotificationModal from "../../components/NotificationModal";
+import { useDispatch } from "react-redux";
+import { setHostProperty } from "../../store/propertySlice";
 
 const defaultLocation = {
   line1: "",
@@ -227,6 +229,8 @@ const HostPropertyDetails = () => {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const dispatch = useDispatch();
+
 
   const [property, setProperty] = useState(null);
   const [formState, setFormState] = useState({
@@ -419,8 +423,10 @@ const HostPropertyDetails = () => {
       if (!propertyData) {
         setError("No property found for this host.");
         setProperty(null);
+        dispatch(setHostProperty(null));
       } else {
         populateState(propertyData);
+        dispatch(setHostProperty(propertyData));
       }
 
       const creationPayload = creationResponse?.data?.data || {};

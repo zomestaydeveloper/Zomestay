@@ -24,7 +24,8 @@ const MealPlans = ({ isAdmin = false, adminProperty = null, propertyId: adminPro
   const [notification, setNotification] = useState(null);
   
   // Use admin property ID if in admin mode, otherwise use Redux state
-  const property = useSelector((state) => state.property.property);
+  const property = useSelector((state) => state.property);
+  console.log(property,'kk')
   const propertyId = isAdmin ? adminPropertyId : property?.id;
 
   console.log("property", property);

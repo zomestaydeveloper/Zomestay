@@ -58,6 +58,8 @@ const PMSInventory = ({ isAdmin = false, adminProperty = null, propertyId = null
   const { property } = useSelector((state) => state.property);
   const finalPropertyId = isAdmin ? propertyId : property?.id;
 
+  console.log(finalPropertyId,'pid')
+
   // Debug logging
   console.log("adminProperty",adminProperty)
   console.log("propertyId",propertyId)
