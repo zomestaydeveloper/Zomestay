@@ -22,6 +22,8 @@ const TravelAgentAuthController = {
       // Get uploaded file path from multer
       const iataCertificate = req.file ? req.file.url : null;
 
+        console.log(email, password, 'email, password');
+
       // Validation
       if (!email || !password) {
         return res.status(400).json({
@@ -30,10 +32,12 @@ const TravelAgentAuthController = {
         });
       }
 
+      const normalizedEmail = email.toLowerCase().trim();
+
       // Check if email already exists
       const existingAgent = await prisma.travelAgent.findFirst({
         where: {
-          email: email.toLowerCase(),
+          email: email.normalizedEmail,
           isDeleted: false
         }
       });
@@ -45,9 +49,11 @@ const TravelAgentAuthController = {
         });
       }
 
+      let existingPhone = null;
+      
       // Check if phone already exists (if provided)
       if (phone) {
-        const existingPhone = await prisma.travelAgent.findFirst({
+         existingPhone = await prisma.travelAgent.findFirst({
           where: {
             phone: phone,
             isDeleted: false
@@ -61,7 +67,7 @@ const TravelAgentAuthController = {
           });
         }
       }
-
+      console.log(existingPhone,'existing phone')
       // Hash password
       const saltRounds = 12;
       const hashedPassword = await bcrypt.hash(password, saltRounds);
