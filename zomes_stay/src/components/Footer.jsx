@@ -133,9 +133,9 @@ export default function Footer() {
                 openAccordions.contactInfo ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0 md:max-h-96 md:opacity-100'
               }`}
             >
-              <p>Phone: 1234567890</p>
-              <p>Email: company@email.com</p>
-              <p>Location: 100 Smart Street, LA, USA</p>
+              <p>Phone: +91 0000 000 000</p>
+              <p>Email: zomestay@gmail.com</p>
+              <p>Location: 62/5011, lyyattil Junction, Shenoys, Kochi, Ernakulam, Kerala 682011</p>
               
               {/* Social Media Icons */}
               <div className="flex items-center gap-3 mt-4">
