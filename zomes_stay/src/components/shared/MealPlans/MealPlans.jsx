@@ -22,11 +22,11 @@ const MealPlans = ({ isAdmin = false, adminProperty = null, propertyId: adminPro
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedKind, setSelectedKind] = useState("");
   const [notification, setNotification] = useState(null);
-  
+
   // Use admin property ID if in admin mode, otherwise use Redux state
-  const property = useSelector((state) => state.property);
-  console.log(property,'kk')
-  const propertyId = isAdmin ? adminPropertyId : property?.id;
+  const { property } = useSelector((state) => state.property);
+  console.log(property, 'kk')
+  const propertyId = adminPropertyId || property?.id;
 
   console.log("property", property);
   console.log("isAdmin", isAdmin);
@@ -50,13 +50,13 @@ const MealPlans = ({ isAdmin = false, adminProperty = null, propertyId: adminPro
   // Validation rules
   const validateForm = () => {
     const errors = {};
-    
+
     if (!formData.code.trim()) {
       errors.code = "Code is required";
     } else if (!/^[A-Z]{2}\d{3}$/.test(formData.code.trim())) {
       errors.code = "Code must be in format: XX000 (e.g., EP001)";
     } else {
-      const isDuplicate = mealPlans.some(plan => 
+      const isDuplicate = mealPlans.some(plan =>
         plan.code === formData.code.trim() && plan.id !== editing?.id
       );
       if (isDuplicate) {
@@ -74,7 +74,7 @@ const MealPlans = ({ isAdmin = false, adminProperty = null, propertyId: adminPro
       errors.kind = "Plan type is required";
     }
 
-    
+
 
     if (formData.description.length > 200) {
       errors.description = "Description cannot exceed 200 characters";
@@ -97,7 +97,7 @@ const MealPlans = ({ isAdmin = false, adminProperty = null, propertyId: adminPro
     }
     setLoading(false);
   };
-  
+
 
   useEffect(() => {
     if (propertyId) {
@@ -108,19 +108,19 @@ const MealPlans = ({ isAdmin = false, adminProperty = null, propertyId: adminPro
   // Filter functionality
   useEffect(() => {
     let filtered = mealPlans;
-    
+
     if (searchTerm) {
-      filtered = filtered.filter(plan => 
+      filtered = filtered.filter(plan =>
         plan.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         plan.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
         plan.description.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
-    
+
     if (selectedKind) {
       filtered = filtered.filter(plan => plan.kind === selectedKind);
     }
-    
+
     setFilteredPlans(filtered);
   }, [searchTerm, selectedKind, mealPlans]);
 
@@ -170,7 +170,7 @@ const MealPlans = ({ isAdmin = false, adminProperty = null, propertyId: adminPro
       closeModal();
       fetchData();
     } catch (e) {
-        console.log(e)
+      console.log(e)
       showNotification("error", "Failed to save meal plan");
     }
     setFormSubmitting(false);
@@ -178,7 +178,7 @@ const MealPlans = ({ isAdmin = false, adminProperty = null, propertyId: adminPro
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
-    
+
     setLoading(true);
     try {
       const service = mealPlanService;
@@ -213,14 +213,13 @@ const MealPlans = ({ isAdmin = false, adminProperty = null, propertyId: adminPro
     <div className={`${isAdmin ? 'min-h-0' : 'min-h-screen'} bg-gray-50 p-4`}>
       {/* Notification */}
       {notification && (
-        <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg flex items-center gap-2 transition-all duration-300 ${
-          notification.type === 'success' ? 'bg-green-500 text-white' : 
-          notification.type === 'error' ? 'bg-red-500 text-white' : 
-          'bg-blue-500 text-white'
-        }`}>
-          {notification.type === 'success' ? <Check size={20} /> : 
-           notification.type === 'error' ? <X size={20} /> : 
-           <AlertCircle size={20} />}
+        <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg flex items-center gap-2 transition-all duration-300 ${notification.type === 'success' ? 'bg-green-500 text-white' :
+            notification.type === 'error' ? 'bg-red-500 text-white' :
+              'bg-blue-500 text-white'
+          }`}>
+          {notification.type === 'success' ? <Check size={20} /> :
+            notification.type === 'error' ? <X size={20} /> :
+              <AlertCircle size={20} />}
           {notification.message}
         </div>
       )}
@@ -232,8 +231,8 @@ const MealPlans = ({ isAdmin = false, adminProperty = null, propertyId: adminPro
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Meal Plans</h1>
               <p className="text-gray-600 mt-1">
-                {isAdmin 
-                  ? `Managing meal plans for: ${adminProperty?.name}` 
+                {isAdmin
+                  ? `Managing meal plans for: ${adminProperty?.name}`
                   : "Manage your property's meal plan offerings"
                 }
               </p>
@@ -305,16 +304,15 @@ const MealPlans = ({ isAdmin = false, adminProperty = null, propertyId: adminPro
                       </td>
                       <td className="py-3 px-4 font-medium text-gray-900">{plan.name}</td>
                       <td className="py-3 px-4">
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                          plan.kind === 'EP' ? 'bg-gray-100 text-gray-800' :
-                          plan.kind === 'CP' ? 'bg-blue-100 text-blue-800' :
-                          plan.kind === 'MAP' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-green-100 text-green-800'
-                        }`}>
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${plan.kind === 'EP' ? 'bg-gray-100 text-gray-800' :
+                            plan.kind === 'CP' ? 'bg-blue-100 text-blue-800' :
+                              plan.kind === 'MAP' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-green-100 text-green-800'
+                          }`}>
                           {getKindLabel(plan.kind)}
                         </span>
                       </td>
-                      
+
                       <td className="py-3 px-4 text-gray-600 max-w-xs truncate">
                         {plan.description || "No description"}
                       </td>
@@ -361,7 +359,7 @@ const MealPlans = ({ isAdmin = false, adminProperty = null, propertyId: adminPro
               <h2 className="text-xl font-semibold mb-4">
                 {editing ? "Edit Meal Plan" : "Add New Meal Plan"}
               </h2>
-              
+
               <div className="space-y-4">
                 {/* Code */}
                 <div>
@@ -373,9 +371,8 @@ const MealPlans = ({ isAdmin = false, adminProperty = null, propertyId: adminPro
                     value={formData.code}
                     onChange={(e) => handleInputChange('code', e.target.value.toUpperCase())}
                     placeholder="e.g., EP001"
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      formErrors.code ? 'border-red-500' : 'border-gray-300'
-                    }`}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${formErrors.code ? 'border-red-500' : 'border-gray-300'
+                      }`}
                   />
                   {formErrors.code && (
                     <p className="text-red-500 text-xs mt-1">{formErrors.code}</p>
@@ -392,9 +389,8 @@ const MealPlans = ({ isAdmin = false, adminProperty = null, propertyId: adminPro
                     value={formData.name}
                     onChange={(e) => handleInputChange('name', e.target.value)}
                     placeholder="Enter meal plan name"
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      formErrors.name ? 'border-red-500' : 'border-gray-300'
-                    }`}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${formErrors.name ? 'border-red-500' : 'border-gray-300'
+                      }`}
                   />
                   {formErrors.name && (
                     <p className="text-red-500 text-xs mt-1">{formErrors.name}</p>
@@ -409,9 +405,8 @@ const MealPlans = ({ isAdmin = false, adminProperty = null, propertyId: adminPro
                   <select
                     value={formData.kind}
                     onChange={(e) => handleInputChange('kind', e.target.value)}
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      formErrors.kind ? 'border-red-500' : 'border-gray-300'
-                    }`}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${formErrors.kind ? 'border-red-500' : 'border-gray-300'
+                      }`}
                   >
                     <option value="">Select plan type</option>
                     {MEAL_PLAN_KINDS.map(kind => (
@@ -435,9 +430,8 @@ const MealPlans = ({ isAdmin = false, adminProperty = null, propertyId: adminPro
                     onChange={(e) => handleInputChange('description', e.target.value)}
                     placeholder="Optional description..."
                     rows={3}
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      formErrors.description ? 'border-red-500' : 'border-gray-300'
-                    }`}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${formErrors.description ? 'border-red-500' : 'border-gray-300'
+                      }`}
                   />
                   <div className="flex justify-between items-center mt-1">
                     {formErrors.description && (
@@ -466,7 +460,7 @@ const MealPlans = ({ isAdmin = false, adminProperty = null, propertyId: adminPro
                     {editing ? "Update Plan" : "Create Plan"}
                   </button>
                 </div>
-                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -486,7 +480,7 @@ const MealPlans = ({ isAdmin = false, adminProperty = null, propertyId: adminPro
                   <p className="text-gray-600">This action cannot be undone.</p>
                 </div>
               </div>
-              
+
               {deleteTarget && (
                 <div className="bg-gray-50 rounded-lg p-3 mb-4">
                   <p className="text-sm text-gray-600">
