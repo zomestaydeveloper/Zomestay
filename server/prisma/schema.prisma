@@ -156,11 +156,11 @@ enum SafetyCategory {
 model Admin {
   id            String    @id @default(uuid()) @db.Char(36)
   email         String    @unique
+  phone         String    @unique
   firstName     String
   lastName      String
   password      String
   status        String    @default("ACTIVE")
-  phone         String?
   profileImage  String?
   emailVerified DateTime?
   phoneVerified DateTime?
@@ -180,10 +180,10 @@ model Admin {
 model Host {
   id           String   @id @default(uuid()) @db.Char(36)
   email        String   @unique
+  phone        String   @unique
   password     String
   firstName    String?
   lastName     String?
-  phone        String?
   profileImage String?
   isVerified   Boolean  @default(false)
   isActive     Boolean  @default(true)
