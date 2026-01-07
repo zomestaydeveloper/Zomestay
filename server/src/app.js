@@ -1,14 +1,14 @@
 const express = require('express');
 const path = require('path');
 
-// const corsConfig = require('./config/cors');
+// const corsMiddleware = require('./config/cors');
 const requestLogger = require('./middleware/requestLogger');
 const errorHandler = require('./middleware/errorHandler');
 const registerRoutes = require('./routes');
 
 const app = express();
 
-// app.use(corsConfig);
+// app.use(corsMiddleware);
 
 
 app.use(express.json());

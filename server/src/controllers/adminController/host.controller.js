@@ -568,7 +568,7 @@ const HostController = {
 
       const existingUser = await prisma.host.findFirst({
           where: { phone: cleanPhone, isDeleted: false },
-          select: { email: true, firstName: true, lastName: true, profileImage:true }
+          select: { id:true, email: true, firstName: true, lastName: true, profileImage:true }
         });
 
         console.log(existingUser,'host data')
