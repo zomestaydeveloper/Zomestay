@@ -1,6 +1,6 @@
 const express = require('express');
 const path = require('path');
-const cors = require('cors');
+// const cors = require('cors');
 
 // const corsConfig = require('./config/cors');
 const requestLogger = require('./middleware/requestLogger');
@@ -11,14 +11,14 @@ const app = express();
 
 // app.use(corsConfig);
 
-app.use(cors({
-    origin: [
-        'http://localhost:5173'
-    ],
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true
-}));
+// app.use(cors({
+//     origin: [
+//         'http://localhost:5173'
+//     ],
+//     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+//     allowedHeaders: ['Content-Type', 'Authorization'],
+//     credentials: true
+// }));
 
 
 
