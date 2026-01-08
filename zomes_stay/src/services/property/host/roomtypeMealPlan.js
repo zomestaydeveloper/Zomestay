@@ -17,7 +17,7 @@ const roomtypeMealPlanService = {
   deletePropertyRoomTypeMealPlan: (id) => apiService.delete(`${ROOMTYPE_MEALPLAN.DELETE}/${id}`),
 
   // NEW: Bulk save rate plan (single API call)
-  saveRatePlanBulk: (ratePlanData) => apiService.post('/roomtype-mealplan/save-bulk', ratePlanData),
+  saveRatePlanBulk: (ratePlanData) => apiService.post('/api/roomtype-mealplan/save-bulk', ratePlanData),
   
   // NEW: Get all rate plans for a property
   getPropertyRatePlans: (propertyId) => apiService.get(`/rate-plans/${propertyId}`),
