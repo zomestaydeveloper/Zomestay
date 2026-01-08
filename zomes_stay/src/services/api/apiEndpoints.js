@@ -166,8 +166,8 @@ export const CANCELLATION_REQUEST = {
 };
 
 export const RATE_PLAN = {
-  SAVE_BULK: '/api/roomtype-mealplan/save-bulk',
-  UPDATE_BULK: '/api/roomtype-mealplan/update-bulk',
+  SAVE_BULK: '/roomtype-mealplan/save-bulk',
+  UPDATE_BULK: '/roomtype-mealplan/update-bulk',
   UPDATE: '/rate-plan'
 }
 

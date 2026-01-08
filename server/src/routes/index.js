@@ -35,4 +35,5 @@ module.exports = (app) => {
 
   // Host routes
   app.use('/host/daily-rates', require('./HostRoutes/dailyRate.routes'));
+  app.use('/', require('./HostRoutes/roomtype_mealplan.routes'));
 };
