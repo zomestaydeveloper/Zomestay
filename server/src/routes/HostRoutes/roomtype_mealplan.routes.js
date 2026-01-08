@@ -12,7 +12,7 @@ roomtypeMealplanRouter.get('/roomtype-mealplan/property/:propertyId', getPropert
 roomtypeMealplanRouter.delete('/roomtype-mealplan/:id', deletePropertyRoomTypeMealPlan);
 
 // Save Plan Bulk
-roomtypeMealplanRouter.post('/api/roomtype-mealplan/save-bulk', savePlanBulk);
+roomtypeMealplanRouter.post('/roomtype-mealplan/save-bulk', savePlanBulk);
 
 // Get all rate plans for a property
 roomtypeMealplanRouter.get('/rate-plans/:propertyId', getPropertyRatePlans);
