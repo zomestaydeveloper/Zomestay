@@ -22,7 +22,7 @@ const TravelAgentAuthController = {
       // Get uploaded file path from multer
       const iataCertificate = req.file ? req.file.url : null;
 
-        console.log(email, password, 'email, password');
+       
 
       // Validation
       if (!email || !password) {
@@ -31,17 +31,18 @@ const TravelAgentAuthController = {
           message: 'Email and password are required'
         });
       }
-
+       
       const normalizedEmail = email.toLowerCase().trim();
 
       // Check if email already exists
       const existingAgent = await prisma.travelAgent.findFirst({
         where: {
-          email: email.normalizedEmail,
+          email:normalizedEmail,
           isDeleted: false
         }
       });
 
+      
       if (existingAgent) {
         return res.status(400).json({
           success: false,
