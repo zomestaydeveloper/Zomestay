@@ -685,6 +685,17 @@ const DetailsPage = () => {
       .filter((item) => item.icon !== null); // Filter out items without icons
   }, [propertyDetails?.amenities]);
 
+  const facilities = useMemo(() => {
+    if (!propertyDetails?.facilities) return [];
+    return propertyDetails.facilities
+      .filter((facility) => facility.isActive) // Only show active amenities
+      .map((facility) => ({
+        title: facility.name || "Facility",
+        icon: createIconFromUrl(facility.icon),
+      }))
+      .filter((item) => item.icon !== null); // Filter out items without icons
+  }, [propertyDetails?.facilities]);
+
   // Dynamic safety and hygiene from API response (using safeties field)
   const safetyAndHygiene = useMemo(() => {
     if (!propertyDetails?.safeties) return [];
@@ -883,6 +894,7 @@ const DetailsPage = () => {
           checkIn={displayCheckInTime}
           checkOut={displayCheckOutTime}
           amenities={amenities}
+          facilities={facilities}
           safetyAndHygiene={safetyAndHygiene}
           error={error}
           requiredRooms={requiredRooms}
