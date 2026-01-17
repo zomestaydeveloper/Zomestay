@@ -388,7 +388,6 @@ model Property {
   agentDiscounts         TravelAgentPropertyDiscount[]
 
   @@unique([title, isDeleted])
-  @@unique([ownerHostId, isDeleted])
   @@index([ownerHostId])
   @@index([propertyTypeId])
   @@index([cancellationPolicyId])

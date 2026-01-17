@@ -49,6 +49,10 @@ const AuthController = {
 
   /* ---------- SIGNUP ---------- */
   signup: async (req, res) => {
+    return res.status(404).json({
+      success: false,
+      message: "No route found"
+    })
     try {
       const b = req.body || {};
       const {
