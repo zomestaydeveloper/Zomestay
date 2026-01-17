@@ -26,12 +26,12 @@ import {
       label: "Properties Management",
       icon: <Building className="w-4 h-4" />,
       children: [
-        { label: "My Property", path: "host-properties" },
         { label: "Amenities", path: "host-amenities" },
         { label: "Facilities", path: "host-facilities" },
         { label: "Safety Features", path: "host-safety_features" },
         { label: "Room Types", path: "host-room_types" },
         { label: "Property Types", path: "host-property_types" },
+        { label: "Properties", path: "host-properties" },
       ],
     },
     {

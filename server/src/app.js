@@ -3,7 +3,6 @@ const path = require('path');
 const requestLogger = require('./middleware/requestLogger');
 const errorHandler = require('./middleware/errorHandler');
 const registerRoutes = require('./routes');
-const cors = require('cors');
 
 const app = express();
 

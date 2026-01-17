@@ -1,7 +1,8 @@
 import { Eye, Plus, Edit, Trash2 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import  {propertyService,mediaService} from "../../services";
+import { propertyService, mediaService } from "../../services";
+import { useSelector } from "react-redux";
 
 /* ---------- utils ---------- */
 const nfINR = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 });
@@ -27,6 +28,9 @@ const Properties = () => {
   // Dropdown options for room types
   const [utils, setUtils] = useState([]);
 
+  const adminAuth = useSelector((state) => state.adminAuth);
+  const isAdmin = location.pathname.startsWith('/admin/base') || Boolean(adminAuth?.adminAccessToken);
+
   console.log("utils", utils);
   /* ----- data ----- */
   const fetchProperties = async () => {
@@ -43,11 +47,11 @@ const Properties = () => {
     }
   };
 
-  const fetchUtils =async ()=>{
-    try{
-       const utils = await propertyService.getUtils();
-       setUtils(utils?.data?.data || []);
-    }catch(err){
+  const fetchUtils = async () => {
+    try {
+      const utils = await propertyService.getUtils();
+      setUtils(utils?.data?.data || []);
+    } catch (err) {
       console.error("Failed to fetch utils", err);
     }
 
@@ -56,11 +60,11 @@ const Properties = () => {
 
 
 
-  
+
 
 
   useEffect(() => {
-      fetchProperties();
+    fetchProperties();
     fetchUtils();
   }, []);
 
@@ -71,7 +75,7 @@ const Properties = () => {
   };
 
   const handleEdit = (property) => {
-    navigate(`/admin/base/properties/edit/${property.id}`);
+    isAdmin ? navigate(`/admin/base/properties/edit/${property.id}`) : navigate(`/host/base/host-properties/edit/${property.id}`);
   };
 
   const handleDeleteRequest = (property) => {
@@ -123,14 +127,16 @@ const Properties = () => {
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-800">All Properties</h1>
-        <button
-          type="button"
-          onClick={() => navigate('/admin/base/properties/add')}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-        >
-          <Plus size={16} />
-          Add Property
-        </button>
+        {isAdmin && (
+          <button
+            type="button"
+            onClick={() => navigate('/admin/base/properties/add')}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          >
+            <Plus size={16} />
+            Add Property
+          </button>
+        )}
       </div>
 
       {/* Table / states */}
@@ -178,26 +184,27 @@ const Properties = () => {
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         <span
-                          className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            property.status === "active"
-                              ? "bg-green-100 text-green-800"
-                              : "bg-red-100 text-red-800"
-                          }`}
+                          className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${property.status === "active"
+                            ? "bg-green-100 text-green-800"
+                            : "bg-red-100 text-red-800"
+                            }`}
                         >
                           {property.status || "—"}
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => handleToggleStatus(property)}
-                          className="text-xs text-blue-600 hover:text-blue-800 disabled:text-gray-400"
-                          disabled={statusUpdatingId === property.id}
-                        >
-                          {statusUpdatingId === property.id
-                            ? "Updating..."
-                            : property.status === "active"
-                            ? "Deactivate"
-                            : "Activate"}
-                        </button>
+                        {isAdmin && (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleStatus(property)}
+                            className="text-xs text-blue-600 hover:text-blue-800 disabled:text-gray-400"
+                            disabled={statusUpdatingId === property.id}
+                          >
+                            {statusUpdatingId === property.id
+                              ? "Updating..."
+                              : property.status === "active"
+                                ? "Deactivate"
+                                : "Activate"}
+                          </button>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500">{formatDate(property.createdAt)}</td>
@@ -211,14 +218,16 @@ const Properties = () => {
                         >
                           <Edit size={16} />
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteRequest(property)}
-                          className="text-red-600 hover:text-red-800 p-1"
-                          title="Delete Property"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        {isAdmin && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteRequest(property)}
+                            className="text-red-600 hover:text-red-800 p-1"
+                            title="Delete Property"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => handleView(property)}
@@ -323,10 +332,10 @@ const Properties = () => {
                 </p>
                 {(selectedProperty.location?.coordinates?.lat !== undefined ||
                   selectedProperty.location?.coordinates?.lng !== undefined) && (
-                  <p className="text-sm text-gray-500 mt-1">
-                    Lat: {selectedProperty.location?.coordinates?.lat ?? "—"} · Lng: {selectedProperty.location?.coordinates?.lng ?? "—"}
-                  </p>
-                )}
+                    <p className="text-sm text-gray-500 mt-1">
+                      Lat: {selectedProperty.location?.coordinates?.lat ?? "—"} · Lng: {selectedProperty.location?.coordinates?.lng ?? "—"}
+                    </p>
+                  )}
               </div>
 
               {/* Features: Amenities / Facilities / Safety */}

@@ -18,6 +18,7 @@ import HostPropertyTypes from "../pages/Host/Property_configurations/HostPropert
 import HostRoomTypes from "../pages/Host/Property_configurations/HostRoomTypes";
 import Best_rates from "../pages/Host/Best_rates";
 import { HostProtectedRoute } from "./ProtectedRoute";
+import Properties from "../pages/Admin/Properties";
 
 /**
  * HostRoutes
@@ -38,7 +39,7 @@ const HostRoutes = () => {
       >
         <Route path="dashboard" element={<HostDashboard />} />
         <Route path="host-front-desk" element={<HostFrontDesk />} />
-        <Route path="host-properties" element={<HostProperties />} />
+        <Route path="host-properties" element={<Properties />} />
         <Route path="host-properties/edit/:propertyId" element={<HostEditProperty />} />
         <Route path="host-amenities" element={<HostAmenities />} />
         <Route path="host-facilities" element={<HostFacilities />} />
