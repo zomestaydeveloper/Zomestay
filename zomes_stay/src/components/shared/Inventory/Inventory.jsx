@@ -4,7 +4,7 @@ import { Plus, Edit, Home, Target, Calendar, X } from 'lucide-react';
 import SpecialRateModal from '../../../components/SpecialRateModal';
 import AddRoomModal from '../../../components/AddRoomModal';
 import NotificationModal from '../../../components/NotificationModal';
-import {propertyService,propertyRoomTypeService,roomtypeMealPlanService,dailyRateService} from '../../../services';
+import { propertyService, propertyRoomTypeService, roomtypeMealPlanService, dailyRateService } from '../../../services';
 import { useSelector } from 'react-redux';
 
 
@@ -28,7 +28,7 @@ const PMSInventory = ({ isAdmin = false, adminProperty = null, propertyId = null
     }
   };
 
-  
+
   const routes = getRoutes();
   const [showSpecialRateModal, setShowSpecialRateModal] = useState(false);
   const [showAddRoomModal, setShowAddRoomModal] = useState(false);
@@ -45,7 +45,7 @@ const PMSInventory = ({ isAdmin = false, adminProperty = null, propertyId = null
   const [isSelectingRange, setIsSelectingRange] = useState(false);
   const [loading, setLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
-  
+
   // Notification modal state
   const [notification, setNotification] = useState({
     isOpen: false,
@@ -53,38 +53,38 @@ const PMSInventory = ({ isAdmin = false, adminProperty = null, propertyId = null
     title: '',
     message: ''
   });
-  
+
   // Use admin property ID if in admin mode, otherwise use Redux state
   const { property } = useSelector((state) => state.property);
-  const finalPropertyId = isAdmin ? propertyId : property?.id;
+  const finalPropertyId = propertyId;
 
-  console.log(finalPropertyId,'pid')
+  console.log(finalPropertyId, 'pid')
 
   // Debug logging
-  console.log("adminProperty",adminProperty)
-  console.log("propertyId",propertyId)
-  console.log("finalPropertyId",finalPropertyId)
-  console.log("isAdmin",isAdmin)
+  console.log("adminProperty", adminProperty)
+  console.log("propertyId", propertyId)
+  console.log("finalPropertyId", finalPropertyId)
+  console.log("isAdmin", isAdmin)
 
   // Date helper functions to avoid timezone issues
   // Format date as YYYY-MM-DD without timezone conversion
   const formatDateToString = (date) => {
     if (!date) return null;
-    
+
     // If it's already a string in YYYY-MM-DD format, return it
     if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
       return date;
     }
-    
+
     // If it's a Date object, format it without timezone conversion
     const d = new Date(date);
     if (isNaN(d.getTime())) return null;
-    
+
     // Use UTC methods to avoid timezone conversion
     const year = d.getUTCFullYear();
     const month = String(d.getUTCMonth() + 1).padStart(2, '0');
     const day = String(d.getUTCDate()).padStart(2, '0');
-    
+
     return `${year}-${month}-${day}`;
   };
 
@@ -99,14 +99,14 @@ const PMSInventory = ({ isAdmin = false, adminProperty = null, propertyId = null
   // Parse date string (YYYY-MM-DD) to Date object at midnight UTC
   const parseDateString = (dateString) => {
     if (!dateString || typeof dateString !== 'string') return null;
-    
+
     // If already in YYYY-MM-DD format
     if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
       // Create date at midnight UTC to avoid timezone issues
       const [year, month, day] = dateString.split('-').map(Number);
       return new Date(Date.UTC(year, month - 1, day));
     }
-    
+
     // Try to parse as-is
     const date = new Date(dateString);
     return isNaN(date.getTime()) ? null : date;
@@ -115,22 +115,22 @@ const PMSInventory = ({ isAdmin = false, adminProperty = null, propertyId = null
   // Get date string from Date object (handles both local and UTC dates)
   const getDateStringFromDate = (date) => {
     if (!date) return null;
-    
+
     // If it's a string, try to parse it
     if (typeof date === 'string') {
       return formatDateToString(parseDateString(date));
     }
-    
+
     // If it's a Date object, check if it's already in UTC
     // We'll use the date's UTC methods to ensure consistency
     const d = new Date(date);
     if (isNaN(d.getTime())) return null;
-    
+
     // Extract UTC components to avoid timezone conversion
     const year = d.getUTCFullYear();
     const month = String(d.getUTCMonth() + 1).padStart(2, '0');
     const day = String(d.getUTCDate()).padStart(2, '0');
-    
+
     return `${year}-${month}-${day}`;
   };
 
@@ -152,7 +152,7 @@ const PMSInventory = ({ isAdmin = false, adminProperty = null, propertyId = null
     try {
       setLoading(true);
       const response = await roomtypeMealPlanService.getPropertyRatePlans(finalPropertyId);
-      
+
       if (response.data && response.data.data) {
         setRatePlans(response.data.data);
       } else {
@@ -172,9 +172,9 @@ const PMSInventory = ({ isAdmin = false, adminProperty = null, propertyId = null
     try {
       const startDate = `${currentYear}-01-01`;
       const endDate = `${currentYear}-12-31`;
-      
+
       const response = await dailyRateService.getRatePlanDates(finalPropertyId, startDate, endDate);
-      
+
       if (response.data.success) {
         const ratePlanMap = {};
         response.data.data.forEach(item => {
@@ -195,7 +195,7 @@ const PMSInventory = ({ isAdmin = false, adminProperty = null, propertyId = null
   const applyRatePlanToDate = async (date, ratePlan) => {
     try {
       const ratePlanId = ratePlan.id || ratePlan;
-      
+
       const response = await dailyRateService.applyRatePlanToDate({
         propertyId: finalPropertyId,
         ratePlanId,
@@ -216,7 +216,7 @@ const PMSInventory = ({ isAdmin = false, adminProperty = null, propertyId = null
   const applyRatePlanToDateRange = async (startDate, endDate, ratePlan) => {
     try {
       const ratePlanId = ratePlan.id || ratePlan;
-      
+
       const response = await dailyRateService.applyRatePlanToDateRange({
         propertyId: finalPropertyId,
         ratePlanId,
@@ -255,11 +255,11 @@ const PMSInventory = ({ isAdmin = false, adminProperty = null, propertyId = null
   // Handle date click with range selection
   const handleDateClick = (day) => {
     if (day.isPast) return; // Don't allow past dates
-    
+
     // Use helper function to get date string without timezone conversion
     const dateString = getDateStringFromDate(day.date);
     if (!dateString) return;
-    
+
     // Start range selection (works for both fresh dates and dates with applied rate plans)
     // When clicking a date with an applied rate plan, directly show rate plan selection modal
     if (!dateRange.start) {
@@ -267,7 +267,7 @@ const PMSInventory = ({ isAdmin = false, adminProperty = null, propertyId = null
       setDateRange({ start: dateString, end: null });
       setIsSelectingRange(true);
       setSelectedDates([dateString]);
-      
+
       // Show rate plan selection tooltip immediately (same as fresh rate application)
       setTimeout(() => {
         setShowRatePlanTooltip(true);
@@ -283,13 +283,13 @@ const PMSInventory = ({ isAdmin = false, adminProperty = null, propertyId = null
         finalStart = dateString;
         finalEnd = dateRange.start;
       }
-      
+
       setDateRange({ start: finalStart, end: finalEnd });
-      
+
       // Generate all dates in range immediately with the new dates
       generateDateRangeFromDates(finalStart, finalEnd);
       setIsSelectingRange(false);
-      
+
       // Automatically show tooltip after date range selection
       setTimeout(() => {
         setShowRatePlanTooltip(true);
@@ -299,7 +299,7 @@ const PMSInventory = ({ isAdmin = false, adminProperty = null, propertyId = null
       setDateRange({ start: dateString, end: null });
       setSelectedDates([dateString]);
       setIsSelectingRange(true);
-      
+
       // Show rate plan selection tooltip
       setTimeout(() => {
         setShowRatePlanTooltip(true);
@@ -316,29 +316,29 @@ const PMSInventory = ({ isAdmin = false, adminProperty = null, propertyId = null
   // Generate dates from specific start and end dates (YYYY-MM-DD format)
   const generateDateRangeFromDates = (startDate, endDate) => {
     const dates = [];
-    
+
     // Parse date strings (YYYY-MM-DD format)
     const start = parseDateString(startDate);
     const end = parseDateString(endDate);
-    
+
     // Ensure we have valid dates
     if (!start || !end) return;
-    
+
     // Generate dates from start to end (inclusive) using UTC
     const current = new Date(start);
     const endDateObj = new Date(end);
-    
+
     while (current <= endDateObj) {
       // Format date as YYYY-MM-DD using UTC methods
       const dateString = formatDateToString(current);
       if (dateString) {
         dates.push(dateString);
       }
-      
+
       // Move to next day in UTC
       current.setUTCDate(current.getUTCDate() + 1);
     }
-    
+
     setSelectedDates(dates);
   };
 
@@ -359,11 +359,11 @@ const PMSInventory = ({ isAdmin = false, adminProperty = null, propertyId = null
       const dates = [];
       const start = new Date(startDate);
       const end = new Date(endDate);
-      
+
       for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
         dates.push(d.toISOString().split('T')[0]);
       }
-      
+
       setSelectedDates(dates);
     }
   };
@@ -382,14 +382,14 @@ const PMSInventory = ({ isAdmin = false, adminProperty = null, propertyId = null
           await applyRatePlanToDateRange(dateRange.start, dateRange.end, ratePlan);
         }
       }
-      
+
       // Reset all states after applying rate plan
       setShowRatePlanTooltip(false);
       setSelectedDate(null);
       setSelectedDates([]);
       setDateRange({ start: null, end: null });
       setIsSelectingRange(false);
-      
+
       // Refresh applied rate plans
       await fetchAppliedRatePlans();
     } catch (error) {
@@ -446,7 +446,7 @@ const PMSInventory = ({ isAdmin = false, adminProperty = null, propertyId = null
   const hasExistingRooms = roomConfigurations.some(config => config.hasRooms);
   const totalExistingRooms = roomConfigurations.reduce((sum, config) => sum + (config.roomCount || 0), 0);
   const roomTypesWithRooms = roomConfigurations.filter(config => config.hasRooms).length;
-  
+
   const smartButtonText = hasExistingRooms ? 'Update Rooms' : 'Add Room';
   const smartButtonIcon = hasExistingRooms ? Edit : Plus;
   const smartButtonMode = hasExistingRooms ? 'edit' : 'create';
@@ -499,7 +499,7 @@ const PMSInventory = ({ isAdmin = false, adminProperty = null, propertyId = null
 
       // Adjust starting day for Monday start (Sunday = 0, Monday = 1, etc.)
       const mondayStart = startingDayOfWeek === 0 ? 6 : startingDayOfWeek - 1;
-      
+
       // Add empty cells for days before the first day of the month
       for (let i = 0; i < mondayStart; i++) {
         monthData.days.push(null);
@@ -514,15 +514,15 @@ const PMSInventory = ({ isAdmin = false, adminProperty = null, propertyId = null
         // Holiday check uses MM-DD format
         const holidayKey = `${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         const isHoliday = publicHolidays.includes(holidayKey);
-        
+
         // Check if today (compare date strings)
         const todayDateString = formatDateToString(new Date());
         const isToday = dateString === todayDateString;
-        
+
         // Check if weekend (0 = Sunday, 6 = Saturday)
         const dayOfWeek = date ? date.getUTCDay() : 0;
         const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-        
+
         // Check if past date (compare date strings)
         const isPast = dateString < todayDateString;
 
@@ -561,25 +561,18 @@ const PMSInventory = ({ isAdmin = false, adminProperty = null, propertyId = null
                 <Home className="h-6 w-6 text-blue-600" />
               </div>
               <div>
-                {isAdmin ? (
-                  <div>
-                    <h2 className="text-lg font-semibold text-gray-900">Inventory Management</h2>
-                    <p className="text-sm text-gray-500">Managing: {adminProperty?.name}</p>
-                  </div>
-                ) : (
-                  <div>
-                    <h2 className="text-lg font-semibold text-gray-900">Inventory Management</h2>
-                    <p className="text-sm text-gray-500">Manage your property's inventory and rates</p>
-                  </div>
-                )}
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">Inventory Management</h2>
+                  <p className="text-sm text-gray-500">Managing: {adminProperty?.name}</p>
+                </div>
               </div>
             </div>
           </div>
-          
+
           <div className="flex items-center space-x-3">
             {/* Clear selection button - show when dates are selected */}
             {selectedDates.length > 0 && (
-              <button 
+              <button
                 onClick={clearSelection}
                 className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-lg shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors"
               >
@@ -587,33 +580,32 @@ const PMSInventory = ({ isAdmin = false, adminProperty = null, propertyId = null
                 <span className="hidden sm:inline">Clear Selection</span>
               </button>
             )}
-            <button 
-              onClick={() => navigate(routes.addRatePlan, { 
-                state: { 
-                  roomTypesMap, 
+            <button
+              onClick={() => navigate(routes.addRatePlan, {
+                state: {
+                  roomTypesMap,
                   propertyId: finalPropertyId,
-                  adminProperty: isAdmin ? adminProperty : null
-                } 
+                  adminProperty: adminProperty
+                }
               })}
               className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-violet-600 hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-violet-500 transition-colors"
             >
-            <Plus size={20} />
-          <span className="hidden sm:inline">Add Rate</span>
+              <Plus size={20} />
+              <span className="hidden sm:inline">Add Rate</span>
             </button>
-            <button 
+            <button
               onClick={() => setShowSpecialRateModal(true)}
               className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-violet-600 hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-violet-500 transition-colors"
             >
               <Target className="h-4 w-4 mr-2" />
               <span className="hidden sm:inline">Special Rate</span>
             </button>
-            <button 
+            <button
               onClick={handleSmartRoomButton}
-              className={`inline-flex items-center px-4 py-2 border text-sm font-medium rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors ${
-                hasExistingRooms 
+              className={`inline-flex items-center px-4 py-2 border text-sm font-medium rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors ${hasExistingRooms
                   ? 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50'
                   : 'border-transparent text-white bg-blue-600 hover:bg-blue-700'
-              }`}
+                }`}
             >
               {React.createElement(smartButtonIcon, { className: "h-4 w-4 mr-2" })}
               <span className="hidden sm:inline">
@@ -628,39 +620,39 @@ const PMSInventory = ({ isAdmin = false, adminProperty = null, propertyId = null
           </div>
         </div>
 
-              </div>
-              
+      </div>
+
       {/* Year Calendar */}
       <div className="px-4 sm:px-6 py-6">
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
           {/* Calendar Header */}
           <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">Calendar {currentYear}</h2>
-                <div className="flex items-center space-x-2">
-                      <button
+            <div className="flex items-center space-x-2">
+              <button
                 onClick={() => navigateYear(-1)}
                 className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
-                      </button>
-                      <button
+              </button>
+              <button
                 onClick={() => setCurrentYear(new Date().getFullYear())}
                 className="px-3 py-1 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
-                      >
+              >
                 Today
-                      </button>
-                  <button
+              </button>
+              <button
                 onClick={() => navigateYear(1)}
                 className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
-                      </button>
-                    </div>
-                  </div>
+              </button>
+            </div>
+          </div>
 
           {/* Calendar Grid */}
           <div className="p-4">
@@ -670,16 +662,16 @@ const PMSInventory = ({ isAdmin = false, adminProperty = null, propertyId = null
                   {/* Month Header */}
                   <div className="text-center mb-3">
                     <h3 className="text-sm font-semibold text-gray-900">{month.name}</h3>
-              </div>
+                  </div>
 
-              {/* Week Headers */}
+                  {/* Week Headers */}
                   <div className="grid grid-cols-7 gap-1 mb-2">
                     {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, index) => (
                       <div key={index} className="text-center text-xs font-medium text-gray-500 py-1">
                         {day}
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
 
                   {/* Days Grid */}
                   <div className="grid grid-cols-7 gap-1">
@@ -688,25 +680,25 @@ const PMSInventory = ({ isAdmin = false, adminProperty = null, propertyId = null
                         return <div key={dayIndex} className="h-8"></div>;
                       }
 
-                  // Check if this date has an applied rate plan
-                  // day.dateString is already in YYYY-MM-DD format (from calendar generation)
-                  const dateString = day.dateString || getDateStringFromDate(day.date);
-                  if (!dateString) return null;
-                  
-                  const appliedRatePlan = appliedRatePlans[dateString];
-                  const isInRange = isDateInRange(dateString);
-                  const isRangeStart = dateString === dateRange.start;
-                  const isRangeEnd = dateString === dateRange.end;
-                  const isSelecting = isSelectingRange && dateString === dateRange.start;
-                  
-                  return (
-                    <div
+                      // Check if this date has an applied rate plan
+                      // day.dateString is already in YYYY-MM-DD format (from calendar generation)
+                      const dateString = day.dateString || getDateStringFromDate(day.date);
+                      if (!dateString) return null;
+
+                      const appliedRatePlan = appliedRatePlans[dateString];
+                      const isInRange = isDateInRange(dateString);
+                      const isRangeStart = dateString === dateRange.start;
+                      const isRangeEnd = dateString === dateRange.end;
+                      const isSelecting = isSelectingRange && dateString === dateRange.start;
+
+                      return (
+                        <div
                           key={dayIndex}
                           onClick={() => handleDateClick(day)}
                           className={`
                             h-8 flex items-center justify-center text-xs rounded-lg transition-colors cursor-pointer border border-gray-200 relative
-                            ${day.isPast 
-                              ? 'text-gray-400 bg-gray-50 cursor-not-allowed' 
+                            ${day.isPast
+                              ? 'text-gray-400 bg-gray-50 cursor-not-allowed'
                               : isRangeStart || isRangeEnd
                                 ? 'bg-purple-500 text-white font-semibold border-purple-600 hover:bg-purple-600'
                                 : isInRange
@@ -715,12 +707,12 @@ const PMSInventory = ({ isAdmin = false, adminProperty = null, propertyId = null
                                     ? 'ring-2 ring-purple-400 bg-purple-200 hover:bg-purple-300'
                                     : appliedRatePlan
                                       ? 'ring-2 ring-offset-1 text-white font-semibold hover:opacity-90'
-                                      : day.isToday 
-                                        ? 'bg-blue-100 text-blue-700 font-semibold border-2 border-blue-500 hover:bg-blue-200' 
-                                        : day.isHoliday 
-                                          ? 'bg-white text-red-600 font-semibold hover:bg-red-50' 
-                                          : day.isWeekend 
-                                            ? 'text-red-600 bg-white hover:bg-red-50' 
+                                      : day.isToday
+                                        ? 'bg-blue-100 text-blue-700 font-semibold border-2 border-blue-500 hover:bg-blue-200'
+                                        : day.isHoliday
+                                          ? 'bg-white text-red-600 font-semibold hover:bg-red-50'
+                                          : day.isWeekend
+                                            ? 'text-red-600 bg-white hover:bg-red-50'
                                             : 'text-gray-900 hover:bg-gray-100'
                             }
                           `}
@@ -738,29 +730,29 @@ const PMSInventory = ({ isAdmin = false, adminProperty = null, propertyId = null
                               ? 'Click another date to complete range selection'
                               : isInRange
                                 ? 'Selected date range'
-                                : appliedRatePlan 
-                                  ? `${appliedRatePlan.name} applied - Click to edit` 
+                                : appliedRatePlan
+                                  ? `${appliedRatePlan.name} applied - Click to edit`
                                   : 'Click to start date selection'
                           }
                         >
                           {day.day}
                           {appliedRatePlan && (
-                            <div 
+                            <div
                               className="absolute top-0 right-0 w-2 h-2 rounded-full"
                               style={{ backgroundColor: appliedRatePlan.color }}
                             />
                           )}
                           {(isRangeStart || isRangeEnd) && (
                             <div className="absolute top-0 left-0 w-2 h-2 bg-white rounded-full" />
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+                          )}
                         </div>
+                      );
+                    })}
+                  </div>
+                </div>
               ))}
-        </div>
-      </div>
+            </div>
+          </div>
 
           {/* Legend */}
           <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 rounded-b-lg">
@@ -768,30 +760,30 @@ const PMSInventory = ({ isAdmin = false, adminProperty = null, propertyId = null
               <div className="flex items-center space-x-2">
                 <div className="w-3 h-3 bg-blue-100 rounded"></div>
                 <span className="text-gray-600">Today</span>
-                </div>
-                <div className="flex items-center space-x-2">
+              </div>
+              <div className="flex items-center space-x-2">
                 <div className="w-3 h-3 bg-white border border-gray-200 rounded flex items-center justify-center">
                   <span className="text-red-600 text-xs font-semibold">H</span>
-                    </div>
-                <span className="text-gray-600">Public Holiday</span>
                 </div>
+                <span className="text-gray-600">Public Holiday</span>
+              </div>
               <div className="flex items-center space-x-2">
                 <div className="w-3 h-3 bg-white border border-gray-200 rounded flex items-center justify-center">
                   <span className="text-red-600 text-xs font-semibold">W</span>
-              </div>
+                </div>
                 <span className="text-gray-600">Weekend</span>
-            </div>
+              </div>
               <div className="flex items-center space-x-2">
                 <div className="w-3 h-3 bg-gray-50 rounded"></div>
                 <span className="text-gray-400">Past Days</span>
-                      </div>
-                    </div>
-                      </div>
-                      </div>
-                    </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Special Rate Modal */}
-      <SpecialRateModal 
+      <SpecialRateModal
         isOpen={showSpecialRateModal}
         onClose={() => setShowSpecialRateModal(false)}
         propertyId={finalPropertyId}
@@ -814,7 +806,7 @@ const PMSInventory = ({ isAdmin = false, adminProperty = null, propertyId = null
         onSave={async (roomData) => {
           try {
             let response;
-            
+
             if (addRoomModalMode === 'edit') {
               // Call the API to update rooms
               response = await propertyService.updateRooms(propertyId, roomData);
@@ -822,10 +814,10 @@ const PMSInventory = ({ isAdmin = false, adminProperty = null, propertyId = null
               // Call the API to create rooms
               response = await propertyService.createRoom(propertyId, roomData);
             }
-            
+
             if (response.data.success) {
               showNotification('success', 'Success', `Room${addRoomModalMode === 'edit' ? 's updated' : ' created'} successfully!`);
-              
+
               // Refresh room configurations
               await fetchRoomConfigurations();
             } else {
@@ -833,13 +825,13 @@ const PMSInventory = ({ isAdmin = false, adminProperty = null, propertyId = null
             }
           } catch (error) {
             console.error(`Error ${addRoomModalMode === 'edit' ? 'updating' : 'creating'} room:`, error);
-            
+
             // Handle specific error cases
             if (error.response?.status === 409) {
               // Conflict - rooms already exist
               const errorData = error.response?.data;
               showNotification('warning', 'Conflict', errorData?.message || 'Rooms already exist for this room type. Please use "Edit Rooms" to modify existing rooms.');
-              
+
               // Optionally switch to edit mode automatically
               if (addRoomModalMode === 'create') {
                 setTimeout(() => {
@@ -857,8 +849,8 @@ const PMSInventory = ({ isAdmin = false, adminProperty = null, propertyId = null
       {/* Rate Plan Selection Tooltip */}
       {showRatePlanTooltip && (
         <div className="fixed top-4 right-4 bg-white rounded-lg shadow-xl border border-gray-200 w-80 max-w-sm z-50">
-            {/* Header */}
-            <div className="px-4 py-3 border-b border-gray-200">
+          {/* Header */}
+          <div className="px-4 py-3 border-b border-gray-200">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <div className="p-1.5 bg-blue-50 rounded-lg">
@@ -867,11 +859,11 @@ const PMSInventory = ({ isAdmin = false, adminProperty = null, propertyId = null
                 <div>
                   <h3 className="text-sm font-semibold text-gray-900">Apply Rate Plan</h3>
                   <p className="text-xs text-gray-600">
-                    {selectedDate 
+                    {selectedDate
                       ? (() => {
-                          const date = parseDateString(selectedDate);
-                          return date ? date.toLocaleDateString() : selectedDate;
-                        })()
+                        const date = parseDateString(selectedDate);
+                        return date ? date.toLocaleDateString() : selectedDate;
+                      })()
                       : selectedDates.length > 0
                         ? `${selectedDates.length} date${selectedDates.length > 1 ? 's' : ''} selected`
                         : 'Select date or range'
@@ -896,25 +888,25 @@ const PMSInventory = ({ isAdmin = false, adminProperty = null, propertyId = null
             {selectedDates.length > 0 && (
               <div className="mb-3 p-2 bg-purple-50 border border-purple-200 rounded-lg">
                 <p className="text-xs text-purple-700">
-                  {selectedDates.length === 1 
+                  {selectedDates.length === 1
                     ? (() => {
-                        const date = parseDateString(selectedDates[0]);
-                        return `Selected: ${date ? date.toLocaleDateString() : selectedDates[0]}`;
-                      })()
+                      const date = parseDateString(selectedDates[0]);
+                      return `Selected: ${date ? date.toLocaleDateString() : selectedDates[0]}`;
+                    })()
                     : dateRange.start && dateRange.end
                       ? (() => {
-                          const startDate = parseDateString(dateRange.start);
-                          const endDate = parseDateString(dateRange.end);
-                          const startStr = startDate ? startDate.toLocaleDateString() : dateRange.start;
-                          const endStr = endDate ? endDate.toLocaleDateString() : dateRange.end;
-                          return `Selected: ${startStr} - ${endStr} (${selectedDates.length} days)`;
-                        })()
+                        const startDate = parseDateString(dateRange.start);
+                        const endDate = parseDateString(dateRange.end);
+                        const startStr = startDate ? startDate.toLocaleDateString() : dateRange.start;
+                        const endStr = endDate ? endDate.toLocaleDateString() : dateRange.end;
+                        return `Selected: ${startStr} - ${endStr} (${selectedDates.length} days)`;
+                      })()
                       : `${selectedDates.length} date${selectedDates.length > 1 ? 's' : ''} selected`
                   }
                 </p>
               </div>
             )}
-            
+
             <div className="space-y-2 max-h-48 overflow-y-auto">
               {ratePlans.length === 0 ? (
                 <div className="text-center py-4">

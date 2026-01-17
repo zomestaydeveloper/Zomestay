@@ -590,10 +590,18 @@ const PropertyController = {
   },
   getPropertiesList: async (req, res) => {
     try {
+      console.log('getProperties - Role:', req.user?.role || 'no role');
+      console.log('getProperties - User ID:', req.user?.id || 'no id');
+
+      const whereClause = {
+        isDeleted: false,
+        ...(req.user?.role === 'host' && req.user?.id && {
+          ownerHostId: req.user.id
+        })
+      };
+
       const properties = await prisma.property.findMany({
-        where: {
-          isDeleted: false,
-        },
+        where: whereClause,
         select: {
           id: true,
           title: true,

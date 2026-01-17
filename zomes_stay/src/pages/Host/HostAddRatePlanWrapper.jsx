@@ -1,15 +1,22 @@
 import React from 'react';
 import { useSelector } from 'react-redux';
 import AddRatePlan from '../../components/shared/AddRatePlan/AddRatePlan';
+import { useLocation } from 'react-router-dom';
 
 const HostAddRatePlanWrapper = () => {
-  const { property } = useSelector((state) => state.property);
-  
+  const location = useLocation();
+  const { propertyId, adminProperty } = location.state || {};
+
+  console.log('AdminAddRatePlan - location.state:', location.state);
+  console.log('AdminAddRatePlan - propertyId:', propertyId);
+  console.log('AdminAddRatePlan - adminProperty:', adminProperty);
+
+
   return (
-    <AddRatePlan 
+    <AddRatePlan
       isAdmin={false}
-      adminProperty={null}
-      propertyId={property?.id}
+      adminProperty={adminProperty}
+      propertyId={propertyId}
     />
   );
 };

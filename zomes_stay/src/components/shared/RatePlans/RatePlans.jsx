@@ -9,7 +9,7 @@ const RatePlans = ({ isAdmin = false, adminProperty = null, propertyId: adminPro
   const navigate = useNavigate();
   const { property } = useSelector((state) => state.property);
   // Use admin property ID if in admin mode, otherwise use Redux state
-  const propertyId = isAdmin ? adminPropertyId : property?.id;
+  const propertyId = adminPropertyId;
   
 console.log("adminProperty",adminProperty)
 console.log("propertyId",propertyId)

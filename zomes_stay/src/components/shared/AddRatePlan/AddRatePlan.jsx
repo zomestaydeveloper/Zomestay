@@ -28,7 +28,7 @@ const AddRatePlan = ({ isAdmin = false, adminProperty = null, propertyId = null 
   
   // Use admin property ID if in admin mode, otherwise use Redux state
   const { property } = useSelector((state) => state.property);
-  const finalPropertyId = isAdmin ? propertyId : property?.id;
+  const finalPropertyId = propertyId;
 
   // Debug logging
   console.log('AddRatePlan - propertyId prop:', propertyId);
