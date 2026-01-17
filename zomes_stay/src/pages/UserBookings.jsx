@@ -18,7 +18,7 @@ const UserBookings = () => {
   const [bookingsLoading, setBookingsLoading] = useState(false);
   const [bookingsError, setBookingsError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [bookingFilter, setBookingFilter] = useState('all'); // 'all', 'upcoming', 'past'
+  const [bookingFilter, setBookingFilter] = useState('all');
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [showBookingDetails, setShowBookingDetails] = useState(false);
   const [showRoomDetailsModal, setShowRoomDetailsModal] = useState(false);
