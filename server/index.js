@@ -1,8 +1,6 @@
-require('./src/config/env');
-require('./src/server')()
-// Load environment variables FIRST - before any other code
-
+// Load environment variables FIRST
 process.env.TZ = 'Asia/Kolkata';
+require('./src/config/env');
 
 const express = require('express');
 const { PrismaClient } = require('@prisma/client');
@@ -11,60 +9,57 @@ const path = require('path');
 const { createFrontDeskHoldCleanup } = require('./src/utils/frontdeskHoldCleanup');
 const { registerRoutes } = require('./src/routes/routeRegistry');
 
-// Initialize express app
+// Initialize app
 const app = express();
 const port = process.env.PORT || 5000;
 
-// Initialize Prisma client
+// Prisma
 const prisma = new PrismaClient();
+
+// Cleanup
 const HOLD_CLEANUP_INTERVAL_MS = parseInt(
   process.env.FRONTDESK_HOLD_CLEANUP_INTERVAL_MS || '60000',
   10
 );
 const frontDeskHoldCleanup = createFrontDeskHoldCleanup(prisma);
 
-// Enable CORS
+// CORS
 app.use(cors({
   origin: [
-    "http://localhost:5173",              // Local Dev
-    "https://techiconnect.shop",          // Main Domain (Frontend)
-    "https://www.techiconnect.shop",      // Optional (WWW)
-    "https://api.techiconnect.shop",      // API Subdomain
+    'http://localhost:5173',
+    'https://techiconnect.shop',
+    'https://www.techiconnect.shop',
+    'https://api.techiconnect.shop',
   ],
-  credentials: true
+  credentials: true,
 }));
 
-// Request logging middleware
+// Logging middleware
 const loggingMiddleware = (req, res, next) => {
-  console.log(`Incoming request: ${req.method} ${req.url}`);
+  console.log(`[${req.method}] ${req.url}`);
   next();
 };
 
-// ============================================================================
-// ROUTE REGISTRATION - Using Route Registry
-// ============================================================================
-// Routes are now organized by role in routeRegistry.js
-// This makes it easy to see which routes belong to which role
+// ================= ROUTES =================
 const routeManager = registerRoutes(app, loggingMiddleware);
 
-// Register webhooks FIRST (before JSON parser - webhook needs raw body)
+// Webhooks first (raw body)
 routeManager.registerWebhooks();
 
-// Parse JSON and URL-encoded bodies (AFTER webhook routes)
+// Body parsers
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve static files from uploads directory
+// Static uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Register all other routes (after JSON parser)
+// Other routes
 routeManager.registerAll();
 
-// Error handling middleware
+// ================= ERROR HANDLER =================
 app.use((err, req, res, next) => {
   console.error('Error:', err);
 
-  // Handle multer errors specifically
   if (err.code === 'LIMIT_FILE_SIZE') {
     return res.status(400).json({
       success: false,
@@ -86,49 +81,42 @@ app.use((err, req, res, next) => {
     });
   }
 
-  // Handle multer file filter errors
-  if (err.message && err.message.includes('Only image files are allowed')) {
+  if (err.message?.includes('Only image files are allowed')) {
     return res.status(400).json({
       success: false,
       message: err.message,
     });
   }
 
-  // Handle other errors
   res.status(500).json({
     success: false,
     error: 'Internal server error',
-    details: process.env.NODE_ENV === 'development' ? err.message : undefined
+    details: process.env.NODE_ENV === 'development' ? err.message : undefined,
   });
 });
 
-// Connect to database and start server
+// ================= START SERVER =================
 async function startServer() {
   try {
-    // Test database connection
     await prisma.$connect();
-    console.log('✅ Database connected successfully');
+    console.log('✅ Database connected');
 
-    // Start periodic cleanup of expired front desk holds
     await frontDeskHoldCleanup.start(HOLD_CLEANUP_INTERVAL_MS);
-    
-    // Start the server
+
     app.listen(port, () => {
-      console.log(`Server running on http://localhost:${port}`);
+      console.log(`🚀 Server running on http://localhost:${port}`);
     });
-  } catch (error) {
-    console.error('❌ Failed to connect to the database:', error);
+  } catch (err) {
+    console.error('❌ Startup failed:', err);
     process.exit(1);
   }
 }
 
-// Start the application
-startServer().catch(error => {
-  console.error('Fatal error during startup:', error);
-  process.exit(1);
-});
+startServer();
 
+// ================= GRACEFUL SHUTDOWN =================
 const shutdown = async () => {
+  console.log('🛑 Shutting down...');
   frontDeskHoldCleanup.stop();
   await prisma.$disconnect();
   process.exit(0);

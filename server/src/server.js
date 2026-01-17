@@ -12,17 +12,23 @@ const HOLD_INTERVAL = parseInt(
 const frontDeskHoldCleanup = createFrontDeskHoldCleanup(prisma);
 
 async function startServer() {
-  await prisma.$connect();
-  console.log('✅ Database connected');
+  try {
+    await prisma.$connect();
+    console.log('✅ Database connected');
 
-  await frontDeskHoldCleanup.start(HOLD_INTERVAL);
+    await frontDeskHoldCleanup.start(HOLD_INTERVAL);
 
-  app.listen(port, () => {
-    console.log(`🚀 Server running on http://localhost:${port}`);
-  });
+    app.listen(port, () => {
+      console.log(`🚀 Server running on http://localhost:${port}`);
+    });
+  } catch (err) {
+    console.error('❌ Failed to start server:', err);
+    process.exit(1);
+  }
 }
 
 const shutdown = async () => {
+  console.log('🛑 Graceful shutdown...');
   frontDeskHoldCleanup.stop();
   await prisma.$disconnect();
   process.exit(0);

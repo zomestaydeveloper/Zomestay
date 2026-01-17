@@ -7,17 +7,26 @@ const cors = require('cors');
 
 const app = express();
 
-app.use(cors());
 
-
-
+// Body parsers
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
-app.use(requestLogger);
 
+// Static files
+app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
+
+// Register routes
 registerRoutes(app);
 
+// 404 handler (must be after routes)
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: 'Route not found',
+  });
+});
+
+// Central error handler (last)
 app.use(errorHandler);
 
 module.exports = app;
