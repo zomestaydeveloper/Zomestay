@@ -17,8 +17,6 @@ const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
 const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER;
 
-console.log(process.env.TWILIO_ACCOUNT_SID, 'jj', process.env.TWILIO_AUTH_TOKEN, 'll', TWILIO_PHONE_NUMBER,'kk');
-
 // Validate Twilio credentials
 if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) {
   console.error('⚠️ WARNING: Twilio credentials not found in environment variables');

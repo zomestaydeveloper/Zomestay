@@ -81,6 +81,9 @@ const UserAuthController = {
         }
       }
 
+      console.log(process.env.TWILIO_ACCOUNT_SID, 'jj', process.env.TWILIO_AUTH_TOKEN, 'll', TWILIO_PHONE_NUMBER,'kk', process.env.SMS_PROVIDER,'dd');
+
+
       // Send OTP via SMS using template
       const smsMessage = smsTemplates.otp({ otp, expiresIn: 5 });
       
