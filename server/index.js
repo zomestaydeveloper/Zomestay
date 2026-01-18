@@ -4,7 +4,6 @@ require('./src/config/env');
 
 const express = require('express');
 const { PrismaClient } = require('@prisma/client');
-const cors = require('cors');
 const path = require('path');
 const { createFrontDeskHoldCleanup } = require('./src/utils/frontdeskHoldCleanup');
 const { registerRoutes } = require('./src/routes/routeRegistry');
@@ -22,17 +21,6 @@ const HOLD_CLEANUP_INTERVAL_MS = parseInt(
   10
 );
 const frontDeskHoldCleanup = createFrontDeskHoldCleanup(prisma);
-
-// CORS
-app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'https://techiconnect.shop',
-    'https://www.techiconnect.shop',
-    'https://api.techiconnect.shop',
-  ],
-  credentials: true,
-}));
 
 // Logging middleware
 const loggingMiddleware = (req, res, next) => {
