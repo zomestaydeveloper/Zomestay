@@ -221,7 +221,7 @@ const TaxConfigurationSection = ({
                     <label className="block text-xs text-gray-600 mb-1">Min (₹) *</label>
                     <input
                       type="number"
-                      value={slab.min === 0 ? "" : slab.min}
+                      value={slab.min === 0 ? 0 : slab.min}
                       onChange={(e) => handleSlabChange(index, "min", e.target.value)}
                       min="0"
                       step="1"
@@ -270,7 +270,7 @@ const TaxConfigurationSection = ({
                     <label className="block text-xs text-gray-600 mb-1">GST Rate (%) *</label>
                     <input
                       type="number"
-                      value={slab.rate === 0 ? "" : slab.rate}
+                      value={slab.rate === 0 ? 0 : slab.rate}
                       onChange={(e) => handleSlabChange(index, "rate", e.target.value)}
                       min="0"
                       max="100"

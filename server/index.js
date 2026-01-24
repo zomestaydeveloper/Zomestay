@@ -7,9 +7,34 @@ const { PrismaClient } = require('@prisma/client');
 const path = require('path');
 const { createFrontDeskHoldCleanup } = require('./src/utils/frontdeskHoldCleanup');
 const { registerRoutes } = require('./src/routes/routeRegistry');
+const cors = require('cors');
 
 // Initialize app
 const app = express();
+
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+];
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      // allow requests with no origin (like Postman)
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error('Not allowed by CORS'));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  })
+);
+
 const port = process.env.PORT || 5000;
 
 // Prisma

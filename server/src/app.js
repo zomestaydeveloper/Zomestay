@@ -6,7 +6,6 @@ const registerRoutes = require('./routes');
 
 const app = express();
 
-
 // Body parsers
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

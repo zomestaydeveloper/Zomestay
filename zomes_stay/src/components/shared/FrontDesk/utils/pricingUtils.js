@@ -6,9 +6,16 @@ import { getOccupancyValue, getExtraCapacityValue } from './occupancyUtils';
 import { calculateNights } from './dateUtils';
 import { numberFrom } from './formatUtils';
 
+export const DEFAULT_TAX_SLABS = [
+  { min: 0, max: 999, rate: 0 },
+  { min: 1000, max: 7499, rate: 5 },
+  { min: 7500, max: Infinity, rate: 18 }
+];
+
+
 export const calculatePricingSummary = (bookingContext, bookingDraft) => {
   if (!bookingContext || !bookingDraft) return null;
-  
+
   // PRODUCTION: Match by MealPlan.id (not PropertyRoomTypeMealPlan.id)
   // bookingDraft.mealPlanId contains MealPlan.id, but plan.id is PropertyRoomTypeMealPlan.id
   const mealPlan = (bookingContext.mealPlans || []).find(
@@ -105,7 +112,7 @@ export const calculatePricingSummary = (bookingContext, bookingDraft) => {
   const basePerNightTotal = basePerRoomPerNight * roomsSelected;
   const totalPerNight = basePerNightTotal + extrasPerNight;
   const totalBasePrice = totalPerNight * nights;
-  
+
   // Build extra breakdown array first (before using it)
   const extraBreakdown = [];
   if (extrasAdults > 0) {
@@ -129,40 +136,62 @@ export const calculatePricingSummary = (bookingContext, bookingDraft) => {
       perNight: extraInfantRate,
     });
   }
-  
-  // Calculate tax per room (5% for <= 7500, 18% for > 7500)
-  const calculateTaxForRoom = (roomBasePrice) => {
-    return roomBasePrice <= 7500 ? roomBasePrice * 0.05 : roomBasePrice * 0.18;
+
+  const taxSlabs =
+    bookingContext?.property?.taxSlabs?.length
+      ? bookingContext.property.taxSlabs
+      : DEFAULT_TAX_SLABS;
+
+
+  const getTaxPercentageFromSlabs = (amount, slabs) => {
+    if (!amount || amount <= 0) return 0;
+
+    const slab = slabs.find(s => {
+      const min = s.min ?? 0;
+      const max = s.max ?? Infinity;
+      return amount >= min && amount <= max;
+    });
+
+    return slab?.rate || 0;
   };
-  
+
+  const calculateTaxFromSlabs = (amount, slabs) => {
+    const rate = getTaxPercentageFromSlabs(amount, slabs);
+    return (amount * rate) / 100;
+  };
+
   // Calculate tax for each room and sum them
   let totalTax = 0;
-  const perRoomBreakdownWithTax = Array.from({ length: roomsSelected }, (_, index) => {
+  const perRoomBreakdown = Array.from({ length: roomsSelected }, (_, index) => {
     const isFirstRoom = index === 0;
+
     const perNight =
       basePerRoomPerNight + (isFirstRoom ? extrasPerNight : 0);
+
     const roomBasePrice = perNight * nights;
-    const roomTax = calculateTaxForRoom(roomBasePrice);
+    const roomTax = calculateTaxFromSlabs(roomBasePrice, taxSlabs);
+    const taxRate = getTaxPercentageFromSlabs(roomBasePrice, taxSlabs);
+
     totalTax += roomTax;
-    
+
     return {
       roomIndex: index + 1,
       baseGuests: occupancy,
-      baseCount: occupancy,
       basePerNight: basePerRoomPerNight,
       extras: isFirstRoom ? extraBreakdown : [],
       perNight,
       total: roomBasePrice,
+      taxRate,
       tax: roomTax,
-      totalWithTax: roomBasePrice + roomTax,
+      totalWithTax: roomBasePrice + roomTax
     };
   });
-  
+
   const total = totalBasePrice + totalTax;
 
   return {
     total,
-    perRoomBreakdown: perRoomBreakdownWithTax,
+    perRoomBreakdown,
     nights,
     extras: {
       adults: extrasAdults,
