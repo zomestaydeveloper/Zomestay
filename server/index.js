@@ -12,8 +12,6 @@ const { registerRoutes } = require('./src/routes/routeRegistry');
 // Initialize app
 const app = express();
 
-
-
 const port = process.env.PORT || 5000;
 
 // Prisma

@@ -22,6 +22,7 @@ import BookingFailure from "../pages/BookingFailure";
 import HostSignup from "../pages/Host/HostRegister";
 import PrivacyPolicy from "../pages/PrivacyPolicy";
 import TermsAndConditions from "../pages/TermsAndConditions";
+import CancellationRefund from "../pages/CancellationRefund";
 
 //
 /**
@@ -62,6 +63,7 @@ const PublicRoutes = () => {
         <Route path="booking-failure" element={<BookingFailure />} />
         <Route path="privacy-policy" element={<PrivacyPolicy />} />
         <Route path="terms-and-conditions" element={<TermsAndConditions />} />
+        <Route path="cancellation-refund" element={<CancellationRefund />} />
       </Route>
     </Routes>
   );
