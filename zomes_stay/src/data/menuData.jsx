@@ -1,13 +1,13 @@
 // menuData.js
 import {
   Home,
-  
+
   Users,
   BedDouble,
   Shield,
   LayoutList,
   ClipboardList,
-  
+
   CalendarCheck,
   Wallet,
   Wrench,
@@ -92,6 +92,16 @@ export const MENU = [
     path: "site-configuration",
   },
 
+  {
+    label: "Registered Users",
+    icon: <Users size={18} />,
+    path: "/admin/base/registred_users",
+  },
+  {
+    label: "Hosts",
+    icon: <Users size={18} />,
+    path: "/admin/base/hosts",
+  },
   {
     label: "Callback Requests",
     icon: <Phone className="w-4 h-4" />,

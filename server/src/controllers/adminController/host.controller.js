@@ -308,6 +308,40 @@ const HostController = {
     }
   },
 
+  getAllHosts: async (req, res) => {
+    try {
+      const hosts = await prisma.host.findMany({
+        where: { isDeleted: false },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          phone: true,
+          profileImage: true,
+          isVerified: true,
+          isActive: true,
+          createdAt: true,
+          _count: {
+            select: { properties: true }
+          }
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      return res.status(200).json({
+        success: true,
+        data: hosts
+      });
+    } catch (error) {
+      console.error('Get All Hosts Error:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to fetch hosts'
+      });
+    }
+  },
+
   sendOTP: async (req, res) => {
     try {
       const { phone, countryCode = '+91' } = req.body;

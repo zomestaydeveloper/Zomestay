@@ -68,19 +68,24 @@ export const HOST_ADMIN_COMMON = {
   // Front Desk (Both Host and Admin can access)
   FRONT_DESK: {
     SNAPSHOT: (propertyId) => `/properties/${propertyId}/front-desk`,
-    BOOKING_CONTEXT: (propertyId, roomTypeId) => 
+    BOOKING_CONTEXT: (propertyId, roomTypeId) =>
       `/properties/${propertyId}/front-desk/room-types/${roomTypeId}/booking-context`,
     HOLDS: (propertyId) => `/properties/${propertyId}/front-desk/holds`,
     PAYMENT_LINKS: (propertyId) => `/properties/${propertyId}/front-desk/payment-links`,
     BLOCKS: (propertyId) => `/properties/${propertyId}/front-desk/blocks`,
-    BLOCK_DETAIL: (propertyId, availabilityId) => 
+    BLOCK_DETAIL: (propertyId, availabilityId) =>
       `/properties/${propertyId}/front-desk/blocks/${availabilityId}`,
     MAINTENANCE: (propertyId) => `/properties/${propertyId}/front-desk/maintenance`,
-    MAINTENANCE_DETAIL: (propertyId, availabilityId) => 
+    MAINTENANCE_DETAIL: (propertyId, availabilityId) =>
       `/properties/${propertyId}/front-desk/maintenance/${availabilityId}`,
     OUT_OF_SERVICE: (propertyId) => `/properties/${propertyId}/front-desk/out-of-service`,
-    OUT_OF_SERVICE_DETAIL: (propertyId, availabilityId) => 
+    OUT_OF_SERVICE_DETAIL: (propertyId, availabilityId) =>
       `/properties/${propertyId}/front-desk/out-of-service/${availabilityId}`,
+  },
+
+  // Hosts (Admin)
+  HOSTS: {
+    ALL: '/admin/host/all-hosts',
   },
 };
 

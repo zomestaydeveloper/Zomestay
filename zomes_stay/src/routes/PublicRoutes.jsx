@@ -20,6 +20,8 @@ import WhishList from "../pages/WhishList";
 import BookingSuccess from "../pages/BookingSuccess";
 import BookingFailure from "../pages/BookingFailure";
 import HostSignup from "../pages/Host/HostRegister";
+import PrivacyPolicy from "../pages/PrivacyPolicy";
+import TermsAndConditions from "../pages/TermsAndConditions";
 
 //
 /**
@@ -37,7 +39,7 @@ const PublicRoutes = () => {
       <Route path="/admin" element={<AdminLogin />} />
       <Route path="/host" element={<HostLogin />} />
       <Route path="/host-register" element={<HostSignup />} />
-      <Route path="/login" element={<UserLoginPage />} /> 
+      <Route path="/login" element={<UserLoginPage />} />
       <Route path="/otp-verified" element={<OtpVerified />} />
       <Route path="/debug/redux" element={<ReduxDebug />} />
 
@@ -58,6 +60,8 @@ const PublicRoutes = () => {
         <Route path="whishList" element={<WhishList />} />
         <Route path="booking-success" element={<BookingSuccess />} />
         <Route path="booking-failure" element={<BookingFailure />} />
+        <Route path="privacy-policy" element={<PrivacyPolicy />} />
+        <Route path="terms-and-conditions" element={<TermsAndConditions />} />
       </Route>
     </Routes>
   );

@@ -24,6 +24,7 @@ import CancellationPolicy from "../pages/Admin/cancellation_policy/cancellation_
 import SiteConfiguration from "../pages/Admin/Siteconfiguration";
 import CallbackRequests from "../pages/Admin/CallbackRequests";
 import CancellationRequests from "../pages/Admin/CancellationRequests";
+import HostList from "../pages/Admin/HostList";
 import { AdminProtectedRoute } from "./ProtectedRoute";
 
 /**
@@ -61,6 +62,7 @@ const AdminRoutes = () => {
         <Route path="meal_plans" element={<MealPlan />} />
         <Route path="all_bookings" element={<AllBookings />} />
         <Route path="registred_users" element={<RegisteredUsers />} />
+        <Route path="hosts" element={<HostList />} />
         <Route path="transactions" element={<PaymentsTransactions />} />
         <Route path="promotion" element={<PromotionsDiscounts />} />
         <Route path="cancellation_policies" element={<CancellationPolicy />} />

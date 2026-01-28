@@ -12,6 +12,7 @@ HostRoute.post('/host-otp', HostController.sendOTP);
 HostRoute.post('/host-resend-otp', HostController.resendOTP);
 HostRoute.post('/host-verify-otp', HostController.verifyOTP);
 HostRoute.post('/host-logout', HostController.hostLogout);
+HostRoute.get('/admin/host/all-hosts', HostController.getAllHosts);
 HostRoute.get('/host-properties/:hostId', HostController.hostPropertys);
 HostRoute.patch('/host-property/:propertyId/basics', HostController.updateHostPropertyBasics);
 HostRoute.patch('/host-property/:propertyId/location', HostController.updateHostPropertyLocation);
