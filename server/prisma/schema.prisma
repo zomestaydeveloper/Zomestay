@@ -387,7 +387,7 @@ model Property {
   orders                 Order[]
   agentDiscounts         TravelAgentPropertyDiscount[]
 
-  @@unique([title, isDeleted])
+  @@index([title])
   @@index([ownerHostId])
   @@index([propertyTypeId])
   @@index([cancellationPolicyId])
